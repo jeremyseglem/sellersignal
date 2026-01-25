@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SellerSignal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #0f1a24;
+            --bg-sidebar: #0a1218;
+            --bg-card: #162430;
+            --bg-input: #1a2a3a;
+            --text: #FDFCFA;
+            --text-secondary: #8a9aa8;
+            --text-tertiary: #5a6a78;
+            --accent: #c4a87c;
+            --accent-dim: rgba(196, 168, 124, 0.15);
+            --border: #1e3040;
+            --score-high: #4ade80;
+            --score-medium: #fbbf24;
+            --score-low: #f87171;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; height: 100vh; overflow: hidden; }
+        .app { display: grid; grid-template-columns: 260px 1fr; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; }
+        .sidebar-header { padding: 0 24px 24px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-mark { width: 32px; height: 32px; border: 2px solid var(--text); border-radius: 50%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding-bottom: 7px; }
+        .logo-mark .bar { width: 3px; background: var(--text); border-radius: 1px; }
+        .logo-mark .bar:nth-child(1) { height: 5px; }
+        .logo-mark .bar:nth-child(2) { height: 9px; }
+        .logo-mark .bar:nth-child(3) { height: 13px; }
+        .logo-text { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); }
+        .nav { flex: 1; padding: 0 12px; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; color: var(--text-secondary); font-size: 14px; cursor: pointer; margin-bottom: 4px; transition: all 0.15s; }
+        .nav-item:hover { background: var(--bg-card); color: var(--text); }
+        .nav-item.active { background: var(--accent-dim); color: var(--accent); }
+        .nav-item svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+        .signals-remaining { padding: 20px; margin: 0 12px 24px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border); }
+        .signals-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+        .signals-count { font-family: 'DM Serif Display', serif; font-size: 32px; color: var(--text); }
+        .signals-count span { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text-tertiary); }
+        .sidebar-footer { padding: 24px; border-top: 1px solid var(--border); margin-top: auto; }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .user-avatar { width: 36px; height: 36px; background: var(--accent-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; color: var(--accent); }
+        .user-details { flex: 1; }
+        .user-name { font-size: 14px; font-weight: 500; color: var(--text); }
+        .user-plan { font-size: 12px; color: var(--text-tertiary); }
+        .sign-in-btn { padding: 10px 16px; background: var(--accent); color: var(--bg); border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; width: 100%; }
+        
+        /* Main */
+        .main { display: flex; flex-direction: column; overflow: hidden; }
+        .header { padding: 24px 40px; border-bottom: 1px solid var(--border); }
+        .header h1 { font-family: 'DM Serif Display', serif; font-size: 24px; font-weight: 400; }
+        .content { flex: 1; overflow-y: auto; padding: 40px; }
+        
+        /* Search */
+        .search-container { max-width: 800px; margin-bottom: 48px; }
+        .search-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        .input-group label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); }
+        .input-group input { padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; font-size: 15px; color: var(--text); font-family: inherit; }
+        .input-group input:focus { outline: none; border-color: var(--accent); }
+        .input-group input::placeholder { color: var(--text-tertiary); }
+        .search-btn { align-self: flex-end; padding: 14px 28px; background: var(--accent); color: var(--bg); border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; }
+        .search-btn:hover { background: #d4b88c; }
+        .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* Loading */
+        .loading { display: none; text-align: center; padding: 80px 40px; }
+        .loading.active { display: block; }
+        .loading-spinner { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 24px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading h3 { font-family: 'DM Serif Display', serif; font-size: 20px; }
+        
+        /* Error */
+        .error-message { display: none; padding: 20px; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 8px; color: var(--score-low); margin-bottom: 24px; }
+        .error-message.active { display: block; }
+        
+        /* Empty State */
+        .empty-state { text-align: center; padding: 80px 40px; }
+        .empty-state h3 { font-family: 'DM Serif Display', serif; font-size: 24px; margin-bottom: 12px; }
+        .empty-state p { font-size: 15px; color: var(--text-tertiary); max-width: 400px; margin: 0 auto; }
+        
+        /* Results */
+        .result-card { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; max-width: 900px; }
+        .result-card.active { display: block; }
+        .result-header { padding: 32px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border); }
+        .result-subject h2 { font-family: 'DM Serif Display', serif; font-size: 32px; font-weight: 400; margin-bottom: 8px; }
+        .result-address { font-size: 15px; color: var(--text-secondary); }
+        .result-score { text-align: right; }
+        .score-value { font-family: 'Inter', sans-serif; font-size: 64px; font-weight: 600; line-height: 1; }
+        .score-value.high { color: var(--score-high); }
+        .score-value.medium { color: var(--score-medium); }
+        .score-value.low { color: var(--score-low); }
+        .score-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 8px; }
+        .score-label.high { color: var(--score-high); }
+        .score-label.medium { color: var(--score-medium); }
+        .score-label.low { color: var(--score-low); }
+        .result-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); }
+        .metric { padding: 24px 32px; border-right: 1px solid var(--border); }
+        .metric:last-child { border-right: none; }
+        .metric-label { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+        .metric-value { font-size: 20px; font-weight: 600; color: var(--text); }
+        .metric-value.money { color: var(--accent); }
+        .result-intel { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border); }
+        .intel-block { padding: 32px; border-right: 1px solid var(--border); }
+        .intel-block:nth-child(2n) { border-right: none; }
+        .intel-block h3 { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+        .intel-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; }
+        .intel-row-label { color: var(--text-tertiary); }
+        .intel-row-value { color: var(--text); font-weight: 500; text-align: right; max-width: 55%; }
+        .result-signals { padding: 32px; border-bottom: 1px solid var(--border); background: rgba(196, 168, 124, 0.03); }
+        .signals-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .signals-header h3 { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+        .signals-header span { font-size: 13px; color: var(--accent); font-weight: 500; }
+        .signal-tags { display: flex; flex-wrap: wrap; gap: 10px; }
+        .signal-tag { padding: 10px 14px; background: var(--bg); border-left: 2px solid var(--accent); font-size: 13px; color: var(--text-secondary); }
+        .result-approach { padding: 32px; background: var(--bg-input); border-bottom: 1px solid var(--border); }
+        .approach-header { margin-bottom: 24px; }
+        .approach-header h3 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 4px; }
+        .approach-header p { font-size: 13px; color: var(--text-tertiary); }
+        .approach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; }
+        .approach-block h4 { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+        .approach-block p { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+        
+        /* Scripts */
+        .result-scripts { padding: 32px; background: var(--bg-card); }
+        .scripts-header { margin-bottom: 24px; }
+        .scripts-header h3 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 4px; }
+        .scripts-header p { font-size: 13px; color: var(--text-tertiary); }
+        .script-tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+        .script-tab { padding: 14px 24px; font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); cursor: pointer; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; font-family: inherit; }
+        .script-tab:hover { color: var(--text-secondary); }
+        .script-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .script-content { display: none; padding: 24px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+        .script-content.active { display: block; }
+        .script-content p { font-size: 15px; color: var(--text-secondary); line-height: 1.9; white-space: pre-wrap; }
+        .script-label { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 12px; display: block; }
+        .copy-btn { margin-top: 16px; padding: 10px 16px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; }
+        .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+        
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; max-width: 400px; width: 90%; }
+        .modal h2 { font-family: 'DM Serif Display', serif; font-size: 24px; margin-bottom: 8px; }
+        .modal p { color: var(--text-tertiary); margin-bottom: 24px; font-size: 14px; }
+        .modal .input-group { margin-bottom: 16px; }
+        .modal-btn { width: 100%; padding: 14px; background: var(--accent); color: var(--bg); border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; margin-top: 8px; }
+        .modal-footer { margin-top: 20px; text-align: center; font-size: 13px; color: var(--text-tertiary); }
+        .modal-footer a { color: var(--accent); cursor: pointer; }
+        .auth-error { background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); padding: 12px; border-radius: 6px; color: var(--score-low); font-size: 13px; margin-bottom: 16px; display: none; }
+        .auth-error.active { display: block; }
+        
+        /* Responsive */
+        @media (max-width: 900px) {
+            .app { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .search-form { grid-template-columns: 1fr; }
+            .result-metrics { grid-template-columns: repeat(2, 1fr); }
+            .result-intel { grid-template-columns: 1fr; }
+            .intel-block { border-right: none; border-bottom: 1px solid var(--border); }
+            .approach-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-mark">
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                    </div>
+                    <span class="logo-text">SellerSignal</span>
+                </div>
+            </div>
+            <nav class="nav">
+                <div class="nav-item active">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+                    New Signal
+                </div>
+                <div class="nav-item">
+                    <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    History
+                </div>
+            </nav>
+            <div class="signals-remaining">
+                <div class="signals-label">Signals Remaining</div>
+                <div class="signals-count"><span id="signalsCount">3</span> <span>/ <span id="signalsLimit">3</span></span></div>
+            </div>
+            <div class="sidebar-footer" id="sidebarFooter">
+                <button class="sign-in-btn" onclick="showAuthModal('signin')">Sign In</button>
+            </div>
+        </aside>
+
+        <main class="main">
+            <header class="header">
+                <h1>New Signal</h1>
+            </header>
+            <div class="content">
+                <div class="search-container">
+                    <div class="error-message" id="errorMessage"></div>
+                    <form class="search-form" onsubmit="runSearch(event)">
+                        <div class="input-group">
+                            <label>Owner Name</label>
+                            <input type="text" id="ownerName" placeholder="e.g. John Davidson" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Property Address</label>
+                            <input type="text" id="propertyAddress" placeholder="e.g. 123 Main St, Scottsdale, AZ" required>
+                        </div>
+                        <button type="submit" class="search-btn" id="searchBtn">Get Signal</button>
+                    </form>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="loading-spinner"></div>
+                    <h3>Gathering intelligence</h3>
+                </div>
+
+                <div class="result-card" id="result"></div>
+
+                <div class="empty-state" id="emptyState">
+                    <h3>Enter a prospect to begin</h3>
+                    <p>Type a property owner's name and address above to generate a comprehensive intelligence report.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal" id="authModalContent"></div>
+    </div>
+
+    <script>
+        // ===================
+        // CONFIG - Update with your Supabase credentials
+        // ===================
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabaseClient = null;
+        if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        let currentUser = null;
+        let userProfile = null;
+        let currentResult = null;
+        let currentTab = 'letter';
+
+        // ===================
+        // INIT
+        // ===================
+        async function init() {
+            if (supabaseClient) {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    currentUser = session.user;
+                    await loadProfile();
+                }
+                supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                    currentUser = session?.user || null;
+                    if (currentUser) await loadProfile();
+                    else userProfile = null;
+                    updateUI();
+                });
+            }
+            updateUI();
+        }
+
+        async function loadProfile() {
+            if (!supabaseClient || !currentUser) return;
+            const { data } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
+            userProfile = data;
+        }
+
+        function updateUI() {
+            const footer = document.getElementById('sidebarFooter');
+            const countEl = document.getElementById('signalsCount');
+            const limitEl = document.getElementById('signalsLimit');
+            
+            if (currentUser && userProfile) {
+                const used = userProfile.signals_used || 0;
+                const limit = userProfile.signals_limit || 3;
+                const remaining = Math.max(0, limit - used);
+                countEl.textContent = remaining;
+                limitEl.textContent = limit;
+                
+                footer.innerHTML = `
+                    <div class="user-info">
+                        <div class="user-avatar">${(userProfile.email || '?')[0].toUpperCase()}</div>
+                        <div class="user-details">
+                            <div class="user-name">${userProfile.email?.split('@')[0] || 'User'}</div>
+                            <div class="user-plan">${(userProfile.plan || 'free').charAt(0).toUpperCase() + (userProfile.plan || 'free').slice(1)}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const localUsed = parseInt(localStorage.getItem('signalsUsed') || '0');
+                countEl.textContent = Math.max(0, 3 - localUsed);
+                limitEl.textContent = '3';
+            }
+        }
+
+        function canSearch() {
+            if (currentUser && userProfile) {
+                return (userProfile.signals_used || 0) < (userProfile.signals_limit || 3);
+            }
+            return parseInt(localStorage.getItem('signalsUsed') || '0') < 3;
+        }
+
+        // ===================
+        // AUTH
+        // ===================
+        function showAuthModal(mode = 'signin') {
+            const modal = document.getElementById('authModal');
+            const content = document.getElementById('authModalContent');
+            
+            if (mode === 'signin') {
+                content.innerHTML = `
+                    <h2>Sign In</h2>
+                    <p>Sign in to track your signals and upgrade your plan.</p>
+                    <div class="auth-error" id="authError"></div>
+                    <div class="input-group">
+                        <label>Email</label>
+                        <input type="email" id="authEmail" placeholder="you@example.com">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="authPassword" placeholder="••••••••">
+                    </div>
+                    <button class="modal-btn" onclick="signIn()">Sign In</button>
+                    <div class="modal-footer">
+                        Don't have an account? <a onclick="showAuthModal('signup')">Sign Up</a>
+                        <br><br><a onclick="hideAuthModal()">Continue without account</a>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = `
+                    <h2>Create Account</h2>
+                    <p>Sign up to save your signals and unlock more features.</p>
+                    <div class="auth-error" id="authError"></div>
+                    <div class="input-group">
+                        <label>Email</label>
+                        <input type="email" id="authEmail" placeholder="you@example.com">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="authPassword" placeholder="••••••••">
+                    </div>
+                    <button class="modal-btn" onclick="signUp()">Create Account</button>
+                    <div class="modal-footer">
+                        Already have an account? <a onclick="showAuthModal('signin')">Sign In</a>
+                        <br><br><a onclick="hideAuthModal()">Continue without account</a>
+                    </div>
+                `;
+            }
+            modal.classList.add('active');
+        }
+
+        function hideAuthModal() {
+            document.getElementById('authModal').classList.remove('active');
+        }
+
+        function showAuthError(msg) {
+            const el = document.getElementById('authError');
+            el.textContent = msg;
+            el.classList.add('active');
+        }
+
+        async function signIn() {
+            if (!supabaseClient) { showAuthError('Authentication not configured'); return; }
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            if (!email || !password) { showAuthError('Enter email and password'); return; }
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) showAuthError(error.message);
+            else hideAuthModal();
+        }
+
+        async function signUp() {
+            if (!supabaseClient) { showAuthError('Authentication not configured'); return; }
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            if (!email || !password) { showAuthError('Enter email and password'); return; }
+            if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
+            const { error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) showAuthError(error.message);
+            else { hideAuthModal(); alert('Account created! Check your email to confirm.'); }
+        }
+
+        // ===================
+        // SEARCH
+        // ===================
+        async function runSearch(e) {
+            e.preventDefault();
+            
+            if (!canSearch()) {
+                showAuthModal('signup');
+                return;
+            }
+            
+            const name = document.getElementById('ownerName').value;
+            const address = document.getElementById('propertyAddress').value;
+            
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('result').classList.remove('active');
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('errorMessage').classList.remove('active');
+            document.getElementById('searchBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/research', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ownerName: name,
+                        propertyAddress: address,
+                        userId: currentUser?.id
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Research failed');
+                }
+
+                const result = await response.json();
+                currentResult = result;
+                renderResult(result);
+
+                // Increment usage
+                if (currentUser && supabaseClient) {
+                    await fetch(`/api/profile/${currentUser.id}/increment`, { method: 'POST' });
+                    if (userProfile) userProfile.signals_used = (userProfile.signals_used || 0) + 1;
+                } else {
+                    const localUsed = parseInt(localStorage.getItem('signalsUsed') || '0');
+                    localStorage.setItem('signalsUsed', (localUsed + 1).toString());
+                }
+                updateUI();
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('errorMessage').textContent = error.message;
+                document.getElementById('errorMessage').classList.add('active');
+                document.getElementById('emptyState').style.display = 'block';
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('searchBtn').disabled = false;
+            }
+        }
+
+        function renderResult(data) {
+            const scoreClass = data.score >= 70 ? 'high' : data.score >= 40 ? 'medium' : 'low';
+            const scripts = data.scripts || { letter: 'N/A', phone: 'N/A', door: 'N/A', email: 'N/A' };
+            
+            document.getElementById('result').innerHTML = `
+                <div class="result-header">
+                    <div class="result-subject">
+                        <h2>${data.name || 'Unknown'}</h2>
+                        <p class="result-address">${data.address || ''}</p>
+                    </div>
+                    <div class="result-score">
+                        <div class="score-value ${scoreClass}">${data.score || 0}</div>
+                        <div class="score-label ${scoreClass}">${data.scoreLabel || 'Unknown'}</div>
+                    </div>
+                </div>
+
+                <div class="result-metrics">
+                    <div class="metric">
+                        <div class="metric-label">Est. Value</div>
+                        <div class="metric-value money">${data.metrics?.estimatedValue || 'Unknown'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Est. Equity</div>
+                        <div class="metric-value money">${data.metrics?.estimatedEquity || 'Unknown'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Owned Since</div>
+                        <div class="metric-value">${data.metrics?.ownedSince || 'Unknown'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Age Range</div>
+                        <div class="metric-value">${data.metrics?.ageRange || 'Unknown'}</div>
+                    </div>
+                </div>
+
+                <div class="result-intel">
+                    <div class="intel-block">
+                        <h3>Who They Are</h3>
+                        <div class="intel-row"><span class="intel-row-label">Spouse</span><span class="intel-row-value">${data.whoTheyAre?.spouse || 'Unknown'}</span></div>
+                        <div class="intel-row"><span class="intel-row-label">Occupation</span><span class="intel-row-value">${data.whoTheyAre?.occupation || 'Unknown'}</span></div>
+                        <div class="intel-row"><span class="intel-row-label">Ownership</span><span class="intel-row-value">${data.whoTheyAre?.ownership || 'Unknown'}</span></div>
+                        <div class="intel-row"><span class="intel-row-label">Decision Style</span><span class="intel-row-value">${data.whoTheyAre?.decisionStyle || 'Unknown'}</span></div>
+                    </div>
+                    <div class="intel-block">
+                        <h3>How They Think</h3>
+                        <div class="intel-row"><span class="intel-row-label">Financial Mindset</span><span class="intel-row-value">${data.howTheyThink?.financialMindset || 'Unknown'}</span></div>
+                        <div class="intel-row"><span class="intel-row-label">Communication</span><span class="intel-row-value">${data.howTheyThink?.communication || 'Unknown'}</span></div>
+                        <div class="intel-row"><span class="intel-row-label">Social Position</span><span class="intel-row-value">${data.howTheyThink?.socialPosition || 'Unknown'}</span></div>
+                        <div class="intel-row"><span class="intel-row-label">Best Channel</span><span class="intel-row-value">${data.howTheyThink?.bestChannel || 'Unknown'}</span></div>
+                    </div>
+                </div>
+
+                <div class="result-signals">
+                    <div class="signals-header">
+                        <h3>Why They'll Sell</h3>
+                        <span>${(data.signals || []).length} signals detected</span>
+                    </div>
+                    <div class="signal-tags">
+                        ${(data.signals || []).map(s => `<div class="signal-tag">${s}</div>`).join('')}
+                    </div>
+                </div>
+
+                <div class="result-approach">
+                    <div class="approach-header">
+                        <h3>Recommended Approach</h3>
+                        <p>Based on psychological and situational analysis</p>
+                    </div>
+                    <div class="approach-grid">
+                        <div class="approach-block"><h4>Opening</h4><p>${data.approach?.opening || 'N/A'}</p></div>
+                        <div class="approach-block"><h4>Key Messages</h4><p>${data.approach?.keyMessages || 'N/A'}</p></div>
+                        <div class="approach-block"><h4>Avoid</h4><p>${data.approach?.avoid || 'N/A'}</p></div>
+                        <div class="approach-block"><h4>Timeline</h4><p>${data.approach?.timeline || 'N/A'}</p></div>
+                    </div>
+                </div>
+
+                <div class="result-scripts">
+                    <div class="scripts-header">
+                        <h3>What to Say</h3>
+                        <p>Personalized scripts for each channel</p>
+                    </div>
+                    <div class="script-tabs">
+                        <button class="script-tab active" onclick="switchTab('letter')">Letter</button>
+                        <button class="script-tab" onclick="switchTab('phone')">Phone</button>
+                        <button class="script-tab" onclick="switchTab('door')">Door</button>
+                        <button class="script-tab" onclick="switchTab('email')">Email</button>
+                    </div>
+                    <div class="script-content active" id="script-letter"><span class="script-label">Letter Script</span><p>${scripts.letter}</p></div>
+                    <div class="script-content" id="script-phone"><span class="script-label">Phone Script</span><p>${scripts.phone}</p></div>
+                    <div class="script-content" id="script-door"><span class="script-label">Door Script</span><p>${scripts.door}</p></div>
+                    <div class="script-content" id="script-email"><span class="script-label">Email Script</span><p>${scripts.email}</p></div>
+                    <button class="copy-btn" onclick="copyScript()">Copy to Clipboard</button>
+                </div>
+            `;
+            document.getElementById('result').classList.add('active');
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.script-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.script-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('script-' + tab).classList.add('active');
+        }
+
+        function copyScript() {
+            const content = currentResult?.scripts?.[currentTab] || '';
+            navigator.clipboard.writeText(content).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy to Clipboard', 2000);
+            });
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
