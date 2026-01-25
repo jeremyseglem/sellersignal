@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SellerSignal - Automated Seller Intelligence</title>
+  <meta name="description" content="AI-powered real estate prospect research and personalized outreach generation">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg-dark: #0a0f0d;
+      --bg-card: #131a16;
+      --bg-input: #1a2320;
+      --accent-green: #34d399;
+      --accent-green-dim: #10b981;
+      --accent-green-dark: #059669;
+      --accent-amber: #fbbf24;
+      --accent-red: #f87171;
+      --accent-blue: #60a5fa;
+      --accent-purple: #a78bfa;
+      --text-primary: #f0fdf4;
+      --text-secondary: #a7c4b5;
+      --text-muted: #5c7a6b;
+      --border: #2d3d35;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg-dark); color: var(--text-primary); min-height: 100vh; padding: 24px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 40px; position: relative; }
+    .logo-container { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 8px; cursor: pointer; }
+    .title { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; }
+    .title span { color: var(--accent-green); }
+    .tagline { color: var(--text-muted); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+    .badge { color: var(--accent-green); font-size: 12px; padding: 6px 14px; background: rgba(52, 211, 153, 0.1); border-radius: 20px; display: inline-block; border: 1px solid rgba(52, 211, 153, 0.3); }
+    .account-bar { position: absolute; top: 0; right: 0; display: flex; align-items: center; gap: 16px; }
+    .searches-remaining { font-size: 12px; color: var(--text-muted); }
+    .searches-remaining strong { color: var(--accent-green); }
+    .account-btn { padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: inherit; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); cursor: pointer; }
+    .account-btn:hover { border-color: var(--accent-green); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 36px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .card-sm { padding: 28px; }
+    .form-group { margin-bottom: 24px; }
+    .label { display: block; font-size: 12px; font-weight: 600; color: var(--accent-green); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .input { width: 100%; padding: 18px 20px; background: var(--bg-dark); border: 2px solid var(--border); border-radius: 12px; color: var(--text-primary); font-size: 17px; font-family: inherit; outline: none; }
+    .input:focus { border-color: var(--accent-green); }
+    .input::placeholder { color: #3d4d45; }
+    .input-hint { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 18px 28px; font-size: 16px; font-weight: 700; font-family: inherit; border: none; border-radius: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
+    .btn-primary { width: 100%; background: linear-gradient(135deg, var(--accent-green-dark), var(--accent-green-dim), var(--accent-green)); color: var(--bg-dark); }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(52, 211, 153, 0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-secondary { padding: 14px 24px; background: var(--bg-dark); color: var(--text-primary); border: 2px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent-green); }
+    .loading-container { text-align: center; padding: 48px 36px; }
+    .spinner { width: 64px; height: 64px; border: 4px solid var(--bg-input); border-top-color: var(--accent-green); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 24px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-size: 22px; font-weight: 600; margin-bottom: 12px; }
+    .loading-text { color: var(--text-muted); font-size: 14px; }
+    .progress-bar { margin-top: 32px; height: 4px; background: var(--bg-input); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent-green); border-radius: 2px; transition: width 0.3s ease; }
+    .error { margin-top: 20px; padding: 16px; background: #1a1215; border: 1px solid var(--accent-red); border-radius: 10px; color: var(--accent-red); font-size: 14px; }
+    .profile-header { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
+    .avatar { width: 80px; height: 80px; background: linear-gradient(135deg, var(--accent-green-dark), var(--accent-green)); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: var(--bg-dark); flex-shrink: 0; }
+    .profile-info { flex: 1; min-width: 200px; }
+    .profile-name { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+    .profile-address { color: var(--text-muted); font-size: 14px; margin-bottom: 6px; }
+    .profile-occupation { color: var(--text-secondary); font-size: 14px; }
+    .score-box { text-align: center; padding: 16px 24px; background: rgba(52, 211, 153, 0.05); border-radius: 16px; border: 2px solid var(--accent-green); }
+    .score-value { font-size: 40px; font-weight: 800; line-height: 1; }
+    .score-label { font-size: 10px; text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+    .score-high { color: var(--accent-green); border-color: var(--accent-green); }
+    .score-medium { color: var(--accent-amber); border-color: var(--accent-amber); }
+    .score-low { color: var(--accent-red); border-color: var(--accent-red); }
+    .intel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .intel-item { padding: 14px 16px; background: var(--bg-dark); border-radius: 10px; border-left: 3px solid var(--accent-green); }
+    .intel-label { font-size: 11px; color: var(--accent-green); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; font-weight: 500; }
+    .intel-value { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+    .intel-value-highlight { color: var(--accent-green); }
+    .intel-subvalue { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .signals-title { font-size: 12px; color: var(--accent-green); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; font-weight: 600; }
+    .signals-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+    .signal { padding: 10px 14px; background: var(--bg-dark); border-radius: 8px; font-size: 14px; border-left: 3px solid var(--text-muted); }
+    .signal-positive { border-left-color: var(--accent-green); }
+    .signal-negative { border-left-color: var(--accent-red); }
+    .signal-neutral { border-left-color: var(--accent-amber); }
+    .section-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .summary-box { padding: 16px 18px; background: var(--bg-dark); border-radius: 10px; margin-bottom: 20px; border-left: 3px solid var(--accent-green); font-size: 14px; line-height: 1.7; }
+    .analysis-text { font-size: 14px; color: var(--text-secondary); line-height: 1.8; }
+    .analysis-text p { margin-bottom: 14px; }
+    .profile-section { background: var(--bg-dark); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .profile-section-title { font-size: 12px; font-weight: 600; color: var(--accent-green); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .profile-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .profile-row:last-child { border-bottom: none; }
+    .profile-row-label { color: var(--accent-green); font-size: 13px; font-weight: 500; }
+    .profile-row-value { color: var(--text-primary); text-align: right; max-width: 60%; font-size: 14px; }
+    .approach-list { list-style: none; padding: 0; }
+    .approach-list li { padding: 10px 14px; background: var(--bg-dark); border-radius: 8px; margin-bottom: 8px; font-size: 14px; border-left: 3px solid var(--accent-purple); }
+    .avoid-list li { border-left-color: var(--accent-red); }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab { padding: 12px 20px; font-size: 14px; font-weight: 600; font-family: inherit; background: var(--bg-dark); border: 2px solid var(--border); border-radius: 10px; color: var(--text-secondary); cursor: pointer; }
+    .tab.active { background: linear-gradient(135deg, var(--accent-green-dark), var(--accent-green)); border-color: var(--accent-green); color: var(--bg-dark); }
+    .outreach-content { background: var(--bg-dark); border-radius: 12px; padding: 24px; font-size: 14px; line-height: 1.8; color: var(--text-primary); white-space: pre-wrap; min-height: 160px; border: 1px solid var(--border); }
+    .research-notes { padding: 16px 20px; background: var(--bg-dark); border-radius: 12px; font-size: 13px; color: var(--text-muted); margin-bottom: 24px; border: 1px solid var(--border); }
+    .research-notes strong { color: var(--accent-green); }
+    .warning { margin-top: 16px; padding: 14px 18px; background: rgba(251, 191, 36, 0.1); border: 1px solid var(--accent-amber); border-radius: 10px; font-size: 14px; color: var(--accent-amber); }
+    .actions { text-align: center; margin-top: 32px; }
+    .hidden { display: none !important; }
+    .best-channel { background: linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(96, 165, 250, 0.1)); border: 1px solid var(--accent-purple); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
+    .best-channel-label { font-size: 11px; color: var(--accent-purple); text-transform: uppercase; margin-bottom: 6px; }
+    .best-channel-value { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+    .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 40px; max-width: 440px; width: 100%; text-align: center; }
+    .modal h2 { font-size: 24px; margin-bottom: 12px; }
+    .modal p { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; }
+    .modal .form-group { text-align: left; margin-bottom: 16px; }
+    .modal .input { padding: 14px 16px; font-size: 15px; }
+    .modal .btn { margin-top: 8px; }
+    .modal-footer { margin-top: 20px; font-size: 13px; color: var(--text-muted); }
+    .modal-footer a { color: var(--accent-green); cursor: pointer; text-decoration: none; }
+    .modal-footer a:hover { text-decoration: underline; }
+    .paywall-icon { font-size: 48px; margin-bottom: 16px; }
+    .pricing-options { display: flex; flex-direction: column; gap: 12px; margin: 24px 0; }
+    .pricing-option { background: var(--bg-dark); border: 2px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; text-align: left; }
+    .pricing-option:hover { border-color: var(--accent-green); }
+    .pricing-option.selected { border-color: var(--accent-green); background: rgba(52, 211, 153, 0.05); }
+    .pricing-option-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .pricing-option-name { font-weight: 600; font-size: 15px; }
+    .pricing-option-price { color: var(--accent-green); font-weight: 700; }
+    .pricing-option-desc { font-size: 12px; color: var(--text-muted); }
+    .auth-error { background: rgba(248, 113, 113, 0.1); border: 1px solid var(--accent-red); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: var(--accent-red); }
+    @media (max-width: 600px) { .account-bar { position: relative; justify-content: center; margin-bottom: 16px; } .profile-header { flex-direction: column; text-align: center; } .score-box { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="account-bar" id="accountBar">
+        <span class="searches-remaining" id="searchesRemaining"></span>
+        <button class="account-btn" id="accountBtn" onclick="showAuthModal()">Sign In</button>
+      </div>
+      <div class="logo-container" onclick="logoClick()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="50" height="50">
+          <circle cx="85" cy="25" r="25" fill="none" stroke="#34d399" stroke-width="2" opacity="0.2"/>
+          <circle cx="85" cy="25" r="18" fill="none" stroke="#34d399" stroke-width="2" opacity="0.4"/>
+          <circle cx="85" cy="25" r="11" fill="none" stroke="#34d399" stroke-width="2" opacity="0.6"/>
+          <path d="M20 55 L60 25 L100 55 L100 95 L20 95 Z" fill="#059669"/>
+          <path d="M20 55 L60 25 L100 55" fill="none" stroke="#34d399" stroke-width="3"/>
+          <rect x="75" y="30" width="12" height="25" fill="#0a0f0d"/>
+          <circle cx="81" cy="30" r="6" fill="#34d399"/>
+          <circle cx="81" cy="30" r="3" fill="#6ee7b7"/>
+          <rect x="50" y="65" width="20" height="30" rx="2" fill="#0a0f0d" opacity="0.5"/>
+          <circle cx="66" cy="82" r="2" fill="#34d399"/>
+          <rect x="28" y="65" width="14" height="14" rx="1" fill="#0a0f0d" opacity="0.4"/>
+          <rect x="78" y="65" width="14" height="14" rx="1" fill="#0a0f0d" opacity="0.4"/>
+        </svg>
+        <h1 class="title">Seller<span>Signal</span></h1>
+      </div>
+      <p class="tagline">Automated Seller Intelligence</p>
+      <span class="badge">🧪 Beta</span>
+    </div>
+
+    <div id="searchPanel" class="card">
+      <div class="form-group">
+        <label class="label">Owner Name</label>
+        <input type="text" id="ownerName" class="input" placeholder="John Smith">
+      </div>
+      <div class="form-group">
+        <label class="label">Property Address</label>
+        <input type="text" id="propertyAddress" class="input" placeholder="123 Main St, Billings, MT">
+        <p class="input-hint">Format: Street, City, State</p>
+      </div>
+      <button id="searchBtn" class="btn btn-primary" onclick="runSearch()">
+        <span>🔍</span> Research Prospect
+      </button>
+      <div id="searchError" class="error hidden"></div>
+    </div>
+
+    <div id="loadingPanel" class="card loading-container hidden">
+      <div class="spinner"></div>
+      <h3 class="loading-title">Building Intelligence Profile</h3>
+      <p id="loadingText" class="loading-text">Initializing deep research...</p>
+      <div class="progress-bar"><div id="progressFill" class="progress-fill" style="width: 0%"></div></div>
+    </div>
+
+    <div id="resultsPanel" class="hidden">
+      <div class="card card-sm">
+        <div class="profile-header">
+          <div class="avatar" id="avatar"></div>
+          <div class="profile-info">
+            <h2 class="profile-name" id="profileName"></h2>
+            <p class="profile-address" id="profileAddress"></p>
+            <p class="profile-occupation" id="profileOccupation"></p>
+          </div>
+          <div class="score-box" id="scoreBox">
+            <div class="score-value" id="scoreValue"></div>
+            <div class="score-label" id="scoreLabel"></div>
+          </div>
+        </div>
+        <div class="intel-grid" id="intelGrid"></div>
+        <div id="signalsSection">
+          <div class="signals-title">Motivation Signals</div>
+          <div class="signals-grid" id="signalsGrid"></div>
+        </div>
+        <div id="warningBox" class="warning hidden"></div>
+      </div>
+
+      <div id="familyCard" class="card card-sm hidden">
+        <h3 class="section-title">👨‍👩‍👧 Family & Connections</h3>
+        <div class="profile-section"><div class="profile-section-title">Spouse</div><div id="spouseInfo"></div></div>
+        <div class="profile-section"><div class="profile-section-title">Family Background</div><div id="familyInfo"></div></div>
+        <div class="profile-section"><div class="profile-section-title">Key Influencers</div><p id="influencersInfo" style="color: var(--text-secondary); font-size: 14px;"></p></div>
+      </div>
+
+      <div id="psychCard" class="card card-sm hidden">
+        <h3 class="section-title">🧠 Psychological Profile</h3>
+        <div class="profile-section">
+          <div class="profile-row"><span class="profile-row-label">Financial Mindset</span><span class="profile-row-value" id="psychFinancial"></span></div>
+          <div class="profile-row"><span class="profile-row-label">Decision Style</span><span class="profile-row-value" id="psychDecision"></span></div>
+          <div class="profile-row"><span class="profile-row-label">Social Position</span><span class="profile-row-value" id="psychSocial"></span></div>
+          <div class="profile-row"><span class="profile-row-label">Likely Pressure Points</span><span class="profile-row-value" id="psychPressure"></span></div>
+          <div class="profile-row"><span class="profile-row-label">Communication Preference</span><span class="profile-row-value" id="psychComm"></span></div>
+        </div>
+      </div>
+
+      <div class="card card-sm">
+        <h3 class="section-title">📊 Analysis</h3>
+        <div class="summary-box" id="scoreSummary"></div>
+        <div class="analysis-text" id="detailedAnalysis"></div>
+      </div>
+
+      <div id="approachCard" class="card card-sm hidden">
+        <h3 class="section-title">🎯 Approach Strategy</h3>
+        <div class="best-channel"><div class="best-channel-label">Recommended Channel</div><div class="best-channel-value" id="bestChannel"></div></div>
+        <div class="profile-section">
+          <div class="profile-row"><span class="profile-row-label">Best Timing</span><span class="profile-row-value" id="bestTiming"></span></div>
+          <div class="profile-row"><span class="profile-row-label">Decision Process</span><span class="profile-row-value" id="decisionProcess"></span></div>
+        </div>
+        <div class="profile-section"><div class="profile-section-title">Key Talking Points</div><ul class="approach-list" id="talkingPoints"></ul></div>
+        <div class="profile-section"><div class="profile-section-title">Topics to Avoid</div><ul class="approach-list avoid-list" id="avoidTopics"></ul></div>
+      </div>
+
+      <div class="card card-sm">
+        <h3 class="section-title">✍️ Personalized Outreach Scripts</h3>
+        <div class="tabs">
+          <button class="tab active" data-tab="doorknock" onclick="switchTab('doorknock')">🚪 Door Knock</button>
+          <button class="tab" data-tab="phone" onclick="switchTab('phone')">📞 Phone</button>
+          <button class="tab" data-tab="letter" onclick="switchTab('letter')">✉️ Letter</button>
+          <button class="tab" data-tab="email" onclick="switchTab('email')">📧 Email</button>
+        </div>
+        <div class="outreach-content" id="outreachContent"></div>
+        <div style="margin-top: 16px; text-align: right;">
+          <button class="btn btn-secondary" onclick="copyOutreach()"><span id="copyIcon">📋</span> <span id="copyText">Copy to Clipboard</span></button>
+        </div>
+      </div>
+
+      <div id="notesSection" class="hidden">
+        <div class="research-notes"><strong>Research Notes:</strong> <span id="researchNotes"></span></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="resetSearch()">← Perform Another Search</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="authModal" class="modal-overlay hidden"><div class="modal" id="authModalContent"></div></div>
+
+  <div id="paywallModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="paywall-icon">🔒</div>
+      <h2>You've Used Your Free Searches</h2>
+      <p>Upgrade to continue researching property owners and unlock unlimited seller intelligence.</p>
+      <div class="pricing-options">
+        <div class="pricing-option selected" onclick="selectPlan(this, 'starter')"><div class="pricing-option-header"><span class="pricing-option-name">Starter</span><span class="pricing-option-price">$49/mo</span></div><div class="pricing-option-desc">50 searches per month</div></div>
+        <div class="pricing-option" onclick="selectPlan(this, 'pro')"><div class="pricing-option-header"><span class="pricing-option-name">Pro</span><span class="pricing-option-price">$99/mo</span></div><div class="pricing-option-desc">150 searches + psychological profiles</div></div>
+        <div class="pricing-option" onclick="selectPlan(this, 'team')"><div class="pricing-option-header"><span class="pricing-option-name">Team</span><span class="pricing-option-price">$199/mo</span></div><div class="pricing-option-desc">400 searches + 5 team members</div></div>
+      </div>
+      <button class="btn btn-primary" onclick="checkout()">Upgrade Now</button>
+      <div class="modal-footer"><a onclick="hidePaywall()">Maybe later</a></div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const FREE_SEARCH_LIMIT = 3;
+    
+    let supabase = null;
+    if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+    
+    let currentUser = null, currentResults = null, currentTab = 'doorknock', selectedPlan = 'starter', userProfile = null;
+    
+    async function init() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('beta') === 'true' || urlParams.get('vip') === 'true') localStorage.setItem('betaAccess', 'true');
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) { currentUser = session.user; await loadUserProfile(); }
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          currentUser = session?.user || null;
+          if (currentUser) await loadUserProfile(); else userProfile = null;
+          updateAccountUI();
+        });
+      }
+      updateAccountUI();
+    }
+    
+    async function loadUserProfile() {
+      if (!supabase || !currentUser) return;
+      const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+      if (data) userProfile = data;
+      else {
+        const { data: newProfile } = await supabase.from('profiles').insert({ id: currentUser.id, email: currentUser.email, plan: 'free', searches_used: 0, searches_limit: FREE_SEARCH_LIMIT }).select().single();
+        userProfile = newProfile;
+      }
+    }
+    
+    function updateAccountUI() {
+      const accountBtn = document.getElementById('accountBtn');
+      const searchesRemaining = document.getElementById('searchesRemaining');
+      if (currentUser) {
+        accountBtn.textContent = 'Account'; accountBtn.onclick = showAccountMenu;
+        const searches = getSearchesRemaining(), limit = getSearchLimit();
+        if (hasBetaAccess()) searchesRemaining.innerHTML = '<strong>∞</strong> Beta Access';
+        else searchesRemaining.innerHTML = `<strong>${searches}</strong> of ${limit} ${userProfile?.plan === 'free' ? 'free ' : ''}searches`;
+      } else {
+        accountBtn.textContent = 'Sign In'; accountBtn.onclick = () => showAuthModal();
+        if (hasBetaAccess()) searchesRemaining.innerHTML = '<strong>∞</strong> Beta Access';
+        else searchesRemaining.innerHTML = `<strong>${getSearchesRemaining()}</strong> of ${FREE_SEARCH_LIMIT} free searches`;
+      }
+    }
+    
+    function hasBetaAccess() { return localStorage.getItem('betaAccess') === 'true'; }
+    function getSearchesUsed() { return currentUser && userProfile ? (userProfile.searches_used || 0) : parseInt(localStorage.getItem('searchesUsed') || '0'); }
+    function getSearchLimit() { return currentUser && userProfile ? (userProfile.searches_limit || FREE_SEARCH_LIMIT) : FREE_SEARCH_LIMIT; }
+    function getSearchesRemaining() { return Math.max(0, getSearchLimit() - getSearchesUsed()); }
+    function canSearch() { return hasBetaAccess() || getSearchesRemaining() > 0; }
+    
+    async function incrementSearchCount() {
+      if (hasBetaAccess()) return;
+      if (currentUser && userProfile && supabase) {
+        const newCount = (userProfile.searches_used || 0) + 1;
+        await supabase.from('profiles').update({ searches_used: newCount }).eq('id', currentUser.id);
+        userProfile.searches_used = newCount;
+      } else {
+        const current = parseInt(localStorage.getItem('searchesUsed') || '0');
+        localStorage.setItem('searchesUsed', (current + 1).toString());
+      }
+      updateAccountUI();
+    }
+    
+    function showAuthModal(mode = 'signin') {
+      const content = document.getElementById('authModalContent');
+      if (mode === 'signin') {
+        content.innerHTML = `<h2>Sign In</h2><p>Sign in to track your searches and upgrade.</p><div id="authError" class="auth-error hidden"></div><div class="form-group"><label class="label">Email</label><input type="email" id="authEmail" class="input" placeholder="you@example.com"></div><div class="form-group"><label class="label">Password</label><input type="password" id="authPassword" class="input" placeholder="••••••••"></div><button class="btn btn-primary" onclick="signIn()">Sign In</button><div class="modal-footer">Don't have an account? <a onclick="showAuthModal('signup')">Sign Up</a><br><br><a onclick="hideAuthModal()">Continue without account</a></div>`;
+      } else {
+        content.innerHTML = `<h2>Create Account</h2><p>Sign up to track searches and unlock features.</p><div id="authError" class="auth-error hidden"></div><div class="form-group"><label class="label">Email</label><input type="email" id="authEmail" class="input" placeholder="you@example.com"></div><div class="form-group"><label class="label">Password</label><input type="password" id="authPassword" class="input" placeholder="••••••••"></div><button class="btn btn-primary" onclick="signUp()">Create Account</button><div class="modal-footer">Have an account? <a onclick="showAuthModal('signin')">Sign In</a><br><br><a onclick="hideAuthModal()">Continue without account</a></div>`;
+      }
+      document.getElementById('authModal').classList.remove('hidden');
+    }
+    
+    function hideAuthModal() { document.getElementById('authModal').classList.add('hidden'); }
+    function showAuthError(msg) { const el = document.getElementById('authError'); el.textContent = msg; el.classList.remove('hidden'); }
+    
+    async function signIn() {
+      if (!supabase) { showAuthError('Auth not configured.'); return; }
+      const email = document.getElementById('authEmail').value, password = document.getElementById('authPassword').value;
+      if (!email || !password) { showAuthError('Enter email and password'); return; }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) showAuthError(error.message); else hideAuthModal();
+    }
+    
+    async function signUp() {
+      if (!supabase) { showAuthError('Auth not configured.'); return; }
+      const email = document.getElementById('authEmail').value, password = document.getElementById('authPassword').value;
+      if (!email || !password) { showAuthError('Enter email and password'); return; }
+      if (password.length < 6) { showAuthError('Password must be 6+ characters'); return; }
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) showAuthError(error.message); else { hideAuthModal(); alert('Account created! Check email to confirm.'); }
+    }
+    
+    async function signOut() { if (supabase) await supabase.auth.signOut(); currentUser = null; userProfile = null; updateAccountUI(); }
+    
+    function showAccountMenu() {
+      const content = document.getElementById('authModalContent');
+      content.innerHTML = `<h2>Account</h2><p>${currentUser?.email || ''}</p><div class="profile-section" style="margin: 24px 0; text-align: left;"><div class="profile-row"><span class="profile-row-label">Plan</span><span class="profile-row-value">${userProfile?.plan === 'free' ? 'Free Trial' : (userProfile?.plan || 'Free Trial')}</span></div><div class="profile-row"><span class="profile-row-label">Searches Used</span><span class="profile-row-value">${getSearchesUsed()} of ${getSearchLimit()}</span></div></div>${userProfile?.plan === 'free' ? '<button class="btn btn-primary" onclick="hideAuthModal(); showPaywall();">Upgrade Plan</button>' : ''}<div class="modal-footer"><a onclick="signOut(); hideAuthModal();">Sign Out</a></div>`;
+      document.getElementById('authModal').classList.remove('hidden');
+    }
+    
+    function showPaywall() { document.getElementById('paywallModal').classList.remove('hidden'); }
+    function hidePaywall() { document.getElementById('paywallModal').classList.add('hidden'); }
+    function selectPlan(el, plan) { selectedPlan = plan; document.querySelectorAll('.pricing-option').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); }
+    function checkout() { alert('Stripe checkout coming soon! Contact for early access.'); }
+    
+    async function runSearch() {
+      const ownerName = document.getElementById('ownerName').value.trim();
+      const propertyAddress = document.getElementById('propertyAddress').value.trim();
+      const errorDiv = document.getElementById('searchError');
+      if (!ownerName || !propertyAddress) { errorDiv.textContent = 'Please enter both owner name and property address'; errorDiv.classList.remove('hidden'); return; }
+      if (!canSearch()) { if (!currentUser) showAuthModal('signup'); else showPaywall(); return; }
+      errorDiv.classList.add('hidden');
+      document.getElementById('searchPanel').classList.add('hidden');
+      document.getElementById('loadingPanel').classList.remove('hidden');
+      const loadingTexts = ['Searching property records...', 'Finding owner information...', 'Analyzing ownership history...', 'Researching professional background...', 'Building psychological profile...', 'Calculating seller likelihood...', 'Generating personalized outreach...'];
+      let progress = 0;
+      const progressFill = document.getElementById('progressFill');
+      const loadingText = document.getElementById('loadingText');
+      const progressInterval = setInterval(() => { progress += Math.random() * 15; if (progress > 90) progress = 90; progressFill.style.width = progress + '%'; loadingText.textContent = loadingTexts[Math.floor(progress / 15)] || loadingTexts[loadingTexts.length - 1]; }, 800);
+      try {
+        const response = await fetch('/api/research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ownerName, propertyAddress }) });
+        clearInterval(progressInterval); progressFill.style.width = '100%';
+        if (!response.ok) { const err = await response.json(); throw new Error(err.error || 'Research failed'); }
+        const results = await response.json(); currentResults = results;
+        await incrementSearchCount();
+        setTimeout(() => { document.getElementById('loadingPanel').classList.add('hidden'); document.getElementById('resultsPanel').classList.remove('hidden'); displayResults(results, ownerName, propertyAddress); }, 500);
+      } catch (err) {
+        clearInterval(progressInterval); document.getElementById('loadingPanel').classList.add('hidden'); document.getElementById('searchPanel').classList.remove('hidden');
+        errorDiv.textContent = err.message || 'Research failed. Please try again.'; errorDiv.classList.remove('hidden');
+      }
+    }
+
+    function displayResults(results, ownerName, propertyAddress) {
+      const occupation = results.ownerProfile?.occupation, employer = results.ownerProfile?.employer;
+      document.getElementById('avatar').textContent = getInitials(ownerName);
+      document.getElementById('profileName').textContent = ownerName;
+      document.getElementById('profileAddress').textContent = propertyAddress;
+      const hasOcc = occupation && occupation !== 'Unknown' && !occupation.toLowerCase().includes('unknown');
+      const hasEmp = employer && employer !== 'Unknown' && !employer.toLowerCase().includes('unknown');
+      const occEl = document.getElementById('profileOccupation');
+      if (hasOcc && hasEmp) occEl.innerHTML = `<span style="color: var(--accent-green); font-weight: 500;">Occupation:</span> ${occupation} at ${employer}`;
+      else if (hasOcc) occEl.innerHTML = `<span style="color: var(--accent-green); font-weight: 500;">Occupation:</span> ${occupation}`;
+      else if (hasEmp) occEl.innerHTML = `<span style="color: var(--accent-green); font-weight: 500;">Occupation:</span> ${employer}`;
+      else occEl.innerHTML = `<span style="color: var(--accent-green); font-weight: 500;">Occupation:</span> Unknown`;
+      const score = results.score || 45, scoreClass = score >= 65 ? 'high' : score >= 40 ? 'medium' : 'low';
+      document.getElementById('scoreBox').className = `score-box score-${scoreClass}`;
+      document.getElementById('scoreValue').textContent = score;
+      document.getElementById('scoreLabel').textContent = score >= 65 ? 'High Likelihood' : score >= 40 ? 'Moderate Likelihood' : 'Low Likelihood';
+      const intelGrid = document.getElementById('intelGrid'); intelGrid.innerHTML = '';
+      const intel = results.propertyIntel || {};
+      if (intel.estimatedValue && intel.estimatedValue !== 'Unknown') intelGrid.innerHTML += `<div class="intel-item"><div class="intel-label">Est. Value</div><div class="intel-value intel-value-highlight">${intel.estimatedValue}</div></div>`;
+      if (intel.lastSalePrice && intel.lastSalePrice !== 'Unknown') intelGrid.innerHTML += `<div class="intel-item"><div class="intel-label">Last Sale</div><div class="intel-value">${intel.lastSalePrice}</div>${intel.lastSaleDate && intel.lastSaleDate !== 'Unknown' ? `<div class="intel-subvalue">${intel.lastSaleDate}</div>` : ''}</div>`;
+      if (intel.equityEstimate) intelGrid.innerHTML += `<div class="intel-item"><div class="intel-label">Est. Equity</div><div class="intel-value intel-value-highlight">${intel.equityEstimate}</div></div>`;
+      if (intel.bedsBaths) intelGrid.innerHTML += `<div class="intel-item"><div class="intel-label">Beds/Baths</div><div class="intel-value">${intel.bedsBaths}</div></div>`;
+      if (intel.squareFeet) intelGrid.innerHTML += `<div class="intel-item"><div class="intel-label">Sq. Ft.</div><div class="intel-value">${intel.squareFeet}</div></div>`;
+      if (intel.yearBuilt) intelGrid.innerHTML += `<div class="intel-item"><div class="intel-label">Year Built</div><div class="intel-value">${intel.yearBuilt}</div></div>`;
+      const signalsGrid = document.getElementById('signalsGrid'), signalsSection = document.getElementById('signalsSection'); signalsGrid.innerHTML = '';
+      if (results.motivationSignals?.length) { signalsSection.classList.remove('hidden'); results.motivationSignals.forEach(s => { signalsGrid.innerHTML += `<div class="signal signal-${s.type || 'neutral'}">${s.signal}</div>`; }); } else signalsSection.classList.add('hidden');
+      const warningBox = document.getElementById('warningBox');
+      if (results.ownershipFlag) { warningBox.innerHTML = `<strong>⚠️ Note:</strong> ${results.ownershipFlag}`; warningBox.classList.remove('hidden'); } else warningBox.classList.add('hidden');
+      const familyCard = document.getElementById('familyCard');
+      if (results.familyConnections) {
+        familyCard.classList.remove('hidden');
+        const spouse = results.familyConnections.spouse, spouseInfo = document.getElementById('spouseInfo');
+        if (spouse && (spouse.name || spouse.occupation)) spouseInfo.innerHTML = `<div class="profile-row"><span class="profile-row-label">Name</span><span class="profile-row-value">${spouse.name || 'Unknown'}</span></div><div class="profile-row"><span class="profile-row-label">Occupation</span><span class="profile-row-value">${spouse.occupation || 'Unknown'}</span></div>${spouse.familyWealth ? `<div class="profile-row"><span class="profile-row-label">Family Wealth</span><span class="profile-row-value">${spouse.familyWealth}</span></div>` : ''}`;
+        else spouseInfo.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">No spouse information found</p>';
+        const parents = results.familyConnections.parents, familyInfo = document.getElementById('familyInfo');
+        if (parents && (parents.information || parents.wealthIndicators)) familyInfo.innerHTML = `${parents.information ? `<div class="profile-row"><span class="profile-row-label">Background</span><span class="profile-row-value">${parents.information}</span></div>` : ''}${parents.wealthIndicators ? `<div class="profile-row"><span class="profile-row-label">Wealth Indicators</span><span class="profile-row-value">${parents.wealthIndicators}</span></div>` : ''}`;
+        else familyInfo.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">No family background information found</p>';
+        document.getElementById('influencersInfo').textContent = results.familyConnections.keyInfluencers || 'Unknown';
+      } else familyCard.classList.add('hidden');
+      const psychCard = document.getElementById('psychCard');
+      if (results.psychologicalProfile) {
+        psychCard.classList.remove('hidden');
+        document.getElementById('psychFinancial').textContent = results.psychologicalProfile.financialMindset || 'Unknown';
+        document.getElementById('psychDecision').textContent = results.psychologicalProfile.decisionStyle || 'Unknown';
+        document.getElementById('psychSocial').textContent = results.psychologicalProfile.socialPosition || 'Unknown';
+        document.getElementById('psychPressure').textContent = results.psychologicalProfile.likelyPressurePoints || 'Unknown';
+        document.getElementById('psychComm').textContent = results.psychologicalProfile.communicationPreference || 'Unknown';
+      } else psychCard.classList.add('hidden');
+      document.getElementById('scoreSummary').textContent = results.scoreSummary || '';
+      document.getElementById('detailedAnalysis').innerHTML = (results.detailedAnalysis || '').split('\n\n').map(p => `<p>${p}</p>`).join('');
+      const approachCard = document.getElementById('approachCard');
+      if (results.approachStrategy) {
+        approachCard.classList.remove('hidden');
+        document.getElementById('bestChannel').textContent = capitalizeFirst(results.approachStrategy.bestChannel || 'Unknown');
+        document.getElementById('bestTiming').textContent = capitalizeFirst(results.approachStrategy.bestTiming || 'Unknown');
+        document.getElementById('decisionProcess').textContent = capitalizeFirst(results.approachStrategy.decisionProcess || 'Unknown');
+        const talkingPoints = document.getElementById('talkingPoints'); talkingPoints.innerHTML = '';
+        if (results.approachStrategy.keyTalkingPoints?.length) results.approachStrategy.keyTalkingPoints.forEach(p => { talkingPoints.innerHTML += `<li>${p}</li>`; });
+        const avoidTopics = document.getElementById('avoidTopics'); avoidTopics.innerHTML = '';
+        if (results.approachStrategy.avoidTopics?.length) results.approachStrategy.avoidTopics.forEach(t => { avoidTopics.innerHTML += `<li>${t}</li>`; });
+      } else approachCard.classList.add('hidden');
+      currentTab = 'doorknock'; switchTab('doorknock');
+      const notesSection = document.getElementById('notesSection');
+      if (results.researchNotes) { document.getElementById('researchNotes').textContent = results.researchNotes; notesSection.classList.remove('hidden'); } else notesSection.classList.add('hidden');
+    }
+
+    function switchTab(tab) { currentTab = tab; document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab)); document.getElementById('outreachContent').textContent = currentResults?.outreach?.[tab] || 'No content available'; document.getElementById('copyIcon').textContent = '📋'; document.getElementById('copyText').textContent = 'Copy to Clipboard'; }
+    function copyOutreach() { navigator.clipboard.writeText(currentResults?.outreach?.[currentTab] || '').then(() => { document.getElementById('copyIcon').textContent = '✓'; document.getElementById('copyText').textContent = 'Copied!'; setTimeout(() => { document.getElementById('copyIcon').textContent = '📋'; document.getElementById('copyText').textContent = 'Copy to Clipboard'; }, 2000); }); }
+    function resetSearch() { document.getElementById('resultsPanel').classList.add('hidden'); document.getElementById('searchPanel').classList.remove('hidden'); document.getElementById('ownerName').value = ''; document.getElementById('propertyAddress').value = ''; document.getElementById('searchError').classList.add('hidden'); currentResults = null; }
+    function getInitials(name) { return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(); }
+    function capitalizeFirst(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : str; }
+    function logoClick() { if (!document.getElementById('resultsPanel').classList.contains('hidden')) resetSearch(); }
+    document.addEventListener('keypress', e => { if (e.key === 'Enter' && !document.getElementById('searchPanel').classList.contains('hidden')) runSearch(); });
+    init();
+  </script>
+</body>
+</html>
