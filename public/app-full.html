@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SellerSignal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #0a0f14;
+            --bg-card: #111921;
+            --bg-card-hover: #162430;
+            --bg-input: #1a2a3a;
+            --text: #FDFCFA;
+            --text-secondary: #8a9aa8;
+            --text-tertiary: #5a6a78;
+            --accent: #c4a87c;
+            --accent-hover: #d4b88c;
+            --border: #1e2a36;
+            --score-high: #4ade80;
+            --score-medium: #fbbf24;
+            --score-low: #f87171;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            padding: 16px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text);
+        }
+        .logo-mark {
+            width: 32px;
+            height: 32px;
+            border: 2px solid var(--text);
+            border-radius: 50%;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 2px;
+            padding-bottom: 7px;
+        }
+        .logo-mark .bar {
+            width: 3px;
+            background: var(--text);
+            border-radius: 1px;
+        }
+        .logo-mark .bar:nth-child(1) { height: 5px; }
+        .logo-mark .bar:nth-child(2) { height: 9px; }
+        .logo-mark .bar:nth-child(3) { height: 13px; }
+        .logo-text {
+            font-family: 'DM Serif Display', serif;
+            font-size: 20px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .usage-badge {
+            font-size: 13px;
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border-radius: 6px;
+        }
+        .usage-badge strong {
+            color: var(--accent);
+        }
+        .header-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .header-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .header-btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg);
+        }
+        .header-btn.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Main Layout */
+        .main {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        /* Search Form */
+        .search-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+        .search-card h2 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 24px;
+        }
+        .search-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 16px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .input-group label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+        .input-group input {
+            padding: 14px 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 15px;
+            font-family: inherit;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .search-btn {
+            align-self: flex-end;
+            padding: 14px 32px;
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            color: var(--bg);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .search-btn:hover {
+            background: var(--accent-hover);
+        }
+        .search-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 60px;
+        }
+        .loading.active {
+            display: block;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading p {
+            color: var(--text-secondary);
+        }
+
+        /* Error */
+        .error-message {
+            display: none;
+            padding: 16px;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid var(--score-low);
+            border-radius: 8px;
+            color: var(--score-low);
+            margin-bottom: 24px;
+        }
+        .error-message.active {
+            display: block;
+        }
+
+        /* Results */
+        .results {
+            display: none;
+        }
+        .results.active {
+            display: block;
+        }
+        .result-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .result-header {
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid var(--border);
+        }
+        .result-name {
+            font-family: 'DM Serif Display', serif;
+            font-size: 28px;
+            margin-bottom: 4px;
+        }
+        .result-address {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .score {
+            text-align: right;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: 600;
+            line-height: 1;
+        }
+        .score-value.high { color: var(--score-high); }
+        .score-value.medium { color: var(--score-medium); }
+        .score-value.low { color: var(--score-low); }
+        .score-label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+        .score-label.high { color: var(--score-high); }
+        .score-label.medium { color: var(--score-medium); }
+        .score-label.low { color: var(--score-low); }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            border-bottom: 1px solid var(--border);
+        }
+        .metric {
+            padding: 20px;
+            border-right: 1px solid var(--border);
+        }
+        .metric:last-child {
+            border-right: none;
+        }
+        .metric-label {
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 4px;
+        }
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .metric-value.money {
+            color: var(--accent);
+        }
+
+        .intel-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid var(--border);
+        }
+        .intel-block {
+            padding: 24px;
+            border-right: 1px solid var(--border);
+        }
+        .intel-block:nth-child(2n) {
+            border-right: none;
+        }
+        .intel-block h4 {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .intel-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+        }
+        .intel-label {
+            color: var(--text-tertiary);
+        }
+        .intel-value {
+            color: var(--text);
+            text-align: right;
+            max-width: 60%;
+        }
+
+        .wealth-section {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.05) 0%, transparent 100%);
+        }
+        .wealth-section h4 {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #22c55e;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .wealth-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        .wealth-estimate {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .wealth-value {
+            font-size: 15px;
+            color: var(--text);
+            font-weight: 500;
+        }
+        .wealth-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .wealth-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #22c55e;
+        }
+        .wealth-detail {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .evidence-list {
+            margin: 8px 0 0 0;
+            padding-left: 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .evidence-list li {
+            margin-bottom: 6px;
+        }
+        @media (max-width: 768px) {
+            .wealth-grid { grid-template-columns: 1fr; }
+        }
+
+        .tick-section {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, rgba(196, 168, 124, 0.05) 0%, transparent 100%);
+        }
+        .tick-section h4 {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tick-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .tick-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .tick-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+        .tick-value {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        @media (max-width: 768px) {
+            .tick-grid { grid-template-columns: 1fr; }
+        }
+
+        .signals {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .signals-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .signals-header h4 {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+        .signals-header span {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+        .signal-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .signal-tag {
+            padding: 8px 12px;
+            background: var(--bg);
+            border-left: 3px solid var(--text-tertiary);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .signal-tag.positive { border-left-color: var(--score-high); }
+        .signal-tag.negative { border-left-color: var(--score-low); }
+        .signal-tag.neutral { border-left-color: var(--score-medium); }
+
+        .approach {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .approach h4 {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+        .approach-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .approach-block {
+            padding: 16px;
+            background: var(--bg);
+            border-radius: 8px;
+        }
+        .approach-block h5 {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+        .approach-block p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .scripts {
+            padding: 24px;
+        }
+        .scripts h4 {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+        .script-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .script-tab {
+            padding: 8px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .script-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg);
+        }
+        .script-content {
+            display: none;
+            padding: 20px;
+            background: var(--bg);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .script-content.active {
+            display: block;
+        }
+
+        /* Auth Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            width: 100%;
+            max-width: 420px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal h2 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .modal p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .modal .input-group {
+            margin-bottom: 16px;
+        }
+        .modal-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            color: var(--bg);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+        .modal-btn:hover {
+            background: var(--accent-hover);
+        }
+        .modal-switch {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .modal-switch a {
+            color: var(--accent);
+            cursor: pointer;
+        }
+        .modal-error {
+            color: var(--score-low);
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .modal-error.active {
+            display: block;
+        }
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        /* Upgrade Modal */
+        .upgrade-modal .plans {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .plan-card {
+            padding: 20px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .plan-card:hover,
+        .plan-card.selected {
+            border-color: var(--accent);
+        }
+        .plan-card h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .plan-card .price {
+            font-family: 'DM Serif Display', serif;
+            font-size: 28px;
+            color: var(--accent);
+        }
+        .plan-card .price span {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: var(--text-tertiary);
+        }
+        .plan-card ul {
+            list-style: none;
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .plan-card li {
+            padding: 4px 0;
+        }
+        .plan-card li::before {
+            content: '✓ ';
+            color: var(--accent);
+        }
+
+        /* History Panel */
+        .history-panel {
+            display: none;
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 400px;
+            background: var(--bg-card);
+            border-left: 1px solid var(--border);
+            z-index: 100;
+            overflow-y: auto;
+        }
+        .history-panel.active {
+            display: block;
+        }
+        .history-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-header h3 {
+            font-size: 16px;
+        }
+        .history-close {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .history-list {
+            padding: 16px;
+        }
+        .history-item {
+            padding: 16px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .history-item:hover {
+            background: var(--bg-input);
+        }
+        .history-item-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .history-item-address {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .history-item-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+        .history-item-score {
+            font-weight: 600;
+        }
+        .history-item-score.high { color: var(--score-high); }
+        .history-item-score.medium { color: var(--score-medium); }
+        .history-item-score.low { color: var(--score-low); }
+        .history-empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-tertiary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .search-form { grid-template-columns: 1fr; }
+            .metrics { grid-template-columns: repeat(2, 1fr); }
+            .metric:nth-child(2) { border-right: none; }
+            .metric:nth-child(1), .metric:nth-child(2) { border-bottom: 1px solid var(--border); }
+            .intel-grid { grid-template-columns: 1fr; }
+            .intel-block { border-right: none; border-bottom: 1px solid var(--border); }
+            .approach-grid { grid-template-columns: 1fr; }
+            .history-panel { width: 100%; }
+            .upgrade-modal .plans { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <a href="/" class="logo">
+            <div class="logo-mark">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+            <span class="logo-text">SellerSignal</span>
+        </a>
+        <div class="header-right" id="headerRight">
+            <!-- Filled by JS -->
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="search-card">
+            <h2>Research a Property Owner</h2>
+            <div class="search-form">
+                <div class="input-group">
+                    <label>Property Owner</label>
+                    <input type="text" id="ownerName" placeholder="Robert Mitchell">
+                </div>
+                <div class="input-group">
+                    <label>Property Address</label>
+                    <input type="text" id="propertyAddress" placeholder="4521 Riverside Dr, Austin, TX 78746">
+                </div>
+                <button class="search-btn" id="searchBtn" onclick="runSearch()">Get Signal</button>
+            </div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Researching property owner...</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </main>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal">
+            <h2 id="authTitle">Sign In</h2>
+            <p id="authSubtitle">Sign in to start researching property owners</p>
+            <div class="modal-error" id="authError"></div>
+            <div class="name-fields" id="nameFields" style="display: none;">
+                <div class="input-group">
+                    <label>First Name</label>
+                    <input type="text" id="authFirstName" placeholder="Robert">
+                </div>
+                <div class="input-group">
+                    <label>Last Name</label>
+                    <input type="text" id="authLastName" placeholder="Mitchell">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" id="authEmail" placeholder="you@example.com">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="authPassword" placeholder="••••••••">
+            </div>
+            <button class="modal-btn" id="authSubmit" onclick="handleAuth()">Sign In</button>
+            <div class="modal-switch">
+                <span id="authSwitchText">Don't have an account?</span>
+                <a onclick="toggleAuthMode()"><span id="authSwitchLink">Sign Up</span></a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upgrade Modal -->
+    <div class="modal-overlay" id="upgradeModal">
+        <div class="modal upgrade-modal" style="max-width: 500px;">
+            <h2>Upgrade Your Plan</h2>
+            <p>Get more signals and unlock your prospecting potential</p>
+            <div class="plans">
+                <div class="plan-card selected" onclick="selectPlan('pro')">
+                    <h3>Pro</h3>
+                    <div class="price">$99<span>/mo</span></div>
+                    <ul>
+                        <li>50 signals per month</li>
+                        <li>Full research reports</li>
+                        <li>Search history</li>
+                        <li>Priority support</li>
+                    </ul>
+                </div>
+                <div class="plan-card" onclick="selectPlan('team')">
+                    <h3>Team</h3>
+                    <div class="price">$249<span>/mo</span></div>
+                    <ul>
+                        <li>Unlimited signals</li>
+                        <li>5 team members</li>
+                        <li>Everything in Pro</li>
+                        <li>Dedicated support</li>
+                    </ul>
+                </div>
+            </div>
+            <button class="modal-btn" onclick="checkout()">Continue to Payment</button>
+            <div class="modal-switch">
+                <a onclick="closeUpgradeModal()">Maybe later</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="history-panel" id="historyPanel">
+        <div class="history-header">
+            <h3>Search History</h3>
+            <button class="history-close" onclick="closeHistory()">×</button>
+        </div>
+        <div class="history-list" id="historyList">
+            <div class="history-empty">No searches yet</div>
+        </div>
+    </div>
+
+    <script>
+        // ===================
+        // CONFIG
+        // ===================
+        const SUPABASE_URL = 'https://eeqsbvizgpuehphiaslo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlcXNidml6Z3B1ZWhwaGlhc2xvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyODcyMjQsImV4cCI6MjA4NDg2MzIyNH0.dtK2_DN2xqaR6KZQh6-DgshuhgZcKadyZLJPJ-rOgVQ';
+
+        let supabaseClient = null;
+        let currentUser = null;
+        let userProfile = null;
+        let isSignUp = false;
+        let selectedPlan = 'pro';
+
+        // ===================
+        // INIT
+        // ===================
+        async function init() {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                auth: {
+                    autoRefreshToken: true,
+                    persistSession: true,
+                    detectSessionInUrl: true
+                }
+            });
+
+            // Check URL params first
+            const params = new URLSearchParams(window.location.search);
+            const planFromUrl = params.get('plan');
+
+            // Check for existing session
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                await loadProfile();
+            }
+
+            // Listen for auth changes
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                if (session) {
+                    currentUser = session.user;
+                    await loadProfile();
+                    closeAuthModal();
+                    
+                    // If they came from a plan link and just signed up, show upgrade
+                    if (planFromUrl && userProfile?.plan === 'free') {
+                        selectedPlan = planFromUrl;
+                        document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+                        document.querySelector(`.plan-card[onclick="selectPlan('${planFromUrl}')"]`)?.classList.add('selected');
+                        showUpgradeModal();
+                        window.history.replaceState({}, '', '/app.html');
+                    }
+                } else {
+                    currentUser = null;
+                    userProfile = null;
+                }
+                updateUI();
+            });
+
+            updateUI();
+
+            // Handle success/canceled from Stripe
+            if (params.get('success') === 'true') {
+                alert('Payment successful! Your account has been upgraded.');
+                window.history.replaceState({}, '', '/app.html');
+                await loadProfile();
+                updateUI();
+            }
+
+            // Show auth modal if not logged in
+            if (!currentUser) {
+                isSignUp = true;
+                document.getElementById('authTitle').textContent = 'Create Account';
+                document.getElementById('authSubtitle').textContent = planFromUrl 
+                    ? `Sign up to start your ${planFromUrl === 'team' ? 'Team' : 'Pro'} trial`
+                    : 'Start your free trial with 3 signals';
+                document.getElementById('authSubmit').textContent = 'Create Account';
+                document.getElementById('authSwitchText').textContent = 'Already have an account?';
+                document.getElementById('authSwitchLink').textContent = 'Sign In';
+                document.getElementById('nameFields').style.display = 'block';
+                showAuthModal();
+            } else if (planFromUrl && userProfile?.plan === 'free') {
+                // Already logged in but came from plan link
+                selectedPlan = planFromUrl;
+                showUpgradeModal();
+                window.history.replaceState({}, '', '/app.html');
+            }
+        }
+
+        // ===================
+        // AUTH
+        // ===================
+        function showAuthModal() {
+            document.getElementById('authModal').classList.add('active');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.remove('active');
+            document.getElementById('authError').classList.remove('active');
+        }
+
+        function toggleAuthMode() {
+            isSignUp = !isSignUp;
+            document.getElementById('authTitle').textContent = isSignUp ? 'Create Account' : 'Sign In';
+            document.getElementById('authSubtitle').textContent = isSignUp 
+                ? 'Start your free trial with 3 signals' 
+                : 'Sign in to start researching property owners';
+            document.getElementById('authSubmit').textContent = isSignUp ? 'Create Account' : 'Sign In';
+            document.getElementById('authSwitchText').textContent = isSignUp ? 'Already have an account?' : "Don't have an account?";
+            document.getElementById('authSwitchLink').textContent = isSignUp ? 'Sign In' : 'Sign Up';
+            document.getElementById('authError').classList.remove('active');
+            document.getElementById('nameFields').style.display = isSignUp ? 'block' : 'none';
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const errorEl = document.getElementById('authError');
+
+            if (!email || !password) {
+                errorEl.textContent = 'Please enter email and password';
+                errorEl.classList.add('active');
+                return;
+            }
+
+            if (isSignUp) {
+                const firstName = document.getElementById('authFirstName').value.trim();
+                const lastName = document.getElementById('authLastName').value.trim();
+                
+                if (!firstName || !lastName) {
+                    errorEl.textContent = 'Please enter your first and last name';
+                    errorEl.classList.add('active');
+                    return;
+                }
+            }
+
+            try {
+                let result;
+                if (isSignUp) {
+                    const firstName = document.getElementById('authFirstName').value.trim();
+                    const lastName = document.getElementById('authLastName').value.trim();
+                    
+                    result = await supabaseClient.auth.signUp({ 
+                        email, 
+                        password,
+                        options: {
+                            data: {
+                                first_name: firstName,
+                                last_name: lastName,
+                                full_name: `${firstName} ${lastName}`
+                            }
+                        }
+                    });
+                } else {
+                    result = await supabaseClient.auth.signInWithPassword({ email, password });
+                }
+
+                if (result.error) {
+                    errorEl.textContent = result.error.message;
+                    errorEl.classList.add('active');
+                    return;
+                }
+
+                closeAuthModal();
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.add('active');
+            }
+        }
+
+        async function signOut() {
+            await supabaseClient.auth.signOut();
+            currentUser = null;
+            userProfile = null;
+            updateUI();
+        }
+
+        // ===================
+        // PROFILE
+        // ===================
+        async function loadProfile() {
+            if (!currentUser) return;
+
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const response = await fetch('/api/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                if (response.ok) {
+                    userProfile = await response.json();
+                }
+            } catch (err) {
+                console.error('Failed to load profile:', err);
+            }
+        }
+
+        // ===================
+        // UI
+        // ===================
+        function updateUI() {
+            const headerRight = document.getElementById('headerRight');
+
+            if (currentUser && userProfile) {
+                const remaining = userProfile.signals_limit - userProfile.signals_used;
+                const planLabel = userProfile.plan === 'free' ? '' : ` (${userProfile.plan})`;
+
+                headerRight.innerHTML = `
+                    <div class="usage-badge">
+                        <strong>${remaining}</strong> signals remaining${planLabel}
+                    </div>
+                    <button class="header-btn" onclick="showHistory()">History</button>
+                    ${userProfile.plan === 'free' ? '<button class="header-btn primary" onclick="showUpgradeModal()">Upgrade</button>' : '<button class="header-btn" onclick="openBillingPortal()">Billing</button>'}
+                    <a href="mailto:contact@sellersignal.co" class="header-btn">Contact</a>
+                    <button class="header-btn" onclick="signOut()">Sign Out</button>
+                `;
+            } else if (currentUser) {
+                headerRight.innerHTML = `
+                    <a href="mailto:contact@sellersignal.co" class="header-btn">Contact</a>
+                    <button class="header-btn" onclick="signOut()">Sign Out</button>
+                `;
+            } else {
+                headerRight.innerHTML = `
+                    <a href="mailto:contact@sellersignal.co" class="header-btn">Contact</a>
+                    <button class="header-btn primary" onclick="showAuthModal()">Sign In</button>
+                `;
+            }
+        }
+
+        // ===================
+        // SEARCH
+        // ===================
+        async function runSearch() {
+            const ownerName = document.getElementById('ownerName').value.trim();
+            const propertyAddress = document.getElementById('propertyAddress').value.trim();
+
+            if (!ownerName || !propertyAddress) {
+                showError('Please enter both owner name and property address');
+                return;
+            }
+
+            if (!currentUser) {
+                showAuthModal();
+                return;
+            }
+
+            // Get session token
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                showAuthModal();
+                return;
+            }
+
+            hideError();
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('searchBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/research', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ ownerName, propertyAddress })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (data.upgrade) {
+                        showUpgradeModal();
+                    } else {
+                        showError(data.error || 'Search failed');
+                    }
+                    return;
+                }
+
+                renderResults(data);
+                await loadProfile();
+                updateUI();
+
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('searchBtn').disabled = false;
+            }
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = msg;
+            el.classList.add('active');
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').classList.remove('active');
+        }
+
+        function renderResults(data) {
+            const scoreClass = data.score >= 70 ? 'high' : data.score >= 40 ? 'medium' : 'low';
+
+            const html = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <div>
+                            <div class="result-name">${data.name}</div>
+                            <div class="result-address">${data.address}</div>
+                        </div>
+                        <div class="score">
+                            <div class="score-value ${scoreClass}">${data.score}</div>
+                            <div class="score-label ${scoreClass}">${data.scoreLabel}</div>
+                        </div>
+                    </div>
+
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric-label">Est. Value</div>
+                            <div class="metric-value money">${data.metrics?.estimatedValue || 'N/A'}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Est. Equity</div>
+                            <div class="metric-value money">${data.metrics?.estimatedEquity || 'N/A'}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Owned Since</div>
+                            <div class="metric-value">${data.metrics?.ownedSince || 'N/A'}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Age Range</div>
+                            <div class="metric-value">${data.metrics?.ageRange || 'N/A'}</div>
+                        </div>
+                    </div>
+
+                    <div class="wealth-section">
+                        <h4>Wealth Indicators</h4>
+                        <div class="wealth-grid">
+                            <div class="wealth-main">
+                                <div class="wealth-estimate">
+                                    <span class="wealth-label">Est. Net Worth</span>
+                                    <span class="wealth-value">${data.wealthIndicators?.netWorthEstimate || 'Not enough data'}</span>
+                                </div>
+                                <div class="wealth-row">
+                                    <span class="wealth-label">Income Level</span>
+                                    <span class="wealth-detail">${data.wealthIndicators?.incomeLevel || 'N/A'}</span>
+                                </div>
+                                <div class="wealth-row">
+                                    <span class="wealth-label">Financial Sophistication</span>
+                                    <span class="wealth-detail">${data.wealthIndicators?.financialSophistication || 'N/A'}</span>
+                                </div>
+                            </div>
+                            <div class="wealth-evidence">
+                                <span class="wealth-label">Evidence</span>
+                                <ul class="evidence-list">
+                                    ${(data.wealthIndicators?.evidence || ['No specific indicators found']).map(e => `<li>${e}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="intel-grid">
+                        <div class="intel-block">
+                            <h4>Who They Are</h4>
+                            <div class="intel-row"><span class="intel-label">Spouse</span><span class="intel-value">${data.whoTheyAre?.spouse || 'N/A'}</span></div>
+                            <div class="intel-row"><span class="intel-label">Occupation</span><span class="intel-value">${data.whoTheyAre?.occupation || 'N/A'}</span></div>
+                            <div class="intel-row"><span class="intel-label">Ownership</span><span class="intel-value">${data.whoTheyAre?.ownership || 'N/A'}</span></div>
+                            <div class="intel-row"><span class="intel-label">Decision Style</span><span class="intel-value">${data.whoTheyAre?.decisionStyle || 'N/A'}</span></div>
+                        </div>
+                        <div class="intel-block">
+                            <h4>How They Think</h4>
+                            <div class="intel-row"><span class="intel-label">Financial</span><span class="intel-value">${data.howTheyThink?.financialMindset || 'N/A'}</span></div>
+                            <div class="intel-row"><span class="intel-label">Communication</span><span class="intel-value">${data.howTheyThink?.communication || 'N/A'}</span></div>
+                            <div class="intel-row"><span class="intel-label">Social Position</span><span class="intel-value">${data.howTheyThink?.socialPosition || 'N/A'}</span></div>
+                            <div class="intel-row"><span class="intel-label">Best Channel</span><span class="intel-value">${data.howTheyThink?.bestChannel || 'N/A'}</span></div>
+                        </div>
+                    </div>
+
+                    <div class="tick-section">
+                        <h4>What Makes Them Tick</h4>
+                        <div class="tick-grid">
+                            <div class="tick-item">
+                                <span class="tick-label">Personality</span>
+                                <span class="tick-value">${data.whatMakesThemTick?.personalityType || 'N/A'}</span>
+                            </div>
+                            <div class="tick-item">
+                                <span class="tick-label">Decision Speed</span>
+                                <span class="tick-value">${data.whatMakesThemTick?.decisionSpeed || 'N/A'}</span>
+                            </div>
+                            <div class="tick-item">
+                                <span class="tick-label">Life Stage</span>
+                                <span class="tick-value">${data.whatMakesThemTick?.lifeStage || 'N/A'}</span>
+                            </div>
+                            <div class="tick-item">
+                                <span class="tick-label">What Would Make Them Move</span>
+                                <span class="tick-value">${data.whatMakesThemTick?.motivators || 'N/A'}</span>
+                            </div>
+                            <div class="tick-item">
+                                <span class="tick-label">Pride Points (Build Rapport Here)</span>
+                                <span class="tick-value">${data.whatMakesThemTick?.pridePoints || 'N/A'}</span>
+                            </div>
+                            <div class="tick-item">
+                                <span class="tick-label">What Might Hold Them Back</span>
+                                <span class="tick-value">${data.whatMakesThemTick?.concerns || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="signals">
+                        <div class="signals-header">
+                            <h4>Selling Signals</h4>
+                            <span>${(data.signals || []).length} signals detected</span>
+                        </div>
+                        <div class="signal-tags">
+                            ${(data.signals || []).map(s => {
+                                if (typeof s === 'object') {
+                                    return `<div class="signal-tag ${s.type || 'neutral'}">${s.text}</div>`;
+                                }
+                                return `<div class="signal-tag neutral">${s}</div>`;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <div class="approach">
+                        <h4>Recommended Approach</h4>
+                        <div class="approach-grid">
+                            <div class="approach-block"><h5>Opening</h5><p>${data.approach?.opening || 'N/A'}</p></div>
+                            <div class="approach-block"><h5>Key Messages</h5><p>${data.approach?.keyMessages || 'N/A'}</p></div>
+                            <div class="approach-block"><h5>Avoid</h5><p>${data.approach?.avoid || 'N/A'}</p></div>
+                            <div class="approach-block"><h5>Best Timing</h5><p>${data.approach?.timing || data.approach?.timeline || 'N/A'}</p></div>
+                        </div>
+                    </div>
+
+                    <div class="scripts">
+                        <h4>Personalized Scripts</h4>
+                        <div class="script-tabs">
+                            <button class="script-tab active" onclick="switchTab('letter')">Letter</button>
+                            <button class="script-tab" onclick="switchTab('phone')">Phone</button>
+                            <button class="script-tab" onclick="switchTab('door')">Door</button>
+                            <button class="script-tab" onclick="switchTab('email')">Email</button>
+                        </div>
+                        <div class="script-content active" id="script-letter">${data.scripts?.letter || 'N/A'}</div>
+                        <div class="script-content" id="script-phone">${data.scripts?.phone || 'N/A'}</div>
+                        <div class="script-content" id="script-door">${data.scripts?.door || 'N/A'}</div>
+                        <div class="script-content" id="script-email">${data.scripts?.email || 'N/A'}</div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('results').innerHTML = html;
+            document.getElementById('results').classList.add('active');
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.script-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.script-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('script-' + tab).classList.add('active');
+        }
+
+        // ===================
+        // UPGRADE
+        // ===================
+        function showUpgradeModal() {
+            document.getElementById('upgradeModal').classList.add('active');
+        }
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').classList.remove('active');
+        }
+
+        function selectPlan(plan) {
+            selectedPlan = plan;
+            document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+            event.target.closest('.plan-card').classList.add('selected');
+        }
+
+        async function checkout() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                showAuthModal();
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/create-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ plan: selectedPlan })
+                });
+
+                const data = await response.json();
+
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert(data.error || 'Failed to start checkout');
+                }
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function openBillingPortal() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+
+            try {
+                const response = await fetch('/api/billing-portal', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.url) {
+                    window.location.href = data.url;
+                }
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        // ===================
+        // HISTORY
+        // ===================
+        async function showHistory() {
+            document.getElementById('historyPanel').classList.add('active');
+            await loadHistory();
+        }
+
+        function closeHistory() {
+            document.getElementById('historyPanel').classList.remove('active');
+        }
+
+        async function loadHistory() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+
+            try {
+                const response = await fetch('/api/history', {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    document.getElementById('historyList').innerHTML = '<div class="history-empty">No searches yet</div>';
+                    return;
+                }
+
+                // Store results in memory for click handling
+                window.historyResults = {};
+                
+                const html = data.map((item, index) => {
+                    window.historyResults[index] = item.result;
+                    const scoreClass = item.score >= 70 ? 'high' : item.score >= 40 ? 'medium' : 'low';
+                    const date = new Date(item.created_at).toLocaleDateString();
+                    return `
+                        <div class="history-item" onclick="loadHistoryItem(${index})">
+                            <div class="history-item-name">${item.owner_name}</div>
+                            <div class="history-item-address">${item.property_address}</div>
+                            <div class="history-item-meta">
+                                <span>${date}</span>
+                                <span class="history-item-score ${scoreClass}">Score: ${item.score}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('historyList').innerHTML = html;
+            } catch (err) {
+                console.error('Failed to load history:', err);
+            }
+        }
+
+        function loadHistoryItem(index) {
+            const result = window.historyResults[index];
+            if (result) {
+                renderResults(result);
+                closeHistory();
+            }
+        }
+
+        // Init on load
+        init();
+    </script>
+</body>
+</html>
