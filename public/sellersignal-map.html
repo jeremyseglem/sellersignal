@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{--bg:#0a0f14;--bg-card:#111921;--bg-card-hover:#162430;--bg-input:#1a2a3a;--text:#FDFCFA;--text-secondary:#8a9aa8;--text-tertiary:#5a6a78;--accent:#c4a87c;--accent-hover:#d4b88c;--border:#1e2a36;--score-high:#4ade80;--score-medium:#fbbf24;--score-low:#f87171}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.header{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg);z-index:1000;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.header-right{display:flex;align-items:center;gap:12px}
+.state-badge{padding:5px 12px;background:rgba(196,168,124,0.12);border:1px solid rgba(196,168,124,0.25);border-radius:6px;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.05em}
+.usage-badge{font-size:12px;color:var(--text-secondary);padding:5px 10px;background:var(--bg-card);border-radius:6px}
+.usage-badge strong{color:var(--accent)}
+.map-container{flex:1;position:relative}
+#map{width:100%;height:100%}
+.leaflet-container{background:#0a0f14}
+.leaflet-control-zoom a{background:var(--bg-card)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--bg-card-hover)!important}
+.leaflet-control-attribution{background:rgba(10,15,20,0.8)!important;color:var(--text-tertiary)!important;font-size:10px!important}
+.leaflet-control-attribution a{color:var(--text-secondary)!important}
+.leaflet-popup-content-wrapper{background:var(--bg-card)!important;border:1px solid var(--border)!important;border-radius:10px!important;box-shadow:0 8px 32px rgba(0,0,0,0.6)!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;width:320px!important;font-family:'Inter',sans-serif!important}
+.popup-photo{width:100%;height:140px;background:var(--bg);position:relative;overflow:hidden}
+.popup-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.popup-photo-score{position:absolute;top:10px;right:10px;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;backdrop-filter:blur(8px);border:2px solid rgba(0,0,0,0.3)}
+.popup-photo-score.high{color:#fff;background:rgba(74,222,128,0.85)}
+.popup-photo-score.medium{color:#fff;background:rgba(251,191,36,0.85)}
+.popup-photo-score.low{color:#fff;background:rgba(248,113,113,0.85)}
+.popup-photo-label{position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));font-size:10px;color:rgba(255,255,255,0.7);text-align:right}
+.leaflet-popup-tip{background:var(--bg-card)!important;border:1px solid var(--border)!important;box-shadow:none!important}
+.leaflet-popup-close-button{color:var(--text-tertiary)!important;font-size:18px!important;top:8px!important;right:10px!important}
+.search-overlay{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:900;width:480px;max-width:calc(100% - 32px)}
+.search-box{display:flex;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.search-box input{flex:1;padding:14px 18px;background:transparent;border:none;color:var(--text);font-size:14px;font-family:inherit;outline:none}
+.search-box input::placeholder{color:var(--text-tertiary)}
+.search-box button{padding:14px 20px;background:var(--accent);border:none;color:var(--bg);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.search-box button:hover{background:var(--accent-hover)}
+.quick-jumps{display:flex;gap:6px;margin-top:8px;justify-content:center;flex-wrap:wrap}
+.quick-jump{padding:6px 14px;background:rgba(17,25,33,0.9);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;transition:all 0.2s;backdrop-filter:blur(8px)}
+.quick-jump:hover{border-color:var(--accent);color:var(--accent)}
+.popup-card{padding:16px}.popup-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.popup-owner{font-weight:600;font-size:14px;color:var(--text);max-width:210px;line-height:1.3}
+.popup-redacted{font-size:11px;color:var(--accent);font-weight:500;margin-top:4px;display:flex;align-items:center;gap:4px}
+.popup-type{font-size:10px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-tertiary);margin-top:3px}
+.popup-score{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0}
+.popup-score.high{color:var(--score-high);background:rgba(74,222,128,0.12);border:1.5px solid rgba(74,222,128,0.3)}
+.popup-score.medium{color:var(--score-medium);background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3)}
+.popup-score.low{color:var(--score-low);background:rgba(248,113,113,0.12);border:1.5px solid rgba(248,113,113,0.3)}
+.popup-address{font-size:12px;color:var(--text-secondary);margin-bottom:12px}
+.popup-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.popup-metric-label{font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-tertiary)}
+.popup-metric-value{font-size:13px;font-weight:600;color:var(--accent)}.popup-metric-value.plain{color:var(--text)}
+.popup-signals{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
+.popup-signal{font-size:10px;padding:3px 8px;border-radius:3px;background:rgba(196,168,124,0.1);color:var(--accent);border:1px solid rgba(196,168,124,0.2)}
+.popup-deep-btn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--accent);border-radius:6px;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.popup-deep-btn:hover{background:var(--accent);color:var(--bg)}
+.stats-bar{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;display:none;gap:24px;align-items:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-size:12px}
+.stat-item{display:flex;align-items:center;gap:6px;color:var(--text-secondary)}
+.stat-dot{width:8px;height:8px;border-radius:50%}.stat-dot.high{background:var(--score-high)}.stat-dot.medium{background:var(--score-medium)}.stat-dot.low{background:var(--score-low)}
+.stat-count{font-weight:700;color:var(--text)}
+.zoom-message{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:800;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:20px 32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.zoom-message p{color:var(--text-secondary);font-size:14px}.zoom-message .hint{color:var(--text-tertiary);font-size:12px;margin-top:6px}
+.map-loading{display:none;position:absolute;top:12px;right:16px;z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--accent);box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.map-loading.active{display:flex;align-items:center;gap:8px}
+.mini-spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Deep Signal Overlay */
+.deep-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:2000;overflow-y:auto}
+.deep-overlay.active{display:block}
+.deep-header{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);z-index:10}
+.deep-back{padding:8px 16px;background:transparent;border:1px solid var(--accent);border-radius:6px;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.deep-back:hover{background:var(--accent);color:var(--bg)}
+.deep-body{max-width:900px;margin:0 auto;padding:32px 24px}
+.deep-loading{text-align:center;padding:80px 24px}
+.deep-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+.deep-loading p{color:var(--text-secondary);font-size:15px}
+.deep-loading .substep{color:var(--text-tertiary);font-size:12px;margin-top:8px}
+.deep-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.deep-card-header{padding:24px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border)}
+.deep-card-name{font-family:'DM Serif Display',serif;font-size:28px;margin-bottom:4px}
+.deep-card-addr{font-size:14px;color:var(--text-secondary)}
+.deep-score-big{font-size:48px;font-weight:600;line-height:1}
+.deep-score-big.high{color:var(--score-high)}.deep-score-big.medium{color:var(--score-medium)}.deep-score-big.low{color:var(--score-low)}
+.deep-score-label{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;text-align:right}
+.deep-metrics{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)}
+.deep-metric{padding:20px;border-right:1px solid var(--border)}
+.deep-metric:last-child{border-right:none}
+.deep-metric-label{font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:4px}
+.deep-metric-val{font-size:18px;font-weight:600}
+.deep-metric-val.gold{color:var(--accent)}
+.deep-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+.deep-block{padding:24px;border-right:1px solid var(--border)}
+.deep-block:nth-child(2n){border-right:none}
+.deep-block h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.deep-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px}
+.deep-row-label{color:var(--text-tertiary)}
+.deep-row-value{color:var(--text);text-align:right;max-width:60%}
+.deep-tick{padding:24px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(196,168,124,0.05) 0%,transparent 100%)}
+.deep-tick h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.deep-tick-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep-tick-label{font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent)}
+.deep-tick-value{font-size:13px;color:var(--text-secondary);line-height:1.5}
+.deep-signals{padding:24px;border-bottom:1px solid var(--border)}
+.deep-signals-header{display:flex;justify-content:space-between;margin-bottom:16px}
+.deep-signals-header h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary)}
+.deep-signal-tags{display:flex;flex-wrap:wrap;gap:8px}
+.deep-signal-tag{padding:8px 12px;background:var(--bg);font-size:12px;color:var(--text-secondary);border-left:3px solid var(--score-medium)}
+.deep-signal-tag.positive{border-left-color:var(--score-high)}.deep-signal-tag.negative{border-left-color:var(--score-low)}
+.deep-approach{padding:24px;border-bottom:1px solid var(--border)}
+.deep-approach h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px}
+.deep-approach-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep-approach-block{padding:16px;background:var(--bg);border-radius:8px}
+.deep-approach-block h5{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px}
+.deep-approach-block p{font-size:13px;color:var(--text-secondary);line-height:1.5}
+.deep-scripts{padding:24px}
+.deep-scripts h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px}
+.deep-script-tabs{display:flex;gap:8px;margin-bottom:16px}
+.deep-script-tab{padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:inherit}
+.deep-script-tab.active{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.deep-script-content{display:none;padding:20px;background:var(--bg);border-radius:8px;font-size:13px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap}
+.deep-script-content.active{display:block}
+@media(max-width:768px){.deep-metrics{grid-template-columns:1fr 1fr}.deep-grid{grid-template-columns:1fr}.deep-tick-grid{grid-template-columns:1fr}.deep-approach-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="header">
+    <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <div class="header-right">
+        <div class="state-badge" id="stateBadge">LOADING...</div>
+        <div class="usage-badge"><strong>47</strong> signals remaining</div>
+    </div>
+</header>
+<div class="map-container">
+    <div class="search-overlay">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search any address...">
+            <button onclick="flyToSearch()">Go</button>
+        </div>
+        <div class="quick-jumps">
+            <button class="quick-jump" onclick="flyTo(45.6770,-111.0429,'Bozeman, MT')">Bozeman</button>
+            <button class="quick-jump" onclick="flyTo(46.8721,-113.9940,'Missoula, MT')">Missoula</button>
+            <button class="quick-jump" onclick="flyTo(45.7833,-108.5007,'Billings, MT')">Billings</button>
+            <button class="quick-jump" onclick="flyTo(46.5884,-112.0245,'Helena, MT')">Helena</button>
+            <button class="quick-jump" onclick="flyTo(48.2120,-114.3162,'Kalispell, MT')">Kalispell</button>
+            <button class="quick-jump" onclick="flyTo(48.4106,-114.3529,'Whitefish, MT')">Whitefish</button>
+            <button class="quick-jump" onclick="flyTo(45.3838,-111.1608,'Big Sky, MT')">Big Sky</button>
+            <button class="quick-jump" onclick="flyTo(45.6628,-110.5601,'Livingston, MT')">Livingston</button>
+            <button class="quick-jump" onclick="flyTo(47.6255,-122.3196,'Seattle, WA')">Seattle</button>
+        </div>
+    </div>
+    <div class="map-loading" id="mapLoading"><div class="mini-spinner"></div><span id="loadingText">Loading parcels...</span></div>
+    <div class="zoom-message" id="zoomMessage"><p>Zoom in to see seller signals</p><div class="hint">Search an address or zoom to street level • Coverage: Montana & King County, WA</div></div>
+    <div id="map"></div>
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-item"><div class="stat-dot high"></div> High <span class="stat-count" id="countHigh">0</span></div>
+        <div class="stat-item"><div class="stat-dot medium"></div> Medium <span class="stat-count" id="countMed">0</span></div>
+        <div class="stat-item"><div class="stat-dot low"></div> Low <span class="stat-count" id="countLow">0</span></div>
+        <div class="stat-item" style="color:var(--text-tertiary)">|</div>
+        <div class="stat-item"><span class="stat-count" id="countTotal">0</span> properties in view</div>
+    </div>
+</div>
+<!-- Deep Signal Overlay -->
+<div class="deep-overlay" id="deepOverlay">
+    <div class="deep-header">
+        <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+        <button class="deep-back" onclick="closeDeep()">← Back to Map</button>
+    </div>
+    <div class="deep-body" id="deepBody"></div>
+</div>
+
+<script>
+// ========================
+// DATA SOURCES
+// ========================
+const SOURCES={
+MT:{name:'Montana',url:'https://gisservicemt.gov/arcgis/rest/services/MSDI_Framework/Parcels/MapServer/0/query',
+fields:'OwnerName,AddressLine1,CityStateZip,TotalValue,TotalBuildingValue,TotalLandValue,PropType,GISAcres,Subdivision,OwnerAddress1,OwnerCity,OwnerState,OwnerZipCode,PARCELID',
+max:2000,bounds:{south:44.35,north:49.0,west:-116.05,east:-104.04},
+parse(f){const a=f.attributes;let lat=0,lng=0;if(f.centroid){lng=f.centroid.x;lat=f.centroid.y}else if(f.geometry?.rings?.[0]?.length){const r=f.geometry.rings[0];lng=r.reduce((s,p)=>s+p[0],0)/r.length;lat=r.reduce((s,p)=>s+p[1],0)/r.length}
+return{id:a.PARCELID,ownerName:a.OwnerName||'',address:(a.AddressLine1||'').trim(),cityStateZip:(a.CityStateZip||'').trim(),totalValue:a.TotalValue||0,buildingValue:a.TotalBuildingValue||0,landValue:a.TotalLandValue||0,propType:a.PropType||'',acres:a.GISAcres||0,subdivision:a.Subdivision||'',ownerAddress:(a.OwnerAddress1||'').trim(),ownerState:(a.OwnerState||'').trim(),exempt:a.PropType==='Exempt Property',lat,lng,hasOwnerName:!!a.OwnerName,ownerRevealed:true}}},
+WA_KING:{name:'Washington — King County',url:'https://services.arcgis.com/Ej0PsM5Aw677QF1W/arcgis/rest/services/PARCEL_ADDRESS_PUB_AREA_3069/FeatureServer/0/query',
+fields:'PAAUNIQUENAME,KCTP_ATTN,ADDR_FULL,CTYNAME,KCTP_ADDR,KCTP_CTYST,KCTP_STATE,APPRLNDVAL,APPR_IMPR,TAX_LNDVAL,TAX_IMPR,PLAT_NAME,KCA_ACRES,PREUSE_DESC,PIN,LAT,LON',
+max:2000,bounds:{south:47.0,north:47.8,west:-122.6,east:-121.0},
+parse(f){const a=f.attributes;const owner=(a.PAAUNIQUENAME||a.KCTP_ATTN||'').trim();const lv=a.APPRLNDVAL||a.TAX_LNDVAL||0;const bv=a.APPR_IMPR||a.TAX_IMPR||0;
+let lat=a.LAT||0,lng=a.LON||0;if((!lat||!lng)&&f.centroid){lng=f.centroid.x;lat=f.centroid.y}else if((!lat||!lng)&&f.geometry?.rings?.[0]?.length){const r=f.geometry.rings[0];lng=r.reduce((s,p)=>s+p[0],0)/r.length;lat=r.reduce((s,p)=>s+p[1],0)/r.length}
+const site=(a.ADDR_FULL||'').toLowerCase();const mail=(a.KCTP_ADDR||'').toLowerCase();
+const mailDiff=mail&&site&&site.length>5&&!mail.includes(site.substring(0,Math.min(8,site.length)));
+const isEntity=owner&&/LLC|TRUST|CORP|INC|FOUNDATION|GROUP|PARTNERS|ASSOC/i.test(owner);
+return{id:a.PIN,ownerName:isEntity?owner:'',address:(a.ADDR_FULL||'').trim(),cityStateZip:`${a.CTYNAME||'Seattle'}, WA`,totalValue:lv+bv,buildingValue:bv,landValue:lv,propType:(a.PREUSE_DESC||'').trim(),acres:a.KCA_ACRES||0,subdivision:(a.PLAT_NAME||'').trim(),ownerAddress:mail,ownerState:(a.KCTP_STATE||'').trim(),exempt:/exempt|government/i.test(a.PREUSE_DESC||''),lat,lng,hasOwnerName:isEntity,ownerRevealed:isEntity,mailDiffers:mailDiff}}}
+};
+
+function getSource(lat,lng){for(const[k,s]of Object.entries(SOURCES)){const b=s.bounds;if(lat>=b.south&&lat<=b.north&&lng>=b.west&&lng<=b.east)return{key:k,source:s}}return null}
+
+// ========================
+// MAP
+// ========================
+const map=L.map('map',{center:[46.8, -110.4],zoom:7});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OSM &copy; CARTO',subdomains:'abcd',maxZoom:20}).addTo(map);
+let markers=[],isLoading=false;const MIN_ZOOM=15;
+const colors={high:'#4ade80',medium:'#fbbf24',low:'#f87171'};
+const glows={high:'rgba(74,222,128,0.4)',medium:'rgba(251,191,36,0.3)',low:'rgba(248,113,113,0.2)'};
+
+// ========================
+// SCORING ENGINE v2 — Contextual, data-driven
+// Based on NAR 2025 data: median seller age 64, median tenure 11yr, 78% sell due to life events
+// ========================
+
+// National baseline rates for mortgage rates by purchase year
+const MORTGAGE_RATES_BY_YEAR = {
+    2024:6.8,2023:6.8,2022:5.3,2021:3.0,2020:3.1,2019:3.9,2018:4.5,
+    2017:4.0,2016:3.6,2015:3.8,2014:4.2,2013:3.9,2012:3.7,2011:4.5,
+    2010:4.7,2009:5.0,2008:6.0,2007:6.3,2006:6.4,2005:5.9,2004:5.8,
+    2003:5.8,2002:6.5,2001:7.0,2000:8.0,1999:7.4,1998:6.9,1997:7.6,
+    1996:7.8,1995:7.9
+};
+
+function scoreParcel(p, all) {
+    const signals = [];
+    let score = 30; // Baseline: ~3% annual turnover, but top 15-20% are "elevated likelihood"
+    
+    if (p.exempt) return { score: 0, scoreClass: 'low', signals: [] };
+    
+    // -----------------------------------------------
+    // COMPUTE NEIGHBORHOOD BASELINES from loaded parcels
+    // -----------------------------------------------
+    const valid = all.filter(x => x.totalValue > 0 && !x.exempt);
+    const totalParcels = valid.length || 1;
+    
+    // Absentee rate in this viewport
+    const absenteeCount = valid.filter(x => {
+        const pa2 = (x.address||'').toLowerCase().replace(/\s+/g,'');
+        const oa2 = (x.ownerAddress||'').toLowerCase().replace(/\s+/g,'');
+        return x.mailDiffers || (oa2 && pa2 && pa2.length > 5 && !oa2.includes(pa2.substring(0, Math.min(10, pa2.length))));
+    }).length;
+    const absenteeRate = absenteeCount / totalParcels;
+    
+    // Entity ownership rate in this viewport  
+    const eRx = /\bLLC\b|\bTRUST\b|\bLTD\b|\bPARTNERSHIP\b|\bINC\b|\bCORP\b|\bESTATE\b|\bFOUNDATION\b|\bGROUP\b/i;
+    const entityCount = valid.filter(x => x.ownerName && eRx.test(x.ownerName)).length;
+    const entityRate = entityCount / totalParcels;
+    
+    // Value distribution
+    const values = valid.map(x => x.totalValue).sort((a, b) => a - b);
+    const medianValue = values[Math.floor(values.length / 2)] || 0;
+    const p25Value = values[Math.floor(values.length * 0.25)] || 0;
+    const p75Value = values[Math.floor(values.length * 0.75)] || 0;
+    
+    // Resort/second-home market dampener
+    // When absentee + entity rates are very high, this is a resort/investment market
+    // These markets have LOWER sell velocity per capita despite appearing "transient"
+    // NAR: 61% of boomers say they'll never sell; second home owners are even stickier
+    const combinedAbsenteeEntity = absenteeRate + entityRate;
+    if (combinedAbsenteeEntity > 0.80) {
+        score -= 6; // Heavy resort market — lower baseline sell probability
+    } else if (combinedAbsenteeEntity > 0.55) {
+        score -= 3; // Moderate second-home market
+    }
+    
+    // -----------------------------------------------
+    // 1. OWNERSHIP DURATION (strongest parcel-level predictor)
+    // NAR: median tenure before selling = 11 years, all-time high
+    // Owners 15+ years are past the median — statistically overdue
+    // -----------------------------------------------
+    const purchaseYear = p.lastSaleYear || p.ownedSince || null;
+    const currentYear = new Date().getFullYear();
+    const tenure = purchaseYear ? (currentYear - purchaseYear) : null;
+    
+    if (tenure !== null) {
+        if (tenure >= 20) {
+            signals.push({ text: `Owned ${tenure} years — well past median seller tenure (11yr)`, type: 'positive' });
+            score += 18;
+        } else if (tenure >= 15) {
+            signals.push({ text: `Owned ${tenure} years — past median seller tenure`, type: 'positive' });
+            score += 12;
+        } else if (tenure >= 10) {
+            signals.push({ text: `Owned ${tenure} years — approaching median seller tenure`, type: 'neutral' });
+            score += 5;
+        } else if (tenure <= 3) {
+            signals.push({ text: `Recent purchase (${purchaseYear}) — unlikely to sell soon`, type: 'negative' });
+            score -= 15;
+        } else if (tenure <= 6) {
+            signals.push({ text: `Owned ${tenure} years — below typical sell horizon`, type: 'negative' });
+            score -= 5;
+        }
+        
+        // MORTGAGE LOCK-IN FRICTION
+        const inferredRate = MORTGAGE_RATES_BY_YEAR[purchaseYear] || null;
+        if (inferredRate) {
+            if (inferredRate <= 3.5) {
+                signals.push({ text: `Likely ~${inferredRate}% mortgage — strong lock-in friction`, type: 'negative' });
+                score -= 10;
+            } else if (inferredRate <= 4.5) {
+                signals.push({ text: `Likely ~${inferredRate}% mortgage — moderate lock-in`, type: 'negative' });
+                score -= 5;
+            } else if (inferredRate >= 6.5) {
+                signals.push({ text: `Likely ${inferredRate}%+ mortgage — no rate lock-in`, type: 'positive' });
+                score += 5;
+            }
+        }
+        if (tenure >= 25) {
+            signals.push({ text: 'Likely owns free and clear — no mortgage friction', type: 'positive' });
+            score += 5;
+        }
+    }
+    
+    // -----------------------------------------------
+    // 2. ABSENTEE / OUT-OF-STATE — CONTEXTUAL
+    // Signal strength inversely proportional to neighborhood absentee rate
+    // If 80% of area is absentee, being absentee is meaningless
+    // -----------------------------------------------
+    const pa = (p.address || '').toLowerCase().replace(/\s+/g, '');
+    const oa = (p.ownerAddress || '').toLowerCase().replace(/\s+/g, '');
+    const isAbsentee = p.mailDiffers || (oa && pa && pa.length > 5 && !oa.includes(pa.substring(0, Math.min(10, pa.length))));
+    const isOutOfState = p.ownerState && !['MT', 'WA'].includes(p.ownerState.toUpperCase());
+    
+    if (isOutOfState) {
+        // Context: how unusual is this in this neighborhood?
+        const outOfStateCount = valid.filter(x => x.ownerState && !['MT', 'WA'].includes(x.ownerState.toUpperCase())).length;
+        const outOfStateRate = outOfStateCount / totalParcels;
+        
+        if (outOfStateRate < 0.15) {
+            signals.push({ text: `Out-of-state owner (${p.ownerState}) — unusual for this area (${Math.round(outOfStateRate*100)}% are)`, type: 'positive' });
+            score += 15;
+        } else if (outOfStateRate < 0.40) {
+            signals.push({ text: `Out-of-state (${p.ownerState}) — common in area (${Math.round(outOfStateRate*100)}%)`, type: 'positive' });
+            score += 10;
+        } else {
+            signals.push({ text: `Out-of-state (${p.ownerState}) — typical for this market (${Math.round(outOfStateRate*100)}%)`, type: 'neutral' });
+            score += 2;
+        }
+    } else if (isAbsentee) {
+        if (absenteeRate < 0.20) {
+            signals.push({ text: `Absentee owner — uncommon here (${Math.round(absenteeRate*100)}% absentee)`, type: 'positive' });
+            score += 13;
+        } else if (absenteeRate < 0.50) {
+            signals.push({ text: `Absentee owner — moderate for area (${Math.round(absenteeRate*100)}%)`, type: 'positive' });
+            score += 8;
+        } else {
+            signals.push({ text: `Absentee — standard for this market (${Math.round(absenteeRate*100)}%)`, type: 'neutral' });
+            score += 1;
+        }
+    }
+    
+    // -----------------------------------------------
+    // 3. ENTITY OWNERSHIP — CONTEXTUAL
+    // Trust/Estate signals potential transition; LLC in resort = normal
+    // -----------------------------------------------
+    const isEntity = p.ownerName && eRx.test(p.ownerName);
+    
+    if (isEntity) {
+        const isTrustEstate = /TRUST|ESTATE/i.test(p.ownerName);
+        
+        if (isTrustEstate) {
+            // Trusts/Estates have higher transition probability regardless of context
+            // Estate especially signals death of owner
+            if (/ESTATE/i.test(p.ownerName)) {
+                signals.push({ text: 'Estate ownership — high probability of pending sale', type: 'positive' });
+                score += 20;
+            } else {
+                signals.push({ text: 'Trust ownership — may indicate estate planning transition', type: 'positive' });
+                score += 14;
+            }
+        } else {
+            // LLC/Corp — context matters heavily
+            if (entityRate < 0.15) {
+                signals.push({ text: `Entity owner (${p.ownerName.substring(0,30)}) — unusual for area (${Math.round(entityRate*100)}%)`, type: 'positive' });
+                score += 8;
+            } else if (entityRate < 0.40) {
+                signals.push({ text: `Entity owned — moderate for area (${Math.round(entityRate*100)}%)`, type: 'neutral' });
+                score += 3;
+            } else {
+                signals.push({ text: `Entity owned — typical for this market (${Math.round(entityRate*100)}% are entities)`, type: 'neutral' });
+                score += 0;
+            }
+        }
+    }
+    
+    // -----------------------------------------------
+    // 4. EQUITY & VALUE POSITION
+    // -----------------------------------------------
+    if (p.totalValue > 0 && p.landValue > 0) {
+        const bldgLandRatio = p.landValue / p.totalValue;
+        
+        // Building-to-land ratio — high land value relative to building suggests teardown potential
+        if (bldgLandRatio > 0.80) {
+            signals.push({ text: 'Land value far exceeds building — teardown/redevelopment candidate', type: 'positive' });
+            score += 8;
+        } else if (bldgLandRatio > 0.65) {
+            signals.push({ text: 'Land value exceeds building — underimproved', type: 'positive' });
+            score += 4;
+        }
+        
+        // Price position relative to neighborhood
+        if (medianValue > 0) {
+            const valueRatio = p.totalValue / medianValue;
+            if (valueRatio < 0.55) {
+                signals.push({ text: `Assessed ${Math.round((1-valueRatio)*100)}% below area median — potential value unlock`, type: 'positive' });
+                score += 6;
+            } else if (valueRatio > 2.0) {
+                signals.push({ text: `Highest-value property in area — limited upside in this location`, type: 'positive' });
+                score += 4;
+            }
+        }
+    }
+    
+    // -----------------------------------------------
+    // 5. PROPERTY TYPE & SIZE SIGNALS
+    // -----------------------------------------------
+    if (p.acres && p.acres > 2 && p.totalValue > 0 && medianValue > 0) {
+        // Large lot in area of smaller lots — subdivision potential
+        const avgAcres = valid.reduce((sum, x) => sum + (x.acres || 0), 0) / totalParcels;
+        if (p.acres > avgAcres * 3 && avgAcres < 2) {
+            signals.push({ text: `Oversized lot (${p.acres.toFixed(1)} acres vs ${avgAcres.toFixed(1)} avg) — subdivision potential`, type: 'positive' });
+            score += 6;
+        }
+    }
+    
+    // -----------------------------------------------
+    // 6. TAX BURDEN SIGNAL
+    // High assessed value + absentee = carrying cost pressure
+    // -----------------------------------------------
+    if (isAbsentee && p.totalValue > 500000) {
+        const estAnnualTax = p.totalValue * 0.01;
+        if (estAnnualTax > 10000) {
+            signals.push({ text: `Est. $${(estAnnualTax/1000).toFixed(0)}K/yr tax on non-primary residence`, type: 'positive' });
+            score += 5;
+        }
+    }
+    
+    // -----------------------------------------------
+    // 7. PROPERTY TYPE SIGNALS
+    // Investment properties trade more frequently than primary residences
+    // Vacant land trades more frequently than improved parcels
+    // -----------------------------------------------
+    const pt = (p.propType || '').toLowerCase();
+    if (pt.includes('vacant') || pt.includes('land') || (p.totalValue > 0 && p.buildingValue === 0)) {
+        signals.push({ text: 'Vacant land — higher turnover rate than improved parcels', type: 'positive' });
+        score += 12;
+    }
+    if (pt.includes('multi') || pt.includes('apartment') || pt.includes('duplex') || pt.includes('rental')) {
+        signals.push({ text: 'Multi-family/investment — more transactional ownership pattern', type: 'positive' });
+        score += 6;
+    }
+    if (pt.includes('commercial') || pt.includes('industrial')) {
+        signals.push({ text: 'Commercial property — investment-driven sell decisions', type: 'positive' });
+        score += 4;
+    }
+    
+    // -----------------------------------------------
+    // 8. HIGH-VALUE EQUITY MOTIVATION
+    // Owners in the top quartile of their neighborhood have the most equity to unlock
+    // NAR: equity realization is a top motivator for repeat sellers
+    // -----------------------------------------------
+    if (p.totalValue > 0 && p75Value > 0 && p.totalValue > p75Value) {
+        signals.push({ text: `Top quartile value in area — significant equity position`, type: 'positive' });
+        score += 4;
+    }
+    
+    // -----------------------------------------------
+    // 9. OWNER NAME INDICATORS
+    // Estate names, trust with deceased indicators, "HEIRS" etc.
+    // -----------------------------------------------
+    const on = (p.ownerName || '').toUpperCase();
+    if (/\bHEIRS\b|\bDECEASED\b|\bESTATE OF\b|\bSURVIVOR\b/.test(on)) {
+        signals.push({ text: 'Ownership indicates death of prior owner — high transition probability', type: 'positive' });
+        score += 15;
+    }
+    if (/\bBANK\b|\bMORTGAGE\b|\bLOAN\b|\bSERVICING\b|\bFORECLOS/.test(on) && !p.exempt) {
+        signals.push({ text: 'Bank/lender owned (REO) — will be sold', type: 'positive' });
+        score += 25;
+    }
+    
+    // -----------------------------------------------
+    // 10. MULTI-PROPERTY OWNER DETECTION
+    // If same owner name appears on multiple parcels, they're an investor
+    // Investors are more transactional — higher sell probability
+    // -----------------------------------------------
+    if (p.ownerName && p.ownerName.length > 3) {
+        const ownerKey = p.ownerName.toUpperCase().trim();
+        const ownerParcels = valid.filter(x => x.ownerName && x.ownerName.toUpperCase().trim() === ownerKey).length;
+        if (ownerParcels >= 4) {
+            signals.push({ text: `Owner holds ${ownerParcels}+ properties in view — active investor/portfolio`, type: 'positive' });
+            score += 8;
+        } else if (ownerParcels >= 2) {
+            signals.push({ text: `Owner holds ${ownerParcels} properties in view — multi-property owner`, type: 'positive' });
+            score += 5;
+        }
+    }
+    
+    // -----------------------------------------------
+    // FINAL SCORE CALIBRATION
+    // Target distribution: ~70% red, ~25% yellow, ~5% green
+    // 68+ (green) = multiple strong signals — genuine sell candidate
+    // 42-67 (yellow) = some real evidence of sell likelihood
+    // <42 (red) = default — insufficient evidence to predict a sale
+    // -----------------------------------------------
+    score = Math.min(95, Math.max(5, score));
+    
+    const scoreClass = score >= 65 ? 'high' : score >= 40 ? 'medium' : 'low';
+    return { score, scoreClass, signals };
+}
+
+function latlngToMerc(lat,lng){const x=lng*20037508.34/180;const y=Math.log(Math.tan((90+lat)*Math.PI/360))/(Math.PI/180)*20037508.34/180;return{x,y}}
+
+// ========================
+// LOAD PARCELS
+// ========================
+async function loadParcels(){
+    if(isLoading)return;const zoom=map.getZoom();
+    if(zoom<MIN_ZOOM){document.getElementById('zoomMessage').style.display='block';document.getElementById('statsBar').style.display='none';return}
+    document.getElementById('zoomMessage').style.display='none';
+    const c=map.getCenter();const match=getSource(c.lat,c.lng);
+    if(!match){document.getElementById('stateBadge').textContent='COVERAGE COMING SOON';document.getElementById('stateBadge').style.color='#f87171';return}
+    const{source}=match;document.getElementById('stateBadge').textContent=source.name.toUpperCase();document.getElementById('stateBadge').style.color='#c4a87c';
+    isLoading=true;document.getElementById('loadingText').textContent=`Loading ${source.name} parcels...`;document.getElementById('mapLoading').classList.add('active');
+    try{const b=map.getBounds();const sw=latlngToMerc(b.getSouth(),b.getWest());const ne=latlngToMerc(b.getNorth(),b.getEast());
+    const params=new URLSearchParams({geometry:`${sw.x},${sw.y},${ne.x},${ne.y}`,geometryType:'esriGeometryEnvelope',inSR:'3857',spatialRel:'esriSpatialRelIntersects',outFields:source.fields,returnGeometry:'true',returnCentroid:'true',outSR:'4326',f:'json',resultRecordCount:String(source.max)});
+    const res=await fetch(`${source.url}?${params}`);const data=await res.json();
+    if(data.features?.length>0){const parcels=data.features.map(f=>source.parse(f)).filter(p=>p.lat!==0&&!p.exempt&&(p.ownerName||p.address));
+    const scored=parcels.map(p=>{const{score,scoreClass,signals}=scoreParcel(p,parcels);return{...p,score,scoreClass,signals}});addMarkers(scored);updateStats()}}
+    catch(e){console.error(e)}finally{isLoading=false;document.getElementById('mapLoading').classList.remove('active')}}
+
+// ========================
+// MARKERS
+// ========================
+function addMarkers(parcels){for(const p of parcels){if(p.score===0)continue;
+if(markers.some(m=>{const pos=m.getLatLng();return Math.abs(pos.lat-p.lat)<0.00001&&Math.abs(pos.lng-p.lng)<0.00001}))continue;
+const icon=L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:${colors[p.scoreClass]};border-radius:50%;border:2px solid rgba(0,0,0,0.4);box-shadow:0 0 8px ${glows[p.scoreClass]},0 2px 4px rgba(0,0,0,0.3);transition:transform 0.15s" onmouseover="this.style.transform='scale(1.5)'" onmouseout="this.style.transform='scale(1)'"></div>`,iconSize:[14,14],iconAnchor:[7,7]});
+const marker=L.marker([p.lat,p.lng],{icon}).addTo(map);marker._pd=p;
+marker.bindPopup(()=>popup(p),{maxWidth:340,minWidth:320,closeButton:true,autoPan:true,autoPanPaddingTopLeft:[10,80]});markers.push(marker)}}
+
+function popup(p){
+    const val=p.totalValue?`$${(p.totalValue/1000).toFixed(0)}K`:'N/A';
+    const bv=p.buildingValue?`$${(p.buildingValue/1000).toFixed(0)}K`:'—';
+    const lv=p.landValue?`$${(p.landValue/1000).toFixed(0)}K`:'—';
+    const sigs=p.signals.map(s=>`<span class="popup-signal">${s.text}</span>`).join('');
+    
+    let ownerHtml;
+    if(p.ownerRevealed&&p.ownerName){
+        ownerHtml=`<div class="popup-owner">${p.ownerName}</div>`;
+    } else {
+        ownerHtml=`<div class="popup-owner">${p.address}</div><div class="popup-redacted">🔒 Owner revealed with Deep Signal</div>`;
+    }
+    
+    // Street View image
+    const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=640x280&location=${encodeURIComponent(p.address+(p.cityStateZip?', '+p.cityStateZip:''))}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&fov=90&pitch=10`;
+    
+    return `<div class="popup-card" style="padding:0">
+        <div class="popup-photo">
+            <img src="${svUrl}" alt="Street view" onerror="this.parentElement.style.display='none'">
+            <div class="popup-photo-score ${p.scoreClass}">${p.score}</div>
+            <div class="popup-photo-label">Street View</div>
+        </div>
+        <div style="padding:16px">
+        <div class="popup-header"><div>${ownerHtml}<div class="popup-type">${p.propType||'Property'}</div></div></div>
+        <div class="popup-address">${p.address}${p.cityStateZip?', '+p.cityStateZip:''}</div>
+        <div class="popup-metrics"><div><div class="popup-metric-label">Assessed Value</div><div class="popup-metric-value">${val}</div></div><div><div class="popup-metric-label">Building / Land</div><div class="popup-metric-value">${bv} / ${lv}</div></div><div><div class="popup-metric-label">Acres</div><div class="popup-metric-value plain">${p.acres?p.acres.toFixed(2):'—'}</div></div><div><div class="popup-metric-label">Plat</div><div class="popup-metric-value plain" style="font-size:11px">${p.subdivision||'—'}</div></div></div>
+        ${p.signals.length>0?`<div class="popup-signals">${sigs}</div>`:'<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px">No strong sell signals from parcel data</div>'}
+        <button class="popup-deep-btn" onclick="runDeep('${p.address.replace(/'/g,"\\'")}','${(p.cityStateZip||'').replace(/'/g,"\\'")}',${p.score},'${p.scoreClass}',${p.totalValue},${p.buildingValue},${p.landValue},'${(p.ownerName||'').replace(/'/g,"\\'")}','${(p.propType||'').replace(/'/g,"\\'")}','${(p.subdivision||'').replace(/'/g,"\\'")}')">Deep Signal → Full Research</button>
+        </div>
+    </div>`}
+
+// ========================
+// STATS
+// ========================
+function updateStats(){const vis=markers.filter(m=>map.getBounds().contains(m.getLatLng()));
+document.getElementById('countHigh').textContent=vis.filter(m=>m._pd.scoreClass==='high').length;
+document.getElementById('countMed').textContent=vis.filter(m=>m._pd.scoreClass==='medium').length;
+document.getElementById('countLow').textContent=vis.filter(m=>m._pd.scoreClass==='low').length;
+document.getElementById('countTotal').textContent=vis.length;
+document.getElementById('statsBar').style.display=vis.length>0?'flex':'none'}
+
+// ========================
+// NAVIGATION
+// ========================
+async function flyToSearch(){const q=document.getElementById('searchInput').value.trim();if(!q)return;
+try{const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`,{headers:{'User-Agent':'SellerSignal/1.0'}});const d=await r.json();if(d?.[0])map.flyTo([parseFloat(d[0].lat),parseFloat(d[0].lon)],16,{duration:1.5})}catch(e){console.error(e)}}
+function flyTo(lat,lng,label){document.getElementById('searchInput').value=label||'';map.flyTo([lat,lng],16,{duration:1.5})}
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')flyToSearch()});
+
+let loadTimeout,lastLoad=0;
+map.on('moveend',()=>{clearTimeout(loadTimeout);const d=Date.now()-lastLoad<2000?800:300;loadTimeout=setTimeout(()=>{lastLoad=Date.now();loadParcels();updateStats()},d)});
+map.on('zoomend',()=>{const z=map.getZoom();document.getElementById('zoomMessage').style.display=z<MIN_ZOOM?'block':'none';if(z<MIN_ZOOM)document.getElementById('statsBar').style.display='none'});
+
+// ========================
+// DEEP SIGNAL — Calls real backend, falls back to demo
+// ========================
+const API_BASE = 'https://sellersignal.co'; // Change to your Railway URL
+let useRealAPI = true; // Set false to force demo mode
+
+function closeDeep(){document.getElementById('deepOverlay').classList.remove('active')}
+
+async function runDeep(address,csz,score,scoreClass,totalVal,bldgVal,landVal,ownerName,propType,subdivision){
+    const overlay=document.getElementById('deepOverlay');
+    const body=document.getElementById('deepBody');
+    overlay.classList.add('active');
+    
+    const fullAddr=address+(csz?', '+csz:'');
+    body.innerHTML=`<div class="deep-loading"><div class="deep-spinner"></div><p>Running Deep Signal on ${address}...</p><div class="substep" id="ds-step">Connecting to research engine...</div></div>`;
+    
+    const steps=['Searching Zillow, Redfin, county records in parallel...','Pulling LinkedIn, public records, business filings...','Scanning for life events, relocation signals, social media...','Analyzing findings and building approach strategy...'];
+    let si=0;
+    const stepInterval=setInterval(()=>{si++;if(si<steps.length){const el=document.getElementById('ds-step');if(el)el.textContent=steps[si]}},4000);
+
+    let result = null;
+    
+    if (useRealAPI) {
+        try {
+            const res = await fetch(`${API_BASE}/api/beta-research`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ownerName: ownerName || '',
+                    propertyAddress: fullAddr,
+                    preliminaryScore: score
+                })
+            });
+            if (res.ok) {
+                result = await res.json();
+            } else {
+                const err = await res.json();
+                console.log('API error:', err.error);
+            }
+        } catch(e) {
+            console.log('API unreachable, using demo mode:', e.message);
+        }
+    }
+
+    clearInterval(stepInterval);
+
+    if (result) {
+        renderRealDeepSignal(result, fullAddr, scoreClass);
+    } else {
+        renderDemoDeepSignal(address, csz, score, scoreClass, totalVal, bldgVal, landVal, ownerName, propType, subdivision);
+    }
+}
+
+function renderRealDeepSignal(d, fullAddr, fallbackScoreClass) {
+    const body = document.getElementById('deepBody');
+    const sc = d.score >= 65 ? 'high' : d.score >= 40 ? 'medium' : 'low';
+    const name = d.name || 'Unknown Owner';
+    const addr = d.address || fullAddr;
+    
+    // Metrics
+    const mv = d.metrics?.estimatedValue || 'Not found';
+    const eq = d.metrics?.estimatedEquity || 'Not found';
+    const os = d.metrics?.ownedSince || 'Not found';
+    const ar = d.metrics?.ageRange || 'Not found';
+    
+    // Data quality badge
+    const dq = d.dataQuality || 'Moderate';
+    const dqColor = dq === 'Rich' ? 'var(--score-high)' : dq === 'Limited' ? 'var(--score-low)' : 'var(--score-medium)';
+
+    // Confirmed facts
+    const factsHtml = (d.confirmedFacts || []).map(f => 
+        `<div style="padding:8px 12px;background:var(--bg);border-left:3px solid var(--score-high);font-size:12px;color:var(--text-secondary);margin-bottom:6px">${f}</div>`
+    ).join('') || '<div style="font-size:12px;color:var(--text-tertiary);padding:8px">No confirmed facts extracted from search results</div>';
+
+    // Contact info
+    const phones = d.contactInfo?.phones?.filter(p => p && p !== 'Not found' && p !== 'None found') || [];
+    const emails = d.contactInfo?.emails?.filter(e => e && e !== 'Not found' && e !== 'None found') || [];
+    const relatives = d.contactInfo?.relatives?.filter(r => r && r !== 'Not found' && r !== 'None found') || [];
+    const hasContact = phones.length > 0 || emails.length > 0;
+    const contactHtml = hasContact ? `
+        <div style="padding:24px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(74,222,128,0.05) 0%,transparent 100%)">
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-high);margin-bottom:12px">Contact Information</h4>
+            ${phones.length > 0 ? `<div style="margin-bottom:8px">${phones.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;width:50px">Phone</span><span style="font-size:14px;font-weight:600;color:var(--text)">${p}</span></div>`).join('')}</div>` : ''}
+            ${emails.length > 0 ? `<div style="margin-bottom:8px">${emails.map(e => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;width:50px">Email</span><span style="font-size:14px;font-weight:600;color:var(--text)">${e}</span></div>`).join('')}</div>` : ''}
+            ${relatives.length > 0 ? `<div><span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase">Associates</span><div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${relatives.join(', ')}</div></div>` : ''}
+        </div>` : '';
+
+    // Entity info
+    const ei = d.entityInfo;
+    const hasEntity = ei && ei.entityName && ei.entityName !== 'null' && ei.entityName !== 'N/A';
+    const entityHtml = hasEntity ? `
+        <div style="padding:24px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(196,168,124,0.05) 0%,transparent 100%)">
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px">Entity Information</h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Entity</span><span style="color:var(--text);font-weight:600">${ei.entityName}</span></div>
+                ${ei.registeredAgent ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Registered Agent</span><span style="color:var(--text)">${ei.registeredAgent}${ei.registeredAgentRole ? ` <span style="color:var(--text-tertiary);font-size:11px">(${ei.registeredAgentRole})</span>` : ''}</span></div>` : ''}
+                ${ei.members && ei.members.length > 0 && ei.members[0] !== 'Not found' ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Members/Principals</span><span style="color:var(--score-high);font-weight:600">${ei.members.join(', ')}</span></div>` : ''}
+                ${ei.filingDate ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Filed</span><span style="color:var(--text)">${ei.filingDate}</span></div>` : ''}
+                ${ei.status ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Status</span><span style="color:var(--text)">${ei.status}</span></div>` : ''}
+            </div>
+        </div>` : '';
+
+    // Signals
+    const sigsHtml = (d.signals || []).map(s => {
+        const conf = s.confidence === 'Confirmed' ? 'positive' : '';
+        return `<div class="deep-signal-tag ${s.type||''}" style="${s.confidence==='Inferred'?'opacity:0.7':''}">${s.text}${s.confidence==='Inferred'?' (inferred)':''}</div>`;
+    }).join('');
+
+    // Scripts
+    const letter = d.scripts?.letter || 'No personalized letter available — insufficient data.';
+    const phone = d.scripts?.phone || 'No personalized phone script available — insufficient data.';
+    const door = d.scripts?.door || 'No personalized door script available — insufficient data.';
+    const email = d.scripts?.email || 'No personalized email available — insufficient data.';
+
+    // Street View
+    const svUrl = `https://maps.googleapis.com/maps/api/streetview?size=900x300&location=${encodeURIComponent(addr)}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&fov=90&pitch=5`;
+
+    body.innerHTML = `
+    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;position:relative">
+        <img src="${svUrl}" style="width:100%;height:200px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(transparent,rgba(0,0,0,0.8))">
+            <div style="font-family:'DM Serif Display',serif;font-size:24px">${name}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${addr}</div>
+        </div>
+        <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px;align-items:center">
+            <div style="padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,0.6);color:${dqColor};border:1px solid ${dqColor}">${dq.toUpperCase()} DATA</div>
+            <div class="popup-score ${sc}" style="width:48px;height:48px;font-size:18px">${d.score}</div>
+        </div>
+    </div>
+    <div class="deep-card">
+        <div style="padding:16px 24px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary);line-height:1.5">
+            <strong style="color:var(--accent)">Score basis:</strong> ${d.scoreBasis || 'Based on preliminary parcel data analysis'}
+        </div>
+        <div class="deep-metrics">
+            <div class="deep-metric"><div class="deep-metric-label">Est. Value</div><div class="deep-metric-val gold">${typeof mv==='object'?mv.value:mv}</div></div>
+            <div class="deep-metric"><div class="deep-metric-label">Est. Equity</div><div class="deep-metric-val gold">${typeof eq==='object'?eq.value:eq}</div></div>
+            <div class="deep-metric"><div class="deep-metric-label">Owned Since</div><div class="deep-metric-val">${typeof os==='object'?os.value:os}</div></div>
+            <div class="deep-metric"><div class="deep-metric-label">Age Range</div><div class="deep-metric-val">${typeof ar==='object'?ar.value:ar}</div></div>
+        </div>
+        <div style="padding:24px;border-bottom:1px solid var(--border)">
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-high);margin-bottom:12px">Confirmed Facts</h4>
+            ${factsHtml}
+        </div>
+        ${contactHtml}
+        ${entityHtml}
+        <div class="deep-grid">
+            <div class="deep-block"><h4>Who They Are</h4>
+                <div class="deep-row"><span class="deep-row-label">Name</span><span class="deep-row-value">${name}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Spouse</span><span class="deep-row-value">${d.whoTheyAre?.spouse||'Not found'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Occupation</span><span class="deep-row-value">${d.whoTheyAre?.occupation||'Not found'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Ownership</span><span class="deep-row-value">${d.whoTheyAre?.ownership||'Not found'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Decision Style</span><span class="deep-row-value">${d.whoTheyAre?.decisionStyle||'Not enough data'}</span></div>
+            </div>
+            <div class="deep-block"><h4>How They Think</h4>
+                <div class="deep-row"><span class="deep-row-label">Financial</span><span class="deep-row-value">${d.howTheyThink?.financialMindset||'Not enough data'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Communication</span><span class="deep-row-value">${d.howTheyThink?.communication||'Not enough data'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Social Position</span><span class="deep-row-value">${d.howTheyThink?.socialPosition||'Not enough data'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Best Channel</span><span class="deep-row-value">${d.howTheyThink?.bestChannel||'Letter'}</span></div>
+            </div>
+        </div>
+        <div class="deep-tick"><h4>What Makes Them Tick</h4>
+            <div class="deep-tick-grid">
+                <div><span class="deep-tick-label">Personality</span><div class="deep-tick-value">${d.whatMakesThemTick?.personalityType||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Life Stage</span><div class="deep-tick-value">${d.whatMakesThemTick?.lifeStage||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Motivators</span><div class="deep-tick-value">${d.whatMakesThemTick?.motivators||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Concerns</span><div class="deep-tick-value">${d.whatMakesThemTick?.concerns||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Pride Points</span><div class="deep-tick-value">${d.whatMakesThemTick?.pridePoints||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Decision Speed</span><div class="deep-tick-value">${d.whatMakesThemTick?.decisionSpeed||'Insufficient data'}</div></div>
+            </div>
+        </div>
+        <div class="deep-signals">
+            <div class="deep-signals-header"><h4>Selling Signals</h4><span style="font-size:12px;color:var(--text-tertiary)">${(d.signals||[]).length} signals</span></div>
+            <div class="deep-signal-tags">${sigsHtml||'<div style="font-size:12px;color:var(--text-tertiary)">No signals detected beyond parcel data</div>'}</div>
+        </div>
+        <div class="deep-approach"><h4>Recommended Approach</h4>
+            <div class="deep-approach-grid">
+                <div class="deep-approach-block"><h5>Opening</h5><p>${d.approach?.opening||'Not enough data for personalized approach'}</p></div>
+                <div class="deep-approach-block"><h5>Key Messages</h5><p>${d.approach?.keyMessages||'Not enough data'}</p></div>
+                <div class="deep-approach-block"><h5>Avoid</h5><p>${d.approach?.avoid||'General: avoid pressure tactics'}</p></div>
+                <div class="deep-approach-block"><h5>Timing</h5><p>${d.approach?.timing||'Spring or early fall recommended'}</p></div>
+            </div>
+        </div>
+        <div class="deep-scripts"><h4>Personalized Scripts</h4>
+            <div class="deep-script-tabs">
+                <button class="deep-script-tab active" onclick="switchScript('letter',this)">Letter</button>
+                <button class="deep-script-tab" onclick="switchScript('phone',this)">Phone</button>
+                <button class="deep-script-tab" onclick="switchScript('door',this)">Door</button>
+                <button class="deep-script-tab" onclick="switchScript('email',this)">Email</button>
+            </div>
+            <div class="deep-script-content active" id="ds-letter">${letter}</div>
+            <div class="deep-script-content" id="ds-phone">${phone}</div>
+            <div class="deep-script-content" id="ds-door">${door}</div>
+            <div class="deep-script-content" id="ds-email">${email}</div>
+        </div>
+    </div>`;
+}
+
+function renderDemoDeepSignal(address,csz,score,scoreClass,totalVal,bldgVal,landVal,ownerName,propType,subdivision){
+    const body=document.getElementById('deepBody');
+    const fullAddr=address+(csz?', '+csz:'');
+    const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=900x300&location=${encodeURIComponent(fullAddr)}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&fov=90&pitch=5`;
+    const name=ownerName||address;
+    const sc=scoreClass;
+
+    body.innerHTML=`
+    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;position:relative">
+        <img src="${svUrl}" style="width:100%;height:200px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(transparent,rgba(0,0,0,0.8))">
+            <div style="font-family:'DM Serif Display',serif;font-size:24px">${name}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${fullAddr}</div>
+        </div>
+        <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px;align-items:center">
+            <div style="padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,0.6);color:var(--score-medium);border:1px solid var(--score-medium)">DEMO MODE</div>
+            <div class="popup-score ${sc}" style="width:48px;height:48px;font-size:18px">${score}</div>
+        </div>
+    </div>
+    <div class="deep-card">
+        <div style="padding:20px 24px;text-align:center;border-bottom:1px solid var(--border)">
+            <p style="color:var(--accent);font-size:14px;font-weight:600;margin-bottom:8px">Deep Signal API Not Connected</p>
+            <p style="color:var(--text-secondary);font-size:13px;line-height:1.6">To see real research results, deploy the updated server to Railway.<br>The research engine will query 12 data sources in parallel and deliver<br>a full intelligence report with confirmed facts and personalized scripts.</p>
+        </div>
+        <div style="padding:20px 24px">
+            <div style="font-size:13px;color:var(--text-tertiary);line-height:1.6">
+                <strong style="color:var(--text-secondary)">What the live Deep Signal delivers:</strong><br><br>
+                ✓ Owner identity resolved from county records and public data<br>
+                ✓ Confirmed purchase date, price paid, and equity position<br>
+                ✓ LinkedIn profile, employer, career history<br>
+                ✓ Life event detection (retirement, divorce, relocation signals)<br>
+                ✓ Seller likelihood score adjusted by confirmed facts<br>
+                ✓ Psychological approach strategy based on real data<br>
+                ✓ Personalized scripts for letter, phone, door, and email<br>
+                ✓ Every data point labeled Confirmed, Corroborated, or Inferred
+            </div>
+        </div>
+    </div>`;
+}
+
+function switchScript(tab,btn){
+    document.querySelectorAll('.deep-script-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.deep-script-content').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('ds-'+tab).classList.add('active');
+}
+
+// Initial load — check URL params first, then geolocation, then show zoom message
+(function init() {
+    const params = new URLSearchParams(window.location.search);
+    const urlLat = parseFloat(params.get('lat'));
+    const urlLng = parseFloat(params.get('lng'));
+    
+    if (urlLat && urlLng) {
+        // URL parameters — fly directly there
+        console.log(`Opening at URL coords: ${urlLat}, ${urlLng}`);
+        map.setView([urlLat, urlLng], 16);
+        setTimeout(loadParcels, 500);
+    } else if (navigator.geolocation) {
+        // Try browser geolocation
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                console.log(`Geolocation: ${lat}, ${lng}`);
+                // Check if they're in a covered area
+                const match = getSource(lat, lng);
+                if (match) {
+                    map.flyTo([lat, lng], 16, { duration: 1.5 });
+                    setTimeout(loadParcels, 2000);
+                } else {
+                    // In uncovered area — show Montana overview with zoom message
+                    document.getElementById('zoomMessage').style.display = 'block';
+                    document.getElementById('searchInput').placeholder = 'Search an address in Montana or King County, WA...';
+                }
+            },
+            (err) => {
+                // Denied or failed — show Montana overview
+                console.log('Geolocation denied/failed:', err.message);
+                document.getElementById('zoomMessage').style.display = 'block';
+                document.getElementById('searchInput').placeholder = 'Search an address to get started...';
+            },
+            { timeout: 5000 }
+        );
+    } else {
+        document.getElementById('zoomMessage').style.display = 'block';
+    }
+})();
+</script>
+</body>
+</html>
