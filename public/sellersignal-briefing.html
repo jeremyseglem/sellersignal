@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — Daily Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+    --bg:#070b10;--bg-card:#0e1419;--bg-card-hover:#141c24;--bg-elevated:#111921;
+    --text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;
+    --gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);
+    --green:#4ade80;--green-dim:rgba(74,222,128,0.1);--green-border:rgba(74,222,128,0.2);
+    --yellow:#fbbf24;--yellow-dim:rgba(251,191,36,0.1);
+    --red:#f87171;--red-dim:rgba(248,113,113,0.08);
+    --border:#172030;--border-light:#1e2d3d;
+    --radius:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::selection{background:var(--gold);color:var(--bg)}
+
+/* Header */
+.header{padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(7,11,16,0.92);backdrop-filter:blur(20px);z-index:100}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.header-actions{display:flex;gap:12px;align-items:center}
+.nav-btn{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s;text-decoration:none;display:flex;align-items:center;gap:6px}
+.nav-btn:hover{border-color:var(--gold);color:var(--gold)}
+.nav-btn.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+
+/* Farm Setup */
+.farm-setup{max-width:480px;margin:120px auto;text-align:center;padding:0 24px;animation:fadeUp 0.5s ease}
+.farm-setup h1{font-family:'DM Serif Display',serif;font-size:32px;margin-bottom:12px;color:var(--text)}
+.farm-setup p{color:var(--text-secondary);font-size:15px;line-height:1.6;margin-bottom:32px}
+.farm-input-row{display:flex;gap:10px}
+.farm-input{flex:1;padding:14px 18px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;font-family:'Outfit',sans-serif;outline:none;transition:border-color 0.2s}
+.farm-input:focus{border-color:var(--gold)}
+.farm-input::placeholder{color:var(--text-dim)}
+.farm-go{padding:14px 28px;background:var(--gold);color:var(--bg);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.2s;white-space:nowrap}
+.farm-go:hover{background:#d4b88c}
+
+/* Dashboard */
+.dashboard{max-width:900px;margin:0 auto;padding:24px 24px 80px;display:none}
+.dashboard.active{display:block}
+
+/* Briefing Header */
+.briefing-header{margin-bottom:32px;animation:fadeUp 0.4s ease}
+.briefing-date{font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.briefing-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:4px}
+.briefing-farm{font-size:14px;color:var(--text-secondary)}
+.briefing-stats{display:flex;gap:24px;margin-top:20px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.bstat{display:flex;flex-direction:column;gap:2px}
+.bstat-val{font-size:22px;font-weight:700;color:var(--text)}
+.bstat-val.gold{color:var(--gold)}
+.bstat-val.green{color:var(--green)}
+.bstat-label{font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-dim)}
+
+/* Section */
+.section{margin-bottom:36px;animation:fadeUp 0.4s ease}
+.section-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.section-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.section-icon.fire{background:var(--green-dim);border:1px solid var(--green-border)}
+.section-icon.mail{background:var(--gold-dim);border:1px solid var(--gold-border)}
+.section-icon.watch{background:var(--red-dim);border:1px solid rgba(248,113,113,0.15)}
+.section-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--text)}
+.section-count{font-size:12px;color:var(--text-dim);margin-left:auto}
+
+/* Prospect Card */
+.prospect{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;transition:all 0.2s;cursor:default}
+.prospect:hover{border-color:var(--border-light);background:var(--bg-card-hover)}
+.prospect.contacted{opacity:0.5}
+.prospect-main{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 18px;align-items:center}
+.prospect-score{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:2px solid rgba(0,0,0,0.3);flex-shrink:0}
+.prospect-score.high{background:rgba(74,222,128,0.15);color:var(--green);border-color:var(--green-border)}
+.prospect-score.medium{background:var(--yellow-dim);color:var(--yellow);border-color:rgba(251,191,36,0.2)}
+.prospect-score.low{background:var(--red-dim);color:var(--red);border-color:rgba(248,113,113,0.15)}
+.prospect-info{min-width:0}
+.prospect-addr{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prospect-meta{display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap}
+.prospect-cohort{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
+.prospect-signal{font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.prospect-om{font-size:11px;color:var(--text-dim)}
+.prospect-why{font-size:12px;color:var(--green);font-weight:500;margin-top:4px;line-height:1.4}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em}
+.chip-channel{background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)}
+.chip-contact{border:1px solid var(--border)}
+.chip-contact.high{color:var(--green);border-color:rgba(74,222,128,0.2);background:rgba(74,222,128,0.08)}
+.chip-contact.medium{color:var(--yellow);border-color:rgba(251,191,36,0.2);background:rgba(251,191,36,0.08)}
+.chip-contact.low{color:var(--red);border-color:rgba(248,113,113,0.15);background:rgba(248,113,113,0.06)}
+.chip-risk{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.15)}
+.prospect-actions{display:flex;gap:6px;flex-shrink:0}
+.action-btn{padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.15s;color:var(--text-secondary)}
+.action-btn:hover{border-color:var(--gold);color:var(--gold)}
+.action-btn.primary{background:var(--gold);border-color:var(--gold);color:var(--bg)}
+.action-btn.primary:hover{background:#d4b88c}
+.action-btn.done{background:var(--green-dim);border-color:var(--green-border);color:var(--green)}
+.action-btn.skip{opacity:0.6}
+
+/* Expanded detail */
+.prospect-detail{display:none;padding:0 20px 16px;border-top:1px solid var(--border);margin-top:0}
+.prospect.expanded .prospect-detail{display:block}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.detail-item{display:flex;flex-direction:column;gap:2px}
+.detail-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)}
+.detail-value{font-size:13px;color:var(--text-secondary)}
+.detail-value.highlight{color:var(--gold);font-weight:600}
+.script-preview{margin-top:14px;padding:14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--gold)}
+.script-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px}
+.script-text{font-size:13px;color:var(--text-secondary);line-height:1.6;font-style:italic}
+.detail-actions{display:flex;gap:8px;margin-top:14px}
+.detail-btn{padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;color:var(--text-secondary);transition:all 0.15s}
+.detail-btn:hover{border-color:var(--gold);color:var(--gold)}
+.detail-btn.deep{background:var(--gold);border-color:var(--gold);color:var(--bg);font-weight:600}
+.detail-btn.deep:hover{background:#d4b88c}
+
+/* Loading */
+.loading-state{text-align:center;padding:60px 24px;animation:fadeUp 0.3s ease}
+.loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--text-secondary)}
+.loading-sub{font-size:12px;color:var(--text-dim);margin-top:4px}
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-dim);font-size:14px;line-height:1.6}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.stagger-1{animation-delay:0.05s}.stagger-2{animation-delay:0.1s}.stagger-3{animation-delay:0.15s}
+.stagger-4{animation-delay:0.2s}.stagger-5{animation-delay:0.25s}.stagger-6{animation-delay:0.3s}
+
+/* Responsive */
+@media(max-width:640px){
+    .prospect-main{grid-template-columns:36px 1fr;gap:10px}
+    .prospect-actions{display:none}
+    .prospect-meta{gap:4px}
+    .detail-grid{grid-template-columns:1fr}
+    .briefing-stats{flex-wrap:wrap;gap:16px}
+    .farm-input-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+    <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <div class="header-actions">
+        <a class="nav-btn active" id="navBriefing" onclick="showView('briefing')">Briefing</a>
+        <a class="nav-btn" id="navMap" href="sellersignal-map.html">Map</a>
+    </div>
+</header>
+
+<!-- Farm Setup -->
+<div class="farm-setup" id="farmSetup">
+    <h1>Your Daily Briefing</h1>
+    <p>Enter your farm area to see today's highest-priority prospects — ranked, scored, and ready to contact.</p>
+    <div class="farm-input-row">
+        <input class="farm-input" id="farmInput" type="text" placeholder="City or address (e.g. Bozeman, MT)">
+        <button class="farm-go" onclick="startBriefing()">Load Briefing</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:center">
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Bozeman, MT';startBriefing()">Bozeman</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Whitefish, MT';startBriefing()">Whitefish</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Big Sky, MT';startBriefing()">Big Sky</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Missoula, MT';startBriefing()">Missoula</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Seattle, WA';startBriefing()">Seattle</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Bellevue, WA';startBriefing()">Bellevue</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Mercer Island, WA';startBriefing()">Mercer Island</button>
+        <button style="padding:5px 14px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s" onclick="document.getElementById('farmInput').value='Kirkland, WA';startBriefing()">Kirkland</button>
+    </div>
+</div>
+
+<!-- Dashboard -->
+<div class="dashboard" id="dashboard">
+    <div class="briefing-header">
+        <div class="briefing-date" id="briefDate"></div>
+        <div class="briefing-title">Daily Briefing</div>
+        <div class="briefing-farm" id="briefFarm"></div>
+        <div class="briefing-stats" id="briefStats"></div>
+    </div>
+    
+    <div id="briefingContent">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Analyzing properties...</div>
+            <div class="loading-sub" id="loadingSub">Pulling parcel data from public records</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========================
+// DATA SOURCES
+// ========================
+const SOURCES={
+MT:{name:'Montana',url:'https://gisservicemt.gov/arcgis/rest/services/MSDI_Framework/Parcels/MapServer/0/query',
+fields:'OwnerName,AddressLine1,CityStateZip,TotalValue,TotalBuildingValue,TotalLandValue,PropType,GISAcres,Subdivision,OwnerAddress1,OwnerCity,OwnerState,OwnerZipCode,PARCELID',
+max:2000,bounds:{south:44.35,north:49.0,west:-116.05,east:-104.04},
+parse(f){const a=f.attributes;let lat=0,lng=0;if(f.centroid){lng=f.centroid.x;lat=f.centroid.y}else if(f.geometry?.rings?.[0]?.length){const r=f.geometry.rings[0];lng=r.reduce((s,p)=>s+p[0],0)/r.length;lat=r.reduce((s,p)=>s+p[1],0)/r.length}
+return{id:a.PARCELID,ownerName:a.OwnerName||'',address:(a.AddressLine1||'').trim(),cityStateZip:(a.CityStateZip||'').trim(),totalValue:a.TotalValue||0,buildingValue:a.TotalBuildingValue||0,landValue:a.TotalLandValue||0,propType:a.PropType||'',acres:a.GISAcres||0,subdivision:a.Subdivision||'',ownerAddress:(a.OwnerAddress1||'').trim(),ownerState:(a.OwnerState||'').trim(),exempt:a.PropType==='Exempt Property',lat,lng}}},
+WA_KING:{name:'King County, WA',url:'https://services.arcgis.com/Ej0PsM5Aw677QF1W/arcgis/rest/services/PARCEL_ADDRESS_PUB_AREA_3069/FeatureServer/0/query',
+fields:'PAAUNIQUENAME,KCTP_ATTN,ADDR_FULL,CTYNAME,KCTP_ADDR,KCTP_CTYST,KCTP_STATE,APPRLNDVAL,APPR_IMPR,TAX_LNDVAL,TAX_IMPR,PLAT_NAME,KCA_ACRES,PREUSE_DESC,PIN,LAT,LON',
+max:2000,bounds:{south:47.0,north:47.8,west:-122.6,east:-121.0},
+parse(f){const a=f.attributes;const owner=(a.PAAUNIQUENAME||a.KCTP_ATTN||'').trim();const lv=a.APPRLNDVAL||a.TAX_LNDVAL||0;const bv=a.APPR_IMPR||a.TAX_IMPR||0;
+let lat=a.LAT||0,lng=a.LON||0;if((!lat||!lng)&&f.centroid){lng=f.centroid.x;lat=f.centroid.y}else if((!lat||!lng)&&f.geometry?.rings?.[0]?.length){const r=f.geometry.rings[0];lng=r.reduce((s,p)=>s+p[0],0)/r.length;lat=r.reduce((s,p)=>s+p[1],0)/r.length}
+const site=(a.ADDR_FULL||'').toLowerCase();const mail=(a.KCTP_ADDR||'').toLowerCase();
+const mailDiff=mail&&site&&site.length>5&&!mail.includes(site.substring(0,Math.min(8,site.length)));
+const isEntity=owner&&/LLC|TRUST|CORP|INC|FOUNDATION|GROUP|PARTNERS|ASSOC|RANCH|FARM|PROPERTIES|INVESTMENTS|VENTURES|ENTERPRISES|DEVELOPMENT|REALTY|MANAGEMENT/i.test(owner);
+return{id:a.PIN,ownerName:isEntity?owner:'',address:(a.ADDR_FULL||'').trim(),cityStateZip:`${a.CTYNAME||'Seattle'}, WA`,totalValue:lv+bv,buildingValue:bv,landValue:lv,propType:(a.PREUSE_DESC||'').trim(),acres:a.KCA_ACRES||0,subdivision:(a.PLAT_NAME||'').trim(),ownerAddress:mail,ownerState:(a.KCTP_STATE||'').trim(),exempt:/exempt|government/i.test(a.PREUSE_DESC||''),lat,lng,mailDiffers:mailDiff}}}
+};
+
+// ========================
+// SCORING ENGINE (identical to agent version)
+// ========================
+const MORTGAGE_RATES_BY_YEAR={2024:6.8,2023:6.8,2022:5.3,2021:3.0,2020:3.1,2019:3.9,2018:4.5,2017:4.0,2016:3.6,2015:3.8,2014:4.2,2013:3.9,2012:3.7,2011:4.5,2010:4.7,2009:5.0,2008:6.0,2007:6.3,2006:6.4,2005:5.9,2004:5.8,2003:5.8,2002:6.5,2001:7.0,2000:8.0,1999:7.4,1998:6.9,1997:7.6,1996:7.8,1995:7.9};
+
+function scoreParcel(p, all) {
+    const signals = [];
+    let score = 30;
+    if (p.exempt) return {score:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential',omFit:5};
+    const govRx = /\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA/i;
+    if (p.ownerName && govRx.test(p.ownerName)) return {score:5,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional',omFit:5};
+
+    const valid = all.filter(x => x.totalValue > 0 && !x.exempt);
+    const totalParcels = valid.length || 1;
+    const on = (p.ownerName || '').toUpperCase();
+    const pa = (p.address||'').toLowerCase().replace(/\s+/g,'');
+    const oa = (p.ownerAddress||'').toLowerCase().replace(/\s+/g,'');
+    const isAbsentee = p.mailDiffers || (oa && pa && pa.length > 5 && !oa.includes(pa.substring(0, Math.min(10, pa.length))));
+    const isOutOfState = p.ownerState && !['MT','WA'].includes(p.ownerState.toUpperCase());
+    const eRx = /\bLLC\b|\bTRUST\b|\bLTD\b|\bPARTNERSHIP\b|\bINC\b|\bCORP\b|\bESTATE\b|\bFOUNDATION\b|\bGROUP\b|\bRANCH\b|\bFARM\b|\bPROPERTIES\b|\bINVESTMENTS\b|\bVENTURES\b|\bENTERPRISES\b/i;
+    const isEntity = on && eRx.test(on);
+    const pt = (p.propType || '').toLowerCase();
+    const isTrustEstate = /TRUST|ESTATE/i.test(on);
+    const isVacant = pt.includes('vacant') || pt.includes('land') || (p.totalValue > 0 && p.buildingValue === 0);
+    
+    const values = valid.map(x => x.totalValue).sort((a,b) => a-b);
+    const p75Value = values[Math.floor(values.length * 0.75)] || 0;
+
+    // Scoring
+    if (isAbsentee) { signals.push({text:'Absentee owner — mailing address differs from property',type:'positive'}); score += 13; }
+    if (isOutOfState) { signals.push({text:`Out-of-state owner (${p.ownerState})`,type:'positive'}); score += 10; }
+    if (isEntity) { signals.push({text:'Entity ownership (LLC/Corp/Trust)',type:'positive'}); score += 14; }
+    if (isTrustEstate) { signals.push({text:'Trust or estate structure',type:'positive'}); score += 5; }
+    if (/\bHEIRS\b|\bDECEASED\b/.test(on)) { signals.push({text:'Heir/deceased indicator in ownership',type:'positive'}); score += 15; }
+    if (isVacant) { signals.push({text:'Vacant land — higher turnover rate',type:'positive'}); score += 12; }
+    if (p.totalValue > 0 && p.landValue > 0 && p.buildingValue > 0 && (p.landValue / p.totalValue) > 0.6) { signals.push({text:'Land value exceeds building value',type:'positive'}); score += 3; }
+    if (p.totalValue > 0 && p75Value > 0 && p.totalValue > p75Value) { signals.push({text:'Above 75th percentile value in area',type:'neutral'}); score += 4; }
+
+    // Multi-property detection
+    if (p.ownerName && p.ownerName.length > 3) {
+        const ownerKey = p.ownerName.toUpperCase().trim();
+        const cnt = valid.filter(x => x.ownerName && x.ownerName.toUpperCase().trim() === ownerKey).length;
+        if (cnt >= 3) { signals.push({text:`Owner holds ${cnt}+ properties in area`,type:'positive'}); score += 8; }
+        else if (cnt >= 2) { signals.push({text:`Owner holds ${cnt} properties in area`,type:'positive'}); score += 5; }
+    }
+
+    // Cohort
+    let cohort = 'residential', cohortLabel = 'Residential';
+    if (/\bHEIRS\b|\bDECEASED\b|\bESTATE OF\b|\bSURVIVOR\b/.test(on) || isTrustEstate) { cohort='estate'; cohortLabel='Estate / Trust'; }
+    else if (isEntity && !isTrustEstate) { cohort='investor'; cohortLabel='Investor / Entity'; }
+    else if (isAbsentee || isOutOfState) { cohort='absentee'; cohortLabel='Absentee Owner'; }
+    else if (isVacant) { cohort='vacant'; cohortLabel='Vacant / Land'; }
+    else if (!isVacant && p.totalValue > 750000 && p75Value > 0 && p.totalValue > p75Value * 1.5) { cohort='luxury'; cohortLabel='Luxury / High-End'; }
+
+    // Off-market fit
+    let omFit = 30;
+    if (isEntity) omFit += 20;
+    if (isTrustEstate) omFit += 15;
+    if (isAbsentee) omFit += 10;
+    if (isOutOfState) omFit += 10;
+    if (!isVacant && p.totalValue > 750000 && p75Value > 0 && p.totalValue > p75Value * 1.5) omFit += 15;
+    if (isVacant) omFit += 5;
+    if (p.acres && p.acres > 10) omFit += 10;
+    omFit = Math.min(95, Math.max(5, omFit));
+
+    score = Math.min(95, Math.max(5, score));
+    const scoreClass = score >= 65 ? 'high' : score >= 40 ? 'medium' : 'low';
+    return { score, scoreClass, signals, cohort, cohortLabel, omFit };
+}
+
+// ========================
+// NAME NORMALIZATION
+// ========================
+function normalizeName(raw) {
+    if (!raw) return '';
+    let n = raw.replace(/&.*$/,'').trim(); // Remove "& SPOUSE..."
+    const words = n.split(/\s+/).filter(w => w.length > 1);
+    if (words.length >= 2 && words.length <= 4 && !/LLC|TRUST|INC|CORP|RANCH|FARM|ESTATE/i.test(n)) {
+        // Likely LAST FIRST MIDDLE format
+        const last = words[0];
+        const first = words[1];
+        return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() + ' ' + last.charAt(0).toUpperCase() + last.slice(1).toLowerCase();
+    }
+    return raw.trim();
+}
+
+// ========================
+// SCRIPT GENERATOR
+// ========================
+function generateScript(p, cohort) {
+    const addr = p.address || 'your property';
+    
+    if (cohort === 'estate') return `Hi, I'm reaching out about the property at ${addr}. I work with buyers who are specifically looking in this area, and I understand transitions involving trust or estate properties can be complex. If there's ever interest in exploring what the property might be worth in today's market, I'd be happy to provide a confidential assessment.`;
+    if (cohort === 'investor') return `Hi, I'm calling about your property at ${addr}. I work with qualified buyers in this area and your property came up as a potential fit. If you're ever considering portfolio adjustments or exploring the current market value, I'd welcome a quick conversation.`;
+    if (cohort === 'absentee') return `Hi, I'm reaching out about your property at ${addr}. I noticed you may not be local, and I work with buyers actively looking in this specific area. If managing the property from a distance has ever felt like more than it's worth, I can share what the current market looks like — no pressure, completely confidential.`;
+    if (cohort === 'vacant') return `Hi, I'm calling about your land at ${addr}. I work with buyers specifically looking for parcels in this area, and yours came up in our research. If you've ever considered what the land might bring in today's market, I'd love to share what we're seeing.`;
+    return `Hi, I'm reaching out about your property at ${addr}. I work with buyers actively looking in your neighborhood, and your property caught our attention. If you'd ever consider hearing what it might be worth in today's market, I'd welcome a quick confidential conversation.`;
+}
+
+// ========================
+// ACTION INTELLIGENCE — turns scores into decisions
+// ========================
+function whyNow(p) {
+    const reasons = [];
+    const on = (p.ownerName || '').toUpperCase();
+    const pa = (p.address||'').toLowerCase().replace(/\s+/g,'');
+    const oa = (p.ownerAddress||'').toLowerCase().replace(/\s+/g,'');
+    const isAbsentee = p.mailDiffers || (oa && pa && pa.length > 5 && !oa.includes(pa.substring(0, Math.min(10, pa.length))));
+    const isOutOfState = p.ownerState && !['MT','WA'].includes(p.ownerState.toUpperCase());
+    const eRx = /\bLLC\b|\bTRUST\b|\bLTD\b|\bPARTNERSHIP\b|\bINC\b|\bCORP\b|\bESTATE\b|\bFOUNDATION\b|\bGROUP\b|\bRANCH\b|\bFARM\b|\bPROPERTIES\b|\bINVESTMENTS\b/i;
+    
+    if (/\bHEIRS\b|\bDECEASED\b|\bESTATE OF\b/.test(on)) reasons.push('Estate/heir transition — likely needs resolution');
+    else if (/TRUST/i.test(on)) reasons.push('Trust ownership — may indicate succession planning');
+    if (isAbsentee && isOutOfState) reasons.push(`Out-of-state absentee (${p.ownerState}) — distance creates friction`);
+    else if (isAbsentee) reasons.push('Absentee owner — not occupying property');
+    else if (isOutOfState) reasons.push(`Out-of-state owner (${p.ownerState})`);
+    if (eRx.test(on) && !/TRUST/i.test(on)) reasons.push('Entity-owned — likely investment, numbers-driven decision');
+    if (p.buildingValue === 0 && p.totalValue > 0) reasons.push('Vacant land — carrying costs with no income');
+    if (p.ownerName) {
+        const ownerKey = p.ownerName.toUpperCase().trim();
+        // This is approximate — would need full dataset
+        if (p._multiCount >= 3) reasons.push(`Portfolio owner (${p._multiCount}+ properties) — simplification opportunity`);
+    }
+    if (p.totalValue > 500000 && p.landValue > p.totalValue * 0.6) reasons.push('Land-heavy valuation — possible redevelopment or teardown candidate');
+    
+    return reasons.length > 0 ? reasons[0] : 'Multiple minor signals elevate likelihood';
+}
+
+function contactConfidence(p) {
+    let conf = 'low';
+    let reason = 'Address only';
+    
+    const hasMailingAddr = p.ownerAddress && p.ownerAddress.length > 5;
+    const on = (p.ownerName || '').toUpperCase();
+    const isLLC = /\bLLC\b|\bCORP\b|\bINC\b|\bPARTNERSHIP\b|\bHOLDINGS\b|\bPROPERTIES\b|\bINVESTMENTS\b|\bGROUP\b|\bREALTY\b|\bMANAGEMENT\b/i.test(on);
+    const isTrust = /\bTRUST\b/i.test(on);
+    const isEstate = /\bESTATE\b|\bHEIRS\b|\bDECEASED\b/i.test(on);
+    const isRanch = /\bRANCH\b|\bFARM\b/i.test(on);
+    const hasName = p.ownerName && p.ownerName.length > 3;
+    
+    // LLCs — we don't know the person behind it
+    if (isLLC && !isTrust && !isEstate && !isRanch) {
+        conf = 'low';
+        reason = 'Entity — principal unknown from parcel data';
+        if (hasMailingAddr) { conf = 'medium'; reason = 'Entity — mailing address available, principal unknown'; }
+        return { level: conf, reason };
+    }
+    // Trusts — often have a named person embedded (e.g., "SMITH FAMILY TRUST")
+    if (isTrust && hasMailingAddr) {
+        conf = 'high';
+        reason = 'Named trust + mailing address';
+    } else if (isTrust) {
+        conf = 'medium';
+        reason = 'Named trust — needs address verification';
+    }
+    // Estates — usually named
+    else if (isEstate && hasMailingAddr) {
+        conf = 'high';
+        reason = 'Named estate + mailing address';
+    }
+    // Ranch/farm — often findable
+    else if (isRanch && hasMailingAddr) {
+        conf = 'high';
+        reason = 'Named operation + mailing address';
+    }
+    // Individual with mailing address
+    else if (hasName && hasMailingAddr) {
+        conf = 'high';
+        reason = 'Name + mailing address';
+    } else if (hasName) {
+        conf = 'medium';
+        reason = 'Name available — needs phone lookup';
+    }
+    
+    return { level: conf, reason };
+}
+
+function bestChannel(p) {
+    const on = (p.ownerName || '').toUpperCase();
+    const isEntity = /\bLLC\b|\bCORP\b|\bINC\b|\bPARTNERSHIP\b|\bHOLDINGS\b|\bPROPERTIES\b|\bINVESTMENTS\b|\bGROUP\b|\bREALTY\b|\bMANAGEMENT\b/i.test(on);
+    const isTrust = /\bTRUST\b/i.test(on);
+    const isEstate = /\bESTATE\b|\bHEIRS\b|\bDECEASED\b|\bSURVIVOR\b/i.test(on);
+    const isRanch = /\bRANCH\b|\bFARM\b/i.test(on);
+    const isAbsentee = p.mailDiffers || (p.ownerAddress && p.address && !p.ownerAddress.toLowerCase().includes(p.address.toLowerCase().substring(0,8)));
+    
+    // LLCs/Corps — can't call, don't know who's behind it. Letter to registered address or Deep Signal first.
+    if (isEntity && !isTrust && !isEstate && !isRanch) return { channel: 'Deep Signal first', icon: '🔍', reason: 'Entity — need to identify principal before outreach' };
+    // Ranches/farms — often have a business phone or local presence
+    if (isRanch) return { channel: 'Phone', icon: '📞', reason: 'Agricultural operation — likely has business line' };
+    // Estates/heirs — sensitive but often a named person
+    if (isEstate) return { channel: 'Letter', icon: '✉', reason: 'Estate/heir — sensitive, formal written approach' };
+    // Trusts with a named trustee — can be called
+    if (isTrust) return { channel: 'Letter + Phone', icon: '✉📞', reason: 'Trust — letter then follow-up call to trustee' };
+    // Absentee — letter to mailing address, then call
+    if (isAbsentee) return { channel: 'Letter + Phone', icon: '✉📞', reason: 'Absentee — letter then follow-up call' };
+    // Local owner-occupant — phone is fine
+    return { channel: 'Phone', icon: '📞', reason: 'Owner-occupant — direct call' };
+}
+
+function falsePositiveRisk(p) {
+    const on = (p.ownerName || '').toUpperCase();
+    const risks = [];
+    if (/RANCH|FARM/i.test(on) && p.acres > 20) risks.push('Active agricultural operation — may not sell');
+    if (p.buildingValue > 0 && p.totalValue > 0 && p.buildingValue > p.totalValue * 0.8) risks.push('High building investment — likely committed to property');
+    if (/LLC.*PROPERTIES|LLC.*INVESTMENT|LLC.*RENTAL|LLC.*CAPITAL/i.test(on)) risks.push('Investment entity name — may be acquiring, not disposing');
+    if (/REALTY|REAL ESTATE|BROKERAGE/i.test(on)) risks.push('Real estate company — likely holds as business asset');
+    if (/\bLLC\b|\bCORP\b|\bINC\b/i.test(on) && !(/TRUST|ESTATE|RANCH|FARM/i.test(on))) {
+        // Check for multi-property — could indicate active investor
+        if (p._multiCount >= 4) risks.push(`Holds ${p._multiCount}+ local properties — active investor, may not be disposing`);
+    }
+    return risks.length > 0 ? risks[0] : null;
+}
+
+// ========================
+// ACTIONS (localStorage tracking)
+// ========================
+function getActions() { try { return JSON.parse(localStorage.getItem('ss_actions')||'{}'); } catch(e) { return {}; } }
+function setAction(id, action) { const a = getActions(); a[id] = { action, time: Date.now() }; localStorage.setItem('ss_actions', JSON.stringify(a)); }
+
+// ========================
+// GEOCODE
+// ========================
+async function geocode(query) {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`,{headers:{'User-Agent':'SellerSignal/1.0'}});
+    const d = await r.json();
+    if (d?.[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon), name: d[0].display_name };
+    return null;
+}
+
+function latlngToMerc(lat,lng){const x=lng*20037508.34/180;const y=Math.log(Math.tan((90+lat)*Math.PI/360))/(Math.PI/180)*20037508.34/180;return{x,y}}
+
+// ========================
+// LOAD & RENDER BRIEFING
+// ========================
+let allProspects = [];
+
+async function startBriefing() {
+    const query = document.getElementById('farmInput').value.trim();
+    if (!query) return;
+    
+    document.getElementById('farmSetup').style.display = 'none';
+    document.getElementById('dashboard').classList.add('active');
+    
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const now = new Date();
+    document.getElementById('briefDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+    document.getElementById('briefFarm').textContent = query;
+    document.getElementById('briefStats').innerHTML = '<div class="loading-state" style="padding:0"><div class="loading-spinner" style="width:20px;height:20px;margin:0"></div></div>';
+    
+    const loc = await geocode(query);
+    if (!loc) {
+        document.getElementById('briefingContent').innerHTML = '<div class="empty-state">Could not find that location. Try a city name like "Bozeman, MT".</div>';
+        return;
+    }
+    
+    document.getElementById('loadingSub').textContent = `Pulling parcel data near ${query}...`;
+    
+    // Find the right data source
+    let source = null;
+    for (const [k,s] of Object.entries(SOURCES)) {
+        const b = s.bounds;
+        if (loc.lat >= b.south && loc.lat <= b.north && loc.lng >= b.west && loc.lng <= b.east) { source = s; break; }
+    }
+    
+    if (!source) {
+        document.getElementById('briefingContent').innerHTML = '<div class="empty-state">This area isn\'t covered yet. Currently available: Montana statewide, King County WA.</div>';
+        return;
+    }
+    
+    // Build a bounding box around the location (~2 mile radius)
+    const offset = 0.025;
+    const sw = latlngToMerc(loc.lat - offset, loc.lng - offset);
+    const ne = latlngToMerc(loc.lat + offset, loc.lng + offset);
+    
+    const params = new URLSearchParams({
+        geometry: `${sw.x},${sw.y},${ne.x},${ne.y}`,
+        geometryType: 'esriGeometryEnvelope',
+        inSR: '3857',
+        spatialRel: 'esriSpatialRelIntersects',
+        outFields: source.fields,
+        returnGeometry: 'true',
+        returnCentroid: 'true',
+        outSR: '4326',
+        f: 'json',
+        resultRecordCount: '2000'
+    });
+    
+    try {
+        const res = await fetch(`${source.url}?${params}`);
+        const data = await res.json();
+        
+        if (!data.features?.length) {
+            document.getElementById('briefingContent').innerHTML = '<div class="empty-state">No properties found in this area. Try zooming out or searching a different location.</div>';
+            return;
+        }
+        
+        const parcels = data.features.map(f => source.parse(f)).filter(p => p.lat !== 0 && !p.exempt && (p.ownerName || p.address));
+        const scored = parcels.map(p => {
+            const { score, scoreClass, signals, cohort, cohortLabel, omFit } = scoreParcel(p, parcels);
+            // Count multi-property for whyNow
+            let multiCount = 1;
+            if (p.ownerName && p.ownerName.length > 3) {
+                const key = p.ownerName.toUpperCase().trim();
+                multiCount = parcels.filter(x => x.ownerName && x.ownerName.toUpperCase().trim() === key).length;
+            }
+            return { ...p, score, scoreClass, signals, cohort, cohortLabel, omFit, _multiCount: multiCount };
+        });
+        
+        // Filter and sort
+        allProspects = scored.filter(p => p.score >= 35 && p.scoreClass !== 'low').sort((a,b) => b.score - a.score);
+        
+        renderBriefing(allProspects, parcels.length);
+        
+    } catch(e) {
+        console.error(e);
+        document.getElementById('briefingContent').innerHTML = '<div class="empty-state">Error loading property data. Please try again.</div>';
+    }
+}
+
+function renderBriefing(prospects, totalAnalyzed) {
+    const actions = getActions();
+    
+    // ========================================
+    // 1. NEW SINCE LAST BRIEFING — diff against stored session
+    // ========================================
+    let newIds = [], movedUp = [], cooledOff = [];
+    try {
+        const prev = JSON.parse(localStorage.getItem('ss_prev_briefing') || '{}');
+        const prevIds = new Set(Object.keys(prev));
+        const currMap = {};
+        prospects.forEach(p => {
+            const id = p.id || `${p.lat}-${p.lng}`;
+            currMap[id] = { score: p.score, tier: p.scoreClass };
+            if (!prevIds.has(id)) newIds.push(id);
+            else if (prev[id]?.tier === 'medium' && p.scoreClass === 'high') movedUp.push(id);
+        });
+        prevIds.forEach(id => { if (!currMap[id]) cooledOff.push(id); });
+        // Save current session for next diff
+        localStorage.setItem('ss_prev_briefing', JSON.stringify(currMap));
+    } catch(e) {}
+    
+    const hasChanges = newIds.length > 0 || movedUp.length > 0 || cooledOff.length > 0;
+    
+    // Stats
+    const high = prospects.filter(p => p.scoreClass === 'high').length;
+    const med = prospects.filter(p => p.scoreClass === 'medium').length;
+    const avgOm = prospects.length ? Math.round(prospects.reduce((s,p) => s + p.omFit, 0) / prospects.length) : 0;
+    
+    document.getElementById('briefStats').innerHTML = `
+        <div class="bstat"><div class="bstat-val">${totalAnalyzed}</div><div class="bstat-label">Analyzed</div></div>
+        <div class="bstat"><div class="bstat-val green">${high}</div><div class="bstat-label">High Priority</div></div>
+        <div class="bstat"><div class="bstat-val gold">${med}</div><div class="bstat-label">Moderate</div></div>
+        <div class="bstat"><div class="bstat-val">${avgOm}</div><div class="bstat-label">Avg OM Fit</div></div>
+    `;
+    
+    // ========================================
+    // 2. TIER SPLITTING — outreach score with STRICT Call Today
+    // ========================================
+    const enriched = prospects.map(p => {
+        const contact = contactConfidence(p);
+        const risk = falsePositiveRisk(p);
+        let outreachScore = p.score;
+        if (contact.level === 'high') outreachScore += 10;
+        else if (contact.level === 'medium') outreachScore += 4;
+        if (p.omFit >= 70) outreachScore += 8;
+        else if (p.omFit >= 50) outreachScore += 4;
+        if (risk) outreachScore -= 8;
+        return { ...p, outreachScore, _contact: contact, _risk: risk };
+    }).sort((a,b) => b.outreachScore - a.outreachScore);
+    
+    // STRICT Call Today: high outreach score + reachable + no risk
+    const callToday = enriched.filter(p => 
+        p.outreachScore >= 65 &&
+        (p._contact.level === 'high' || p._contact.level === 'medium') &&
+        !p._risk
+    ).slice(0, 5);
+    const callIds = new Set(callToday.map(p => p.id || `${p.lat}-${p.lng}`));
+    
+    const mailWeek = enriched.filter(p => 
+        !callIds.has(p.id || `${p.lat}-${p.lng}`) && p.omFit >= 40
+    ).slice(0, 7);
+    const mailIds = new Set(mailWeek.map(p => p.id || `${p.lat}-${p.lng}`));
+    
+    const watchList = enriched.filter(p => 
+        !callIds.has(p.id || `${p.lat}-${p.lng}`) && 
+        !mailIds.has(p.id || `${p.lat}-${p.lng}`)
+    ).slice(0, 10);
+    
+    let html = '';
+    
+    // New Since Last Briefing banner
+    if (hasChanges) {
+        const parts = [];
+        if (newIds.length) parts.push(`${newIds.length} new prospect${newIds.length>1?'s':''}`);
+        if (movedUp.length) parts.push(`${movedUp.length} moved to high priority`);
+        if (cooledOff.length) parts.push(`${cooledOff.length} no longer in view`);
+        html += `<div style="padding:14px 18px;background:var(--green-dim);border:1px solid var(--green-border);border-radius:var(--radius);margin-bottom:20px;display:flex;align-items:center;gap:10px;animation:fadeUp 0.3s ease">
+            <span style="font-size:18px">⚡</span>
+            <div>
+                <div style="font-size:13px;font-weight:600;color:var(--green)">Since Last Briefing</div>
+                <div style="font-size:12px;color:var(--text-secondary)">${parts.join(' · ')}</div>
+            </div>
+        </div>`;
+    }
+    
+    // Call Today
+    if (callToday.length > 0) {
+        html += renderSection('🔥', 'fire', 'Call Today', `${callToday.length} high-confidence`, callToday, actions, 'call', newIds);
+    }
+    
+    // Mail This Week
+    if (mailWeek.length > 0) {
+        html += renderSection('✉', 'mail', 'Mail This Week', `${mailWeek.length} strong prospects`, mailWeek, actions, 'mail', newIds);
+    }
+    
+    // Watch List
+    if (watchList.length > 0) {
+        html += renderSection('👁', 'watch', 'Watch List', `${watchList.length} developing`, watchList, actions, 'watch', newIds);
+    }
+    
+    if (!callToday.length && !mailWeek.length && !watchList.length) {
+        html += '<div class="empty-state">No elevated-likelihood prospects found in this area. Try a different location or expand your farm.</div>';
+    }
+    
+    document.getElementById('briefingContent').innerHTML = html;
+}
+
+function renderSection(icon, iconClass, title, countText, prospects, actions, tier, newIds) {
+    const cards = prospects.map((p, i) => {
+        const id = p.id || `${p.lat}-${p.lng}`;
+        const act = actions[id];
+        const contacted = act?.action === 'contacted';
+        const skipped = act?.action === 'skipped';
+        const name = normalizeName(p.ownerName);
+        const val = p.totalValue ? `$${(p.totalValue/1000).toFixed(0)}K assessed` : '';
+        const script = generateScript(p, p.cohort);
+        const why = whyNow(p);
+        const contact = contactConfidence(p);
+        const channel = bestChannel(p);
+        const risk = falsePositiveRisk(p);
+        const isNew = newIds && newIds.includes(id);
+        
+        return `<div class="prospect ${contacted?'contacted':''}" style="animation:fadeUp 0.3s ease both;animation-delay:${i*0.05}s" id="card-${id}" onclick="toggleExpand('${id}')">
+            <div class="prospect-main">
+                <div class="prospect-score ${p.scoreClass}">${p.score}</div>
+                <div class="prospect-info">
+                    <div class="prospect-addr">${isNew ? '<span style="color:var(--green);font-size:10px;font-weight:700;margin-right:6px;letter-spacing:0.05em">NEW</span>' : ''}${name || p.address}${name ? ` <span style="color:var(--text-dim);font-weight:400">— ${p.address}</span>` : ''}</div>
+                    <div class="prospect-why">↗ ${why}</div>
+                    <div class="prospect-meta">
+                        <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
+                        <span class="chip chip-contact ${contact.level}">${contact.level === 'high' ? '●' : contact.level === 'medium' ? '◐' : '○'} ${contact.level}</span>
+                        ${risk ? '<span class="chip chip-risk">⚠</span>' : ''}
+                    </div>
+                </div>
+                <div class="prospect-actions">
+                    ${tier === 'call' ? `
+                        <button class="action-btn ${contacted?'done':'primary'}" onclick="event.stopPropagation();markAction('${id}','contacted')">${contacted?'✓ Done': channel.channel.includes('Letter') ? 'Mail' : 'Call'}</button>
+                        <button class="action-btn ${skipped?'skip':''}" onclick="event.stopPropagation();markAction('${id}','skipped')">Skip</button>
+                    ` : tier === 'mail' ? `
+                        <button class="action-btn ${contacted?'done':''}" onclick="event.stopPropagation();markAction('${id}','contacted')">${contacted?'✓ Sent':'Mail'}</button>
+                    ` : `
+                        <button class="action-btn" onclick="event.stopPropagation();markAction('${id}','watching')">Track</button>
+                        ${channel.channel === 'Deep Signal first' ? `<button class="action-btn" style="font-size:10px" onclick="event.stopPropagation();window.open('sellersignal-map.html?lat=${p.lat}&lng=${p.lng}','_blank')">🔍 ID Owner</button>` : ''}
+                    `}
+                </div>
+            </div>
+            <div class="prospect-detail" id="detail-${id}">
+                ${risk ? `<div style="padding:10px 14px;background:var(--red-dim);border-left:3px solid var(--red);border-radius:4px;margin-top:12px;font-size:12px;color:var(--red)"><strong>False positive risk:</strong> ${risk}</div>` : ''}
+                <div class="detail-grid">
+                    <div class="detail-item"><div class="detail-label">Cohort</div><div class="detail-value highlight">${p.cohortLabel}</div></div>
+                    <div class="detail-item"><div class="detail-label">Off-Market Fit</div><div class="detail-value highlight">${p.omFit}/100</div></div>
+                    <div class="detail-item"><div class="detail-label">County Assessed</div><div class="detail-value">${val || 'N/A'}</div></div>
+                    <div class="detail-item"><div class="detail-label">Property Type</div><div class="detail-value">${p.propType || 'Residential'}</div></div>
+                    <div class="detail-item"><div class="detail-label">Best Channel</div><div class="detail-value">${channel.channel} — ${channel.reason}</div></div>
+                    <div class="detail-item"><div class="detail-label">Contact Path</div><div class="detail-value">${contact.reason}</div></div>
+                </div>
+                <div class="script-preview">
+                    <div class="script-label">Suggested Opening</div>
+                    <div class="script-text">"${script}"</div>
+                </div>
+                <div class="detail-actions">
+                    <button class="detail-btn deep" onclick="event.stopPropagation();window.open('sellersignal-map.html?lat=${p.lat}&lng=${p.lng}','_blank')">Deep Signal</button>
+                    <button class="detail-btn" onclick="event.stopPropagation();copyScript('${id}')">Copy Script</button>
+                    <button class="detail-btn" onclick="event.stopPropagation();window.open('https://maps.google.com/?q=${encodeURIComponent(p.address + (p.cityStateZip ? ', '+p.cityStateZip : ''))}','_blank')">Google Maps</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+    
+    // 4. PRINT ALL LETTERS for Mail This Week
+    const printBtn = tier === 'mail' ? `<button class="action-btn" style="margin-left:auto;font-size:11px" onclick="event.stopPropagation();printAllLetters()">🖨 Print All Letters</button>` : '';
+    
+    return `<div class="section">
+        <div class="section-header">
+            <div class="section-icon ${iconClass}">${icon}</div>
+            <div class="section-title">${title}</div>
+            <div class="section-count">${countText}</div>
+            ${printBtn}
+        </div>
+        ${cards}
+    </div>`;
+}
+
+function toggleExpand(id) {
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.classList.toggle('expanded');
+}
+
+function markAction(id, action) {
+    setAction(id, action);
+    const card = document.getElementById(`card-${id}`);
+    if (action === 'contacted' && card) card.classList.add('contacted');
+    if (action === 'skipped' && card) card.style.display = 'none';
+    // Re-render buttons
+    const btn = card?.querySelector('.action-btn.primary, .action-btn.done');
+    if (btn && action === 'contacted') { btn.classList.remove('primary'); btn.classList.add('done'); btn.textContent = '✓ Done'; }
+}
+
+function copyScript(id) {
+    const detail = document.getElementById(`detail-${id}`);
+    const scriptEl = detail?.querySelector('.script-text');
+    if (scriptEl) {
+        navigator.clipboard.writeText(scriptEl.textContent.replace(/^"|"$/g,'')).then(() => {
+            const btn = detail.querySelector('.detail-btn:nth-child(2)');
+            if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy Script', 1500); }
+        });
+    }
+}
+
+// ========================
+// PRINT ALL LETTERS — batch mail workflow
+// ========================
+function printAllLetters() {
+    // Gather all Mail This Week prospects from allProspects
+    const enriched = allProspects.map(p => {
+        const contact = contactConfidence(p);
+        const risk = falsePositiveRisk(p);
+        let outreachScore = p.score;
+        if (contact.level === 'high') outreachScore += 10;
+        else if (contact.level === 'medium') outreachScore += 4;
+        if (p.omFit >= 70) outreachScore += 8;
+        else if (p.omFit >= 50) outreachScore += 4;
+        if (risk) outreachScore -= 8;
+        return { ...p, outreachScore, _contact: contact, _risk: risk };
+    }).sort((a,b) => b.outreachScore - a.outreachScore);
+    
+    const callIds = new Set(enriched.filter(p => p.outreachScore >= 65 && (p._contact.level === 'high' || p._contact.level === 'medium') && !p._risk).slice(0,5).map(p => p.id || `${p.lat}-${p.lng}`));
+    const mailProspects = enriched.filter(p => !callIds.has(p.id || `${p.lat}-${p.lng}`) && p.omFit >= 40).slice(0, 7);
+    
+    if (mailProspects.length === 0) { alert('No mail prospects available.'); return; }
+    
+    const letters = mailProspects.map(p => {
+        const name = normalizeName(p.ownerName) || 'Property Owner';
+        const addr = p.address + (p.cityStateZip ? ', ' + p.cityStateZip : '');
+        const script = generateScript(p, p.cohort);
+        const mailingAddr = p.ownerAddress || addr;
+        return { name, addr, mailingAddr, script, cohort: p.cohortLabel };
+    });
+    
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>SellerSignal — Letters</title>
+    <style>
+        @page { size: letter; margin: 1in; }
+        body { font-family: Georgia, serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; }
+        .letter { page-break-after: always; padding: 0; }
+        .letter:last-child { page-break-after: auto; }
+        .letter-header { margin-bottom: 32px; }
+        .letter-date { font-size: 12px; color: #666; margin-bottom: 24px; }
+        .letter-to { margin-bottom: 24px; font-size: 13px; }
+        .letter-body { font-size: 13px; line-height: 1.8; }
+        .letter-sig { margin-top: 32px; }
+        .letter-sig .name { font-weight: bold; }
+        .print-header { text-align: center; padding: 16px; background: #f5f5f5; margin-bottom: 24px; font-family: sans-serif; font-size: 12px; color: #666; }
+        @media print { .print-header { display: none; } }
+    </style></head><body>
+    <div class="print-header">${letters.length} letters generated by SellerSignal — <button onclick="window.print()">Print All</button></div>
+    ${letters.map(l => `<div class="letter">
+        <div class="letter-header">
+            <div class="letter-date">${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</div>
+            <div class="letter-to">${l.name}<br>${l.mailingAddr}</div>
+        </div>
+        <div class="letter-body">
+            <p>Dear ${l.name.split(' ')[0] || 'Homeowner'},</p>
+            <p>${l.script}</p>
+            <p>If you would be open to a confidential conversation about your property's position in today's market, I would welcome the opportunity to connect at your convenience.</p>
+        </div>
+        <div class="letter-sig">
+            <div class="name">[AGENT_NAME]</div>
+            <div>[BROKERAGE]</div>
+            <div>[PHONE]</div>
+        </div>
+    </div>`).join('')}
+    </body></html>`);
+    printWin.document.close();
+}
+
+// ========================
+// INIT
+// ========================
+document.getElementById('farmInput').addEventListener('keydown', e => { if (e.key === 'Enter') startBriefing(); });
+
+// Check for saved farm
+try {
+    const savedFarm = localStorage.getItem('ss_farm');
+    if (savedFarm) {
+        document.getElementById('farmInput').value = savedFarm;
+    }
+} catch(e) {}
+
+// Save farm on load
+const origStart = startBriefing;
+startBriefing = function() {
+    const v = document.getElementById('farmInput').value.trim();
+    if (v) try { localStorage.setItem('ss_farm', v); } catch(e) {}
+    return origStart();
+};
+</script>
+</body>
+</html>
