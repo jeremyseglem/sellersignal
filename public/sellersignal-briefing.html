@@ -1174,19 +1174,91 @@ async function startBriefing() {
         allProspects = scored.filter(p => p.briefingRank >= 25 && p.scoreClass !== 'low' && p.address && p.address.length > 3).sort((a,b) => b.briefingRank - a.briefingRank);
         
         // ========================================
-        // AUTO DEEP SIGNAL — run real research on top 5 candidates
-        // These become Act Today with verified intelligence
+        // STEP 1: DEEP SIGNAL LITE — real ranking on top 50 heuristic candidates
+        // Claude scores from parcel data only. No web search. Fast and cheap.
         // ========================================
-        const TOP_DEEP_SIGNAL_COUNT = 5;
-        const topCandidates = allProspects.slice(0, TOP_DEEP_SIGNAL_COUNT);
+        const LITE_POOL_SIZE = 50;
+        const FULL_DS_COUNT = 5;
+        const litePool = allProspects.slice(0, LITE_POOL_SIZE);
         
-        if (topCandidates.length > 0) {
-            setStatus?.(`Running Deep Signal on top ${topCandidates.length} prospects...`);
+        if (litePool.length > 0) {
+            setStatus(`Ranking top ${litePool.length} candidates with Deep Signal Lite...`);
             
-            for (let i = 0; i < topCandidates.length; i++) {
-                const p = topCandidates[i];
+            try {
+                const liteCandidates = litePool.map(p => ({
+                    ownerName: p.ownerName || '',
+                    address: p.address || '',
+                    propType: p.propType || '',
+                    totalValue: p.totalValue || 0,
+                    buildingValue: p.buildingValue || 0,
+                    landValue: p.landValue || 0,
+                    acres: p.acres || 0,
+                    isAbsentee: !!(p.ownerAddress && p.ownerAddress.length > 5 && p.address && p.ownerAddress.replace(/\s/g,'').slice(0,10) !== p.address.replace(/\s/g,'').slice(0,10)),
+                    isOutOfState: !!(p.ownerState && p.ownerState.length === 2 && p.cityStateZip && !p.cityStateZip.toUpperCase().includes(p.ownerState.toUpperCase())),
+                    isEntity: /LLC|CORP|INC|HOLDINGS|PARTNERSHIP|COMPANY/i.test(p.ownerName||''),
+                    isTrust: /TRUST/i.test(p.ownerName||''),
+                    isEstate: /ESTATE|HEIRS|DECEASED/i.test(p.ownerName||''),
+                    multiCount: p._alsoOwns ? p._alsoOwns + 1 : 1,
+                    tenureYears: p.tenureYears,
+                    tenureLongTerm: p.tenureLongTerm || false,
+                    ownerAddress: p.ownerAddress ? 'Yes' : 'No',
+                    ownerState: p.ownerState || ''
+                }));
+                
+                const liteRes = await fetch('https://sellersignal.co/api/deep-signal-lite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ candidates: liteCandidates })
+                });
+                
+                if (liteRes.ok) {
+                    const liteData = await liteRes.json();
+                    const liteScores = liteData.scores || [];
+                    
+                    // Apply Lite scores to prospects — these replace heuristic scores
+                    for (const ls of liteScores) {
+                        const idx = (ls.id || ls.index || 0) - 1; // 1-indexed from prompt
+                        if (idx >= 0 && idx < litePool.length) {
+                            const p = litePool[idx];
+                            p.sellerLikelihood = ls.sellerLikelihood ?? p.sellerLikelihood;
+                            p.offMarketReceptivity = ls.offMarketReceptivity ?? p.offMarketReceptivity;
+                            p.actionability = ls.actionability ?? p.actionability;
+                            p.confidence = ls.confidence ?? p.confidence;
+                            p.briefingRank = Math.round(
+                                (p.sellerLikelihood||0) * 0.50 + (p.actionability||0) * 0.30 + 
+                                (p.offMarketReceptivity||0) * 0.15 + (p.confidence||0) * 0.05
+                            );
+                            p.scoreClass = p.briefingRank >= 55 ? 'high' : p.briefingRank >= 35 ? 'medium' : 'low';
+                            p._liteScored = true;
+                            p._liteReason = ls.topReason || '';
+                            p._liteNextMove = ls.bestNextMove || '';
+                            if (ls.topReason) p.whyNowOverride = ls.topReason;
+                        }
+                    }
+                    
+                    console.log(`Deep Signal Lite: ${liteScores.length} scores applied in ${liteData.elapsed}s`);
+                    
+                    // Re-sort entire prospect list after Lite scoring
+                    allProspects.sort((a,b) => b.briefingRank - a.briefingRank);
+                }
+            } catch(e) {
+                console.log('Deep Signal Lite failed, falling back to heuristic:', e.message);
+            }
+        }
+        
+        // ========================================
+        // STEP 2: FULL DEEP SIGNAL on top 5 from Lite ranking
+        // Web search, seller psychology, full scripts. The real product.
+        // ========================================
+        const topForFullDS = allProspects.slice(0, FULL_DS_COUNT);
+        
+        if (topForFullDS.length > 0) {
+            setStatus(`Running Deep Signal on top ${topForFullDS.length} prospects...`);
+            
+            for (let i = 0; i < topForFullDS.length; i++) {
+                const p = topForFullDS[i];
                 const fullAddr = p.address + (p.cityStateZip ? ', ' + p.cityStateZip : '');
-                setStatus?.(`Deep Signal ${i+1}/${topCandidates.length}: ${p.ownerName || p.address}...`);
+                setStatus(`Deep Signal ${i+1}/${topForFullDS.length}: ${p.ownerName || p.address}...`);
                 
                 try {
                     const dsRes = await fetch('https://sellersignal.co/api/beta-research', {
@@ -1205,12 +1277,9 @@ async function startBriefing() {
                     
                     if (dsRes.ok) {
                         const ds = await dsRes.json();
-                        
-                        // Map Deep Signal output to four-score framework
                         p.sellerLikelihood = ds.score || p.sellerLikelihood;
                         p.offMarketReceptivity = ds.offMarketScore || p.offMarketReceptivity;
                         p.confidence = ds.confidenceScore || p.confidence;
-                        // Actionability from Deep Signal evidence quality
                         p.actionability = Math.round(
                             (ds.confidenceScore || 50) * 0.4 + 
                             (ds.score >= 50 ? 70 : 40) * 0.3 + 
@@ -1221,8 +1290,6 @@ async function startBriefing() {
                             p.offMarketReceptivity * 0.15 + p.confidence * 0.05
                         );
                         p.scoreClass = p.briefingRank >= 55 ? 'high' : p.briefingRank >= 35 ? 'medium' : 'low';
-                        
-                        // Store full Deep Signal data on the prospect
                         p._deepSignal = ds;
                         p._deepSignalVerified = true;
                         p._dsSegment = ds.segment || '';
@@ -1236,21 +1303,17 @@ async function startBriefing() {
                         };
                         p._dsAvoid = ds.scripts?.avoid || '';
                         p._dsSignals = ds.signals || [];
+                        if (ds.segment) p.cohortLabel = ds.segment;
                         
-                        // Override cohort from Deep Signal segment
-                        if (ds.segment) {
-                            p.cohortLabel = ds.segment;
-                        }
-                        
-                        console.log(`  Deep Signal ${i+1}: ${p.ownerName||p.address} → SL:${p.sellerLikelihood} OMR:${p.offMarketReceptivity} A:${p.actionability} C:${p.confidence}`);
+                        console.log(`  Full DS ${i+1}: ${p.ownerName||p.address} → SL:${p.sellerLikelihood} OMR:${p.offMarketReceptivity} A:${p.actionability} C:${p.confidence}`);
                     }
                 } catch(e) {
-                    console.log(`  Deep Signal ${i+1} failed: ${e.message}`);
+                    console.log(`  Full DS ${i+1} failed: ${e.message}`);
                 }
             }
         }
         
-        // Re-sort after Deep Signal enrichment
+        // Final sort after all intelligence passes
         allProspects.sort((a,b) => b.briefingRank - a.briefingRank);
         
         renderBriefing(allProspects, parcels.length, marketMatches, marketSignals.length);
@@ -1455,10 +1518,11 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                 <div class="prospect-score ${p.scoreClass}">${p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:2px;color:var(--accent)">✓ DS</div>' : ''}</div>
                 <div class="prospect-info">
                     <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:rgba(196,168,124,0.15);border-radius:3px">NEW</span>' : ''}${name || p.address}${name ? ` <span style="color:var(--text-dim);font-weight:400">— ${p.address}</span>` : ''}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
-                    <div class="prospect-why">↗ ${p._deepSignalVerified && p._dsWhyNow ? p._dsWhyNow : why}</div>
+                    <div class="prospect-why">↗ ${p._deepSignalVerified && p._dsWhyNow ? p._dsWhyNow : p._liteReason ? p._liteReason : why}</div>
                     <div class="prospect-meta">
-                        ${p._deepSignalVerified ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal verified</span>` : ''}
+                        ${p._deepSignalVerified ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal verified</span>` : p._liteScored ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">Ranked by AI</span>` : ''}
                         <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
+                        ${p._liteNextMove && !p._deepSignalVerified ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--text-secondary);border:1px solid rgba(196,168,124,0.12)">${p._liteNextMove}</span>` : ''}
                         ${p._deepSignalVerified && p._dsTimeframe ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">${p._dsTimeframe}</span>` : ''}
                         ${risk ? '<span class="chip chip-risk">⚠ Risk flag</span>' : ''}
                     </div>
