@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{--bg:#0a0f14;--bg-card:#111921;--bg-card-hover:#162430;--bg-input:#1a2a3a;--text:#FDFCFA;--text-secondary:#8a9aa8;--text-tertiary:#5a6a78;--accent:#c4a87c;--accent-hover:#d4b88c;--border:#1e2a36;--score-high:#4ade80;--score-medium:#fbbf24;--score-low:#f87171}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.header{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg);z-index:1000;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.header-right{display:flex;align-items:center;gap:12px}
+.state-badge{padding:5px 12px;background:rgba(196,168,124,0.12);border:1px solid rgba(196,168,124,0.25);border-radius:6px;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.05em}
+.usage-badge{font-size:12px;color:var(--text-secondary);padding:5px 10px;background:var(--bg-card);border-radius:6px}
+.usage-badge strong{color:var(--accent)}
+.map-container{flex:1;position:relative;display:flex}
+#map{width:100%;height:100%}
+.prospect-sidebar{width:380px;background:var(--bg-card);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sidebar-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.sidebar-title{font-family:'DM Serif Display',serif;font-size:16px;color:var(--text)}
+.sidebar-count{font-size:11px;color:var(--text-tertiary)}
+.sidebar-toggle{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border)}
+.sidebar-toggle label{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em}
+.sidebar-toggle input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+.sidebar-toggle .toggle-val{font-size:12px;color:var(--accent);font-weight:600;min-width:20px;text-align:center}
+.sidebar-list{flex:1;overflow-y:auto;padding:8px 0}
+.sidebar-list::-webkit-scrollbar{width:4px}
+.sidebar-list::-webkit-scrollbar-track{background:transparent}
+.sidebar-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.prospect-card{display:flex;gap:12px;padding:12px 16px;cursor:pointer;border-bottom:1px solid rgba(30,42,54,0.5);transition:background 0.15s}
+.prospect-card:hover{background:var(--bg-card-hover)}
+.prospect-card-img{width:100px;height:66px;border-radius:6px;overflow:hidden;flex-shrink:0;position:relative;background:var(--bg)}
+.prospect-card-img img{width:100%;height:100%;object-fit:cover}
+.prospect-card-score{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1.5px solid rgba(0,0,0,0.3)}
+.prospect-card-score.high{color:#fff;background:rgba(74,222,128,0.9)}
+.prospect-card-score.medium{color:#fff;background:rgba(251,191,36,0.9)}
+.prospect-card-info{flex:1;min-width:0}
+.prospect-card-owner{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prospect-card-addr{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prospect-card-signals{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.prospect-card-signal{font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(196,168,124,0.1);color:var(--accent);border:1px solid rgba(196,168,124,0.15);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.sidebar-empty{padding:24px 20px;text-align:center;color:var(--text-tertiary);font-size:13px;line-height:1.6}
+.sidebar-collapse{display:none;position:absolute;right:16px;top:50%;transform:translateY(-50%);z-index:901;width:32px;height:64px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px 0 0 8px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:14px}
+.sidebar-collapse:hover{background:var(--bg-card-hover);color:var(--text)}
+.leaflet-container{background:#0a0f14}
+.leaflet-control-zoom a{background:var(--bg-card)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--bg-card-hover)!important}
+.leaflet-control-attribution{background:rgba(10,15,20,0.8)!important;color:var(--text-tertiary)!important;font-size:10px!important}
+.leaflet-control-attribution a{color:var(--text-secondary)!important}
+.leaflet-popup-content-wrapper{background:var(--bg-card)!important;border:1px solid var(--border)!important;border-radius:10px!important;box-shadow:0 8px 32px rgba(0,0,0,0.6)!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;width:320px!important;font-family:'Inter',sans-serif!important}
+.popup-photo{width:100%;height:140px;background:var(--bg);position:relative;overflow:hidden}
+.popup-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.popup-photo-score{position:absolute;top:10px;right:10px;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;backdrop-filter:blur(8px);border:2px solid rgba(0,0,0,0.3)}
+.popup-photo-score.high{color:#fff;background:rgba(74,222,128,0.85)}
+.popup-photo-score.medium{color:#fff;background:rgba(251,191,36,0.85)}
+.popup-photo-score.low{color:#fff;background:rgba(248,113,113,0.85)}
+.popup-photo-label{position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));font-size:10px;color:rgba(255,255,255,0.7);text-align:right}
+.leaflet-popup-tip{background:var(--bg-card)!important;border:1px solid var(--border)!important;box-shadow:none!important}
+.leaflet-popup-close-button{color:var(--text-tertiary)!important;font-size:18px!important;top:8px!important;right:10px!important}
+.search-overlay{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:900;width:480px;max-width:calc(100% - 32px)}
+.search-box{display:flex;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.search-box input{flex:1;padding:14px 18px;background:transparent;border:none;color:var(--text);font-size:14px;font-family:inherit;outline:none}
+.search-box input::placeholder{color:var(--text-tertiary)}
+.search-box button{padding:14px 20px;background:var(--accent);border:none;color:var(--bg);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.search-box button:hover{background:var(--accent-hover)}
+.quick-jumps{display:flex;gap:6px;margin-top:8px;justify-content:center;flex-wrap:wrap}
+.quick-jump{padding:6px 14px;background:rgba(17,25,33,0.9);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;transition:all 0.2s;backdrop-filter:blur(8px)}
+.quick-jump:hover{border-color:var(--accent);color:var(--accent)}
+.cohort-filters{display:flex;gap:5px;margin-top:8px;justify-content:center;flex-wrap:wrap}
+.cohort-btn{padding:5px 12px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:4px;color:var(--text-tertiary);font-size:10px;font-weight:600;letter-spacing:0.03em;cursor:pointer;transition:all 0.2s;backdrop-filter:blur(8px);text-transform:uppercase}
+.cohort-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cohort-btn.active{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.popup-card{padding:16px}.popup-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.popup-owner{font-weight:600;font-size:14px;color:var(--text);max-width:210px;line-height:1.3}
+.popup-redacted{font-size:11px;color:var(--accent);font-weight:500;margin-top:4px;display:flex;align-items:center;gap:4px}
+.popup-type{font-size:10px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-tertiary);margin-top:3px}
+.popup-score{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0}
+.popup-score.high{color:var(--score-high);background:rgba(74,222,128,0.12);border:1.5px solid rgba(74,222,128,0.3)}
+.popup-score.medium{color:var(--score-medium);background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3)}
+.popup-score.low{color:var(--score-low);background:rgba(248,113,113,0.12);border:1.5px solid rgba(248,113,113,0.3)}
+.popup-address{font-size:12px;color:var(--text-secondary);margin-bottom:12px}
+.popup-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.popup-metric-label{font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-tertiary)}
+.popup-metric-value{font-size:13px;font-weight:600;color:var(--accent)}.popup-metric-value.plain{color:var(--text)}
+.popup-signals{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
+.popup-signal{font-size:10px;padding:3px 8px;border-radius:3px;background:rgba(196,168,124,0.1);color:var(--accent);border:1px solid rgba(196,168,124,0.2)}
+.popup-deep-btn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--accent);border-radius:6px;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.popup-deep-btn:hover{background:var(--accent);color:var(--bg)}
+.stats-bar{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;display:none;gap:24px;align-items:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-size:12px}
+.stat-item{display:flex;align-items:center;gap:6px;color:var(--text-secondary)}
+.stat-dot{width:8px;height:8px;border-radius:50%}.stat-dot.high{background:var(--score-high)}.stat-dot.medium{background:var(--score-medium)}.stat-dot.low{background:var(--score-low)}
+.stat-count{font-weight:700;color:var(--text)}
+.zoom-message{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:800;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:20px 32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.zoom-message p{color:var(--text-secondary);font-size:14px}.zoom-message .hint{color:var(--text-tertiary);font-size:12px;margin-top:6px}
+.map-loading{display:none;position:absolute;top:12px;right:16px;z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--accent);box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.map-loading.active{display:flex;align-items:center;gap:8px}
+.mini-spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Deep Signal Overlay */
+.deep-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:2000;overflow-y:auto}
+.deep-overlay.active{display:block}
+.deep-header{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);z-index:10}
+.deep-back{padding:8px 16px;background:transparent;border:1px solid var(--accent);border-radius:6px;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.deep-back:hover{background:var(--accent);color:var(--bg)}
+.deep-body{max-width:900px;margin:0 auto;padding:32px 24px}
+.deep-loading{text-align:center;padding:80px 24px}
+.deep-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+.deep-loading p{color:var(--text-secondary);font-size:15px}
+.deep-loading .substep{color:var(--text-tertiary);font-size:12px;margin-top:8px}
+.deep-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.deep-card-header{padding:24px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border)}
+.deep-card-name{font-family:'DM Serif Display',serif;font-size:28px;margin-bottom:4px}
+.deep-card-addr{font-size:14px;color:var(--text-secondary)}
+.deep-score-big{font-size:48px;font-weight:600;line-height:1}
+.deep-score-big.high{color:var(--score-high)}.deep-score-big.medium{color:var(--score-medium)}.deep-score-big.low{color:var(--score-low)}
+.deep-score-label{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;text-align:right}
+.deep-metrics{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)}
+.deep-metric{padding:20px;border-right:1px solid var(--border)}
+.deep-metric:last-child{border-right:none}
+.deep-metric-label{font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:4px}
+.deep-metric-val{font-size:18px;font-weight:600}
+.deep-metric-val.gold{color:var(--accent)}
+.deep-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+.deep-block{padding:24px;border-right:1px solid var(--border)}
+.deep-block:nth-child(2n){border-right:none}
+.deep-block h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.deep-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px}
+.deep-row-label{color:var(--text-tertiary)}
+.deep-row-value{color:var(--text);text-align:right;max-width:60%}
+.deep-tick{padding:24px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(196,168,124,0.05) 0%,transparent 100%)}
+.deep-tick h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.deep-tick-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep-tick-label{font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent)}
+.deep-tick-value{font-size:13px;color:var(--text-secondary);line-height:1.5}
+.deep-signals{padding:24px;border-bottom:1px solid var(--border)}
+.deep-signals-header{display:flex;justify-content:space-between;margin-bottom:16px}
+.deep-signals-header h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary)}
+.deep-signal-tags{display:flex;flex-wrap:wrap;gap:8px}
+.deep-signal-tag{padding:8px 12px;background:var(--bg);font-size:12px;color:var(--text-secondary);border-left:3px solid var(--score-medium)}
+.deep-signal-tag.positive{border-left-color:var(--score-high)}.deep-signal-tag.negative{border-left-color:var(--score-low)}
+.deep-approach{padding:24px;border-bottom:1px solid var(--border)}
+.deep-approach h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px}
+.deep-approach-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep-approach-block{padding:16px;background:var(--bg);border-radius:8px}
+.deep-approach-block h5{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px}
+.deep-approach-block p{font-size:13px;color:var(--text-secondary);line-height:1.5}
+.deep-scripts{padding:24px}
+.deep-scripts h4{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px}
+.deep-script-tabs{display:flex;gap:8px;margin-bottom:16px}
+.deep-script-tab{padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:inherit}
+.deep-script-tab.active{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.deep-script-content{display:none;padding:20px;background:var(--bg);border-radius:8px;font-size:13px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap}
+.deep-script-content.active{display:block}
+@media(max-width:768px){.deep-metrics{grid-template-columns:1fr 1fr}.deep-grid{grid-template-columns:1fr}.deep-tick-grid{grid-template-columns:1fr}.deep-approach-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="header">
+    <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <div class="header-right">
+        <a href="sellersignal-briefing.html" style="padding:6px 14px;background:rgba(196,168,124,0.12);border:1px solid rgba(196,168,124,0.25);border-radius:6px;font-size:11px;font-weight:600;color:#c4a87c;text-decoration:none;letter-spacing:0.03em">← Briefing</a>
+        <div class="state-badge" id="stateBadge">LOADING...</div>
+        <div class="usage-badge"><strong>47</strong> signals remaining</div>
+    </div>
+</header>
+<div class="map-container">
+    <div style="flex:1;position:relative">
+    <div class="search-overlay">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search any address...">
+            <button onclick="flyToSearch()">Go</button>
+        </div>
+        <div class="quick-jumps">
+            <button class="quick-jump" onclick="flyTo(45.6770,-111.0429,'Bozeman, MT')">Bozeman</button>
+            <button class="quick-jump" onclick="flyTo(48.4106,-114.3529,'Whitefish, MT')">Whitefish</button>
+            <button class="quick-jump" onclick="flyTo(45.3838,-111.1608,'Big Sky, MT')">Big Sky</button>
+            <button class="quick-jump" onclick="flyTo(47.6255,-122.3196,'Seattle, WA')">Seattle</button>
+            <button class="quick-jump" onclick="flyTo(47.6101,-122.2015,'Bellevue, WA')">Bellevue</button>
+            <button class="quick-jump" onclick="flyTo(33.5312,-111.9263,'Scottsdale, AZ')">Scottsdale</button>
+            <button class="quick-jump" onclick="flyTo(33.5387,-111.9468,'Paradise Valley, AZ')">Paradise Valley</button>
+            <button class="quick-jump" onclick="flyTo(26.7056,-80.0364,'Palm Beach, FL')">Palm Beach</button>
+            <button class="quick-jump" onclick="flyTo(26.3587,-80.0831,'Boca Raton, FL')">Boca Raton</button>
+            <button class="quick-jump" onclick="flyTo(40.7831,-73.9712,'Upper West Side, NY')">UWS NYC</button>
+            <button class="quick-jump" onclick="flyTo(40.9176,-72.2695,'Southampton, NY')">Hamptons</button>
+        </div>
+        <div class="cohort-filters" id="cohortFilters">
+            <button class="cohort-btn active" data-cohort="all" onclick="setCohortFilter('all',this)">All</button>
+            <button class="cohort-btn" data-cohort="estate" onclick="setCohortFilter('estate',this)">Estate / Trust</button>
+            <button class="cohort-btn" data-cohort="investor" onclick="setCohortFilter('investor',this)">Investor / Entity</button>
+            <button class="cohort-btn" data-cohort="absentee" onclick="setCohortFilter('absentee',this)">Absentee</button>
+            <button class="cohort-btn" data-cohort="luxury" onclick="setCohortFilter('luxury',this)">Luxury</button>
+            <button class="cohort-btn" data-cohort="vacant" onclick="setCohortFilter('vacant',this)">Vacant / Land</button>
+        </div>
+    </div>
+    <div class="map-loading" id="mapLoading"><div class="mini-spinner"></div><span id="loadingText">Loading parcels...</span></div>
+    <div class="zoom-message" id="zoomMessage"><p>Zoom in to see seller signals</p><div class="hint">Search an address or zoom to street level • Coverage: Montana, King County WA, Maricopa County AZ, Palm Beach County FL, New York State, Bexar County TX</div></div>
+    <div id="map"></div>
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-item"><div class="stat-dot high"></div> High <span class="stat-count" id="countHigh">0</span></div>
+        <div class="stat-item"><div class="stat-dot medium"></div> Medium <span class="stat-count" id="countMed">0</span></div>
+        <div class="stat-item"><div class="stat-dot low"></div> Low <span class="stat-count" id="countLow">0</span></div>
+        <div class="stat-item" style="color:var(--text-tertiary)">|</div>
+        <div class="stat-item"><span class="stat-count" id="countTotal">0</span> properties in view</div>
+    </div>
+    </div>
+    <div class="prospect-sidebar" id="prospectSidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">Top Prospects</div>
+            <div class="sidebar-count" id="sidebarCount">0 in view</div>
+        </div>
+        <div class="sidebar-toggle">
+            <label>Show</label>
+            <input type="range" id="sidebarLimit" min="5" max="25" value="10" oninput="document.getElementById('sidebarLimitVal').textContent=this.value;updateSidebar()">
+            <div class="toggle-val" id="sidebarLimitVal">10</div>
+        </div>
+        <div class="sidebar-list" id="sidebarList">
+            <div class="sidebar-empty">Zoom into a neighborhood to see top prospects</div>
+        </div>
+    </div>
+</div>
+<!-- Deep Signal Overlay -->
+<div class="deep-overlay" id="deepOverlay">
+    <div class="deep-header">
+        <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+        <button class="deep-back" onclick="closeDeep()">← Back to Map</button>
+    </div>
+    <div class="deep-body" id="deepBody"></div>
+</div>
+
+<script>
+
+// ========================
+// SHARED ENGINE — identical to briefing
+// ========================
+// ========================
+// UNSELLABLE OWNER FILTER — remove at parse time, before any scoring
+// HOA, government, institutional, utilities, religious — can never sell
+// ========================
+function isUnsellableOwner(name) {
+    if (!name || name.length < 3) return false;
+    const n = name.toUpperCase();
+    // HOA / association / common area
+    if (/\bHOA\s+(INC|LLC|CORP)\b/.test(n)) return true; // "HOA INC" but not "HOA" alone (Vietnamese name risk)
+    if (/\bHOMEOWNERS?\s*ASSOC/i.test(n)) return true;
+    if (/\bOWNERS?\s*ASSOC/i.test(n) && !/TRUST/i.test(n)) return true;
+    if (/\bCOMMON\s*AREA/i.test(n)) return true;
+    if (/\bMASTER\s*ASSOC/i.test(n)) return true;
+    if (/\bCOMMUNITY\s*ASSOC/i.test(n)) return true;
+    if (/\bNEIGHBORHOOD\s*ASSOC/i.test(n)) return true;
+    if (/\bCONDO(MINIUM)?\s*(ASSOC|MASTER)/i.test(n)) return true;
+    if (/\bPROPERTY\s*OWNERS/i.test(n) && !/TRUST/i.test(n)) return true;
+    // Government
+    if (/\bCITY\s+OF\b/i.test(n)) return true;
+    if (/\bCOUNTY\s+OF\b/i.test(n)) return true;
+    if (/\bSTATE\s+OF\b/i.test(n)) return true;
+    if (/\bTOWN\s+OF\b/i.test(n)) return true;
+    if (/\bUNITED\s+STATES\b/i.test(n)) return true;
+    if (/\bFEDERAL\b/i.test(n) && /\bGOV|LAND|AGENCY|BUREAU/i.test(n)) return true;
+    if (/\bMUNICIPAL\b/i.test(n)) return true;
+    if (/\bGOVERNMENT\b/i.test(n)) return true;
+    // Utilities / districts
+    if (/\bWATER\s*(DIST|DEPARTMENT|AUTH)/i.test(n)) return true;
+    if (/\bSEWER\b/i.test(n)) return true;
+    if (/\bFIRE\s*DIST/i.test(n)) return true;
+    if (/\bSCHOOL\s*DIST/i.test(n)) return true;
+    if (/\bIRRIGATION\s*DIST/i.test(n)) return true;
+    if (/\bUTILIT(Y|IES)\b/i.test(n)) return true;
+    if (/\bSANITATION\b/i.test(n)) return true;
+    // Institutional / religious
+    if (/\bCHURCH\b/i.test(n)) return true;
+    if (/\bDIOCESE\b/i.test(n)) return true;
+    if (/\bTEMPLE\b/i.test(n) && !/TRUST/i.test(n)) return true;
+    if (/\bMOSQUE\b/i.test(n)) return true;
+    if (/\bSYNAGOGUE\b/i.test(n)) return true;
+    if (/\bCEMETERY\b/i.test(n)) return true;
+    if (/\bLIBRARY\b/i.test(n) && /\bPUBLIC\b|DIST/i.test(n)) return true;
+    if (/\bUNIVERSIT(Y|IES)\b/i.test(n)) return true;
+    if (/\bCOLLEGE\b/i.test(n) && !/TRUST/i.test(n)) return true;
+    if (/\bHOSPITAL\b/i.test(n)) return true;
+    if (/\bSCHOOL\b/i.test(n) && !/TRUST/i.test(n)) return true;
+    // Real estate industry — never sellers
+    if (/\bREAL\s*ESTATE\b|\bREALTY\b|\bBROKERAGE\b/i.test(n)) return true;
+    if (/\bBANK\b|\bCREDIT\s*UNION\b|\bMORTGAGE\b|\bLENDING\b/i.test(n)) return true;
+    // Parks / recreation
+    if (/\bPARK\s*(DIST|DEPT|AREA|BOARD)\b/i.test(n)) return true;
+    if (/\bRECREATION\s*DIST/i.test(n)) return true;
+    return false;
+}
+
+const SOURCES = {};
+
+// ========================
+// UNIVERSAL PARCEL PARSER — one function, config-driven per source
+// Every source maps to the same canonical output. No custom parse() functions.
+// ========================
+
+function cleanOwnerName(raw) {
+    if (!raw) return '';
+    let o = raw.trim();
+    o = o.replace(/\bC\/?O\b.*/i, '').trim();
+    o = o.replace(/\bATTN\b.*/i, '').trim();
+    o = o.replace(/\bCARE OF\b.*/i, '').trim();
+    o = o.replace(/\bTAX\s*PROPERTY\b/i, '').trim();
+    o = o.replace(/\bCURRENT\s*RESIDENT\b/i, '').trim();
+    o = o.replace(/\bOCCUPANT\b/i, '').trim();
+    o = o.replace(/\bPROPERTY\s*OWNER\b/i, '').trim();
+    o = o.replace(/[,.\-;:'"!?]+$/, '').trim();
+    if (o.length < 3 || /^[A-Z]{1,2}$|^\d+$|^UNKNOWN$/i.test(o)) o = '';
+    return o;
+}
+
+function parseNumericValue(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === 'number') return v;
+    return parseInt(String(v).replace(/[^0-9.-]/g, '')) || 0;
+}
+
+function extractLatLng(feature, cfg) {
+    const a = feature.attributes || {};
+    // Priority 1: attribute fields (fastest, no geometry needed)
+    if (cfg.latField && a[cfg.latField] && a[cfg.lngField]) {
+        return { lat: parseFloat(a[cfg.latField]) || 0, lng: parseFloat(a[cfg.lngField]) || 0 };
+    }
+    // Priority 2: centroid (FeatureServer)
+    if (feature.centroid) {
+        return { lat: feature.centroid.y || 0, lng: feature.centroid.x || 0 };
+    }
+    // Priority 3: compute from geometry rings
+    if (feature.geometry?.rings?.[0]?.length) {
+        const r = feature.geometry.rings[0];
+        return {
+            lng: r.reduce((s,p) => s + p[0], 0) / r.length,
+            lat: r.reduce((s,p) => s + p[1], 0) / r.length
+        };
+    }
+    return { lat: 0, lng: 0 };
+}
+
+function classifyPropType(a, cfg) {
+    const rules = cfg.propTypeRules;
+    if (!rules) return { propType: 'Residential', isExempt: false, isVacant: false, isCommercial: false };
+    
+    // PUC-style codes (numeric prefix matching)
+    if (rules.style === 'puc') {
+        const code = String(a[rules.field] || '');
+        const isExempt = (rules.exempt || []).some(p => code.startsWith(p));
+        const isCommercial = (rules.commercial || []).some(p => code.startsWith(p));
+        const isVacant = (rules.vacant || []).some(p => code.startsWith(p));
+        const isMulti = (rules.multiFamily || []).some(p => code.startsWith(p));
+        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : isMulti ? 'Multi-Family' : 'Residential';
+        return { propType, isExempt, isVacant, isCommercial };
+    }
+    
+    // NY-style numeric class codes
+    if (rules.style === 'class') {
+        const code = String(a[rules.field] || '');
+        const isExempt = (rules.exempt || []).some(p => code.startsWith(p));
+        const isCommercial = (rules.commercial || []).some(p => code.startsWith(p));
+        const isVacant = (rules.vacant || []).some(p => code.startsWith(p));
+        const isMulti = (rules.multiFamily || []).some(p => code.startsWith(p));
+        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : isMulti ? 'Residential Multi' : 'Residential';
+        return { propType, isExempt, isVacant, isCommercial };
+    }
+    
+    // String-based (Montana style — "Vacant Land", "Exempt Property")
+    if (rules.style === 'string') {
+        const val = (a[rules.field] || '').toLowerCase();
+        const isExempt = (rules.exempt || []).some(p => val.includes(p.toLowerCase()));
+        const isCommercial = (rules.commercial || []).some(p => val.includes(p.toLowerCase()));
+        const isVacant = (rules.vacant || []).some(p => val.includes(p.toLowerCase()));
+        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : val || 'Residential';
+        return { propType, isExempt, isVacant, isCommercial };
+    }
+    
+    // Regex-based (King County — PREUSE_DESC)
+    if (rules.style === 'regex') {
+        const val = a[rules.field] || '';
+        const isExempt = rules.exemptRx ? rules.exemptRx.test(val) : false;
+        const isCommercial = rules.commercialRx ? rules.commercialRx.test(val) : false;
+        const isVacant = rules.vacantRx ? rules.vacantRx.test(val) : false;
+        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : val || 'Residential';
+        return { propType, isExempt, isVacant, isCommercial };
+    }
+    
+    return { propType: 'Residential', isExempt: false, isVacant: false, isCommercial: false };
+}
+
+function parseParcel(feature, cfg) {
+    const a = feature.attributes || {};
+    const fm = cfg.fieldMap;
+    
+    // === OWNER NAME ===
+    let ownerName = '';
+    if (fm.ownerName) {
+        const fields = Array.isArray(fm.ownerName) ? fm.ownerName : [fm.ownerName];
+        for (const f of fields) {
+            const v = (a[f] || '').trim();
+            if (v && v.length > 2) { ownerName = v; break; }
+        }
+    }
+    ownerName = cleanOwnerName(ownerName);
+    
+    // === PARCEL ID ===
+    const id = a[fm.id] || null;
+    
+    // === SITUS ADDRESS ===
+    let address = '';
+    if (fm.address) {
+        if (Array.isArray(fm.address)) {
+            address = fm.address.map(f => (a[f] || '').trim()).filter(Boolean).join(' ');
+        } else {
+            address = (a[fm.address] || '').trim();
+        }
+    }
+    
+    // === CITY/STATE/ZIP ===
+    let cityStateZip = '';
+    if (fm.cityStateZip) {
+        cityStateZip = (a[fm.cityStateZip] || '').trim();
+    } else {
+        const city = a[fm.situsCity] || cfg.defaultCity || '';
+        const st = cfg.homeState || '';
+        const zip = a[fm.situsZip] || '';
+        cityStateZip = `${city}, ${st} ${zip}`.trim();
+    }
+    
+    // === VALUES (supports fallback fields as arrays) ===
+    const getVal = (fieldSpec) => {
+        if (!fieldSpec) return 0;
+        const fields = Array.isArray(fieldSpec) ? fieldSpec : [fieldSpec];
+        for (const f of fields) { const v = parseNumericValue(a[f]); if (v) return v; }
+        return 0;
+    };
+    const totalValue = getVal(fm.totalValue) || (getVal(fm.landValue) + getVal(fm.buildingValue));
+    const buildingValue = getVal(fm.buildingValue);
+    const landValue = getVal(fm.landValue);
+    
+    // === MAILING ADDRESS ===
+    let ownerAddress = '';
+    if (fm.mailAddress) {
+        ownerAddress = (a[fm.mailAddress] || '').trim();
+        if (fm.mailCity && a[fm.mailCity]) {
+            ownerAddress += (ownerAddress ? ', ' : '') + (a[fm.mailCity] || '').trim();
+        }
+        if (fm.mailState && a[fm.mailState]) {
+            ownerAddress += ' ' + (a[fm.mailState] || '').trim();
+        }
+    }
+    const ownerCity = fm.mailCity ? (a[fm.mailCity] || '').trim() : '';
+    const ownerState = fm.mailState ? (a[fm.mailState] || '').trim() : '';
+    const ownerZip = fm.mailZip ? (a[fm.mailZip] || '').trim() : '';
+    
+    // === PROPERTY TYPE + EXEMPT ===
+    const ptResult = classifyPropType(a, cfg);
+    
+    // === DETECT VACANT FROM VALUES when classification misses ===
+    const hasBuilding = buildingValue > 0 || (fm.yearBuilt && a[fm.yearBuilt]) || (fm.livingSpace && parseNumericValue(a[fm.livingSpace]) > 0);
+    const isVacant = ptResult.isVacant || (!hasBuilding && totalValue > 0 && !ptResult.isCommercial && !ptResult.isExempt);
+    
+    // === LAT/LNG ===
+    const { lat, lng } = extractLatLng(feature, cfg);
+    
+    // === ACRES ===
+    let acres = 0;
+    if (fm.acres) {
+        const rawAcres = parseNumericValue(a[fm.acres]);
+        // Some sources give sqft in the acres field (Maricopa LAND_SIZE)
+        acres = cfg.acresIsSqft ? Math.round(rawAcres / 43560 * 100) / 100 : rawAcres;
+    }
+    
+    // === TENURE / TRANSFER ===
+    let lastTransferYear = null, lastTransferDate = null, salePrice = 0;
+    if (fm.deedDate && a[fm.deedDate]) {
+        const raw = a[fm.deedDate];
+        if (typeof raw === 'number' && raw > 0) {
+            const d = new Date(raw);
+            if (d.getFullYear() > 1900) { lastTransferYear = d.getFullYear(); lastTransferDate = d.toISOString().split('T')[0]; }
+        } else if (typeof raw === 'string' && raw.includes('/')) {
+            const parts = raw.split('/');
+            if (parts.length === 3) { const yr = parseInt(parts[2]); if (yr > 1900) { lastTransferYear = yr; lastTransferDate = raw; } }
+        }
+    }
+    if (!lastTransferYear && fm.saleDate && a[fm.saleDate]) {
+        const raw = a[fm.saleDate];
+        if (typeof raw === 'number' && raw > 0) {
+            const d = new Date(raw);
+            if (d.getFullYear() > 1900) { lastTransferYear = d.getFullYear(); lastTransferDate = d.toISOString().split('T')[0]; }
+        } else if (typeof raw === 'string' && raw.includes('/')) {
+            const parts = raw.split('/');
+            if (parts.length === 3) { const yr = parseInt(parts[2]); if (yr > 1900) { lastTransferYear = yr; lastTransferDate = raw; } }
+        }
+    }
+    if (fm.salePrice) salePrice = parseNumericValue(a[fm.salePrice]);
+    
+    // === YEAR BUILT / SQFT ===
+    const yearBuilt = fm.yearBuilt ? (parseInt(a[fm.yearBuilt]) || null) : null;
+    const sqft = fm.livingSpace ? parseNumericValue(a[fm.livingSpace]) : (fm.sqft ? parseNumericValue(a[fm.sqft]) : 0);
+    
+    // === ABSENTEE / OUT-OF-STATE DETECTION ===
+    const situsNorm = (address || '').toUpperCase().replace(/\s+/g, '').substring(0, 20);
+    const mailNorm = (ownerAddress || '').toUpperCase().replace(/\s+/g, '').substring(0, 20);
+    const isAbsentee = ownerAddress.length > 5 && address.length > 5 && situsNorm !== mailNorm && !mailNorm.includes(situsNorm.substring(0, 10));
+    const isOutOfState = ownerState && cfg.homeState && ownerState.toUpperCase() !== cfg.homeState.toUpperCase();
+    
+    // === SUBDIVISION / EXTRAS ===
+    const subdivision = fm.subdivision ? (a[fm.subdivision] || '').trim() : '';
+    const inCareOf = fm.inCareOf ? (a[fm.inCareOf] || '').trim() : '';
+    
+    return {
+        id: id || `${cfg.key}-${address.replace(/\s/g, '')}-${ownerName.substring(0, 10)}`,
+        ownerName, address, cityStateZip,
+        totalValue, buildingValue, landValue,
+        propType: ptResult.propType, acres, subdivision,
+        ownerAddress, ownerCity, ownerState, ownerZip,
+        exempt: ptResult.isExempt,
+        lat, lng,
+        isAbsentee, isOutOfState, isVacantLand: isVacant,
+        hasBuildingValue: hasBuilding,
+        lastTransferYear, lastTransferDate, salePrice,
+        yearBuilt, sqft, inCareOf, multiCount: 1
+    };
+}
+
+// ========================
+// SOURCE CONFIGS — field mappings only, no custom parse functions
+// ========================
+
+SOURCES.MT = {
+    key: 'MT', name: 'Montana', homeState: 'MT',
+    url: 'https://gisservicemt.gov/arcgis/rest/services/MSDI_Framework/Parcels/MapServer/0/query',
+    fields: 'OwnerName,AddressLine1,CityStateZip,TotalValue,TotalBuildingValue,TotalLandValue,PropType,GISAcres,Subdivision,OwnerAddress1,OwnerCity,OwnerState,OwnerZipCode,PARCELID',
+    max: 2000, bounds: { south: 44.35, north: 49.0, west: -116.05, east: -104.04 },
+    zipWhere: (zip) => `CityStateZip LIKE '%${zip}%'`,
+    fieldMap: {
+        id: 'PARCELID', ownerName: 'OwnerName', address: 'AddressLine1', cityStateZip: 'CityStateZip',
+        totalValue: 'TotalValue', buildingValue: 'TotalBuildingValue', landValue: 'TotalLandValue',
+        acres: 'GISAcres', subdivision: 'Subdivision',
+        mailAddress: 'OwnerAddress1', mailCity: 'OwnerCity', mailState: 'OwnerState', mailZip: 'OwnerZipCode'
+    },
+    propTypeRules: { style: 'string', field: 'PropType', exempt: ['Exempt Property'], commercial: ['Commercial'], vacant: ['Vacant', 'Agricultural'] },
+    parse(f) { return parseParcel(f, this); }
+};
+
+SOURCES.WA_KING = {
+    key: 'WA_KING', name: 'King County, WA', homeState: 'WA',
+    url: 'https://services.arcgis.com/Ej0PsM5Aw677QF1W/arcgis/rest/services/PARCEL_ADDRESS_PUB_AREA_3069/FeatureServer/0/query',
+    fields: 'PAAUNIQUENAME,KCTP_ATTN,ADDR_FULL,CTYNAME,KCTP_ADDR,KCTP_CTYST,KCTP_STATE,APPRLNDVAL,APPR_IMPR,TAX_LNDVAL,TAX_IMPR,PLAT_NAME,KCA_ACRES,PREUSE_DESC,PIN,LAT,LON,ZIP5',
+    max: 1000, bounds: { south: 47.0, north: 47.8, west: -122.6, east: -121.0 },
+    zipWhere: (zip) => `ZIP5='${zip}'`,
+    latField: 'LAT', lngField: 'LON',
+    fieldMap: {
+        id: 'PIN', ownerName: ['PAAUNIQUENAME', 'KCTP_ATTN'], address: 'ADDR_FULL',
+        situsCity: 'CTYNAME', situsZip: 'ZIP5',
+        totalValue: null, buildingValue: ['APPR_IMPR', 'TAX_IMPR'], landValue: ['APPRLNDVAL', 'TAX_LNDVAL'],
+        acres: 'KCA_ACRES', subdivision: 'PLAT_NAME',
+        mailAddress: 'KCTP_ADDR', mailState: 'KCTP_STATE'
+    },
+    propTypeRules: { style: 'regex', field: 'PREUSE_DESC', exemptRx: /exempt|government/i, vacantRx: /vacant/i, commercialRx: /commercial|industrial/i },
+    salesUrl: 'https://services.arcgis.com/Ej0PsM5Aw677QF1W/arcgis/rest/services/PARCEL_SALES3YR_AREA_287/FeatureServer/0/query',
+    salesFields: 'PIN,SaleDate,SalePrice,Sellername,buyername',
+    parse(f) { return parseParcel(f, this); }
+};
+
+SOURCES.NY = {
+    key: 'NY', name: 'New York State', homeState: 'NY',
+    url: 'https://services6.arcgis.com/EbVsqZ18sv1kVJ3k/ArcGIS/rest/services/NYS_Tax_Parcels_Public/FeatureServer/1/query',
+    fields: 'PRIMARY_OWNER,PARCEL_ADDR,LOC_STREET,LOC_ST_NBR,LOC_ZIP,MAIL_ADDR,MAIL_CITY,MAIL_STATE,MAIL_ZIP,TOTAL_AV,FULL_MARKET_VAL,LAND_AV,COUNTY_NAME,MUNI_NAME,CITYTOWN_NAME,PROP_CLASS,ACRES,CALC_ACRES,OWNER_TYPE,ROLL_YR,SQ_FT,YR_BLT',
+    max: 1000, bounds: { south: 40.4, north: 45.1, west: -79.8, east: -71.8 },
+    zipWhere: (zip) => `LOC_ZIP='${zip}'`,
+    fieldMap: {
+        id: null, ownerName: 'PRIMARY_OWNER', address: ['LOC_ST_NBR', 'LOC_STREET'],
+        situsCity: 'MUNI_NAME', situsZip: 'LOC_ZIP',
+        totalValue: ['FULL_MARKET_VAL', 'TOTAL_AV'], buildingValue: null, landValue: 'LAND_AV',
+        acres: 'ACRES', sqft: 'SQ_FT', yearBuilt: 'YR_BLT',
+        mailAddress: 'MAIL_ADDR', mailCity: 'MAIL_CITY', mailState: 'MAIL_STATE', mailZip: 'MAIL_ZIP'
+    },
+    propTypeRules: { style: 'class', field: 'PROP_CLASS', exempt: ['8', '9', '6'], commercial: ['4', '7'], vacant: ['3'], multiFamily: ['2'] },
+    // NY needs fallback city from multiple fields
+    _getCityLabel(a) { return (a.MUNI_NAME || a.CITYTOWN_NAME || a.COUNTY_NAME || 'New York').trim(); },
+    parse(f) {
+        const p = parseParcel(f, this);
+        // Fix city label from best available field
+        const a = f.attributes || {};
+        const city = this._getCityLabel(a);
+        p.cityStateZip = `${city}, NY ${a.LOC_ZIP || ''}`;
+        if (!p.id) p.id = `NY-${(p.address || '').replace(/\s/g, '')}-${(p.ownerName || '').substring(0, 10)}`;
+        // Compute building value from total - land
+        if (!p.buildingValue && p.totalValue > p.landValue) p.buildingValue = p.totalValue - p.landValue;
+        p.county = (a.COUNTY_NAME || '').trim();
+        return p;
+    }
+};
+
+SOURCES.TX_BEXAR = {
+    key: 'TX_BEXAR', name: 'Bexar County, TX', homeState: 'TX',
+    url: 'https://maps.bexar.org/arcgis/rest/services/Parcels/MapServer/0/query',
+    fields: 'Owner,Situs,AddrLn2,AddrSt,Zip,LandVal,ImprVal,TotVal,PropUse,Acres,LglAcres,AcctNumb,YrBlt,Nbhd,DBA',
+    max: 1000, bounds: { south: 29.15, north: 29.75, west: -98.85, east: -98.2 },
+    // NO zipWhere — Bexar Zip is MAILING zip
+    defaultCity: 'San Antonio',
+    fieldMap: {
+        id: 'AcctNumb', ownerName: 'Owner', address: 'Situs',
+        totalValue: 'TotVal', buildingValue: 'ImprVal', landValue: 'LandVal',
+        acres: 'Acres', yearBuilt: 'YrBlt',
+        mailAddress: 'AddrLn2', mailState: 'AddrSt', mailZip: 'Zip'
+    },
+    propTypeRules: { style: 'puc', field: 'PropUse', exempt: ['7', '8'], commercial: ['5', '6'], vacant: ['3'] },
+    parse(f) { return parseParcel(f, this); }
+};
+
+SOURCES.AZ_MARICOPA = {
+    key: 'AZ_MARICOPA', name: 'Maricopa County, AZ', homeState: 'AZ',
+    url: 'https://gis.mcassessor.maricopa.gov/arcgis/rest/services/MaricopaDynamicQueryService/MapServer/3/query',
+    fields: 'APN,OWNER_NAME,PHYSICAL_ADDRESS,PHYSICAL_CITY,PHYSICAL_ZIP,MAIL_ADDRESS,MAIL_CITY,MAIL_STATE,MAIL_ZIP,FCV_CUR,LPV_CUR,LAND_SIZE,CONST_YEAR,LIVING_SPACE,DEED_DATE,SALE_DATE,SALE_PRICE,PUC,LATITUDE,LONGITUDE,INCAREOF,CITY_ZONING,SUBNAME,JURISDICTION',
+    max: 1000, bounds: { south: 32.8, north: 34.0, west: -113.3, east: -111.0 },
+    noGeometry: true,
+    zipWhere: (zip) => `PHYSICAL_ZIP='${zip}'`,
+    latField: 'LATITUDE', lngField: 'LONGITUDE',
+    acresIsSqft: true,
+    fieldMap: {
+        id: 'APN', ownerName: 'OWNER_NAME', address: 'PHYSICAL_ADDRESS',
+        situsCity: 'PHYSICAL_CITY', situsZip: 'PHYSICAL_ZIP',
+        totalValue: 'FCV_CUR', buildingValue: null, landValue: null,
+        acres: 'LAND_SIZE', subdivision: 'SUBNAME',
+        livingSpace: 'LIVING_SPACE', yearBuilt: 'CONST_YEAR',
+        deedDate: 'DEED_DATE', saleDate: 'SALE_DATE', salePrice: 'SALE_PRICE',
+        mailAddress: 'MAIL_ADDRESS', mailCity: 'MAIL_CITY', mailState: 'MAIL_STATE', mailZip: 'MAIL_ZIP',
+        inCareOf: 'INCAREOF'
+    },
+    propTypeRules: { style: 'puc', field: 'PUC', exempt: ['8', '9', '0745', '0770', '0261', '0262'], commercial: ['1', '2'], vacant: ['00'] },
+    parse(f) {
+        const p = parseParcel(f, this);
+        // Maricopa: estimate building value from total if living space exists
+        if (p.sqft > 0 && p.totalValue > 0 && !p.buildingValue) {
+            p.buildingValue = Math.max(p.totalValue - Math.round(p.totalValue * 0.3), 0);
+            p.landValue = p.totalValue - p.buildingValue;
+        } else if (!p.sqft && p.totalValue > 0) {
+            p.landValue = p.totalValue;
+        }
+        return p;
+    }
+};
+
+SOURCES.FL_PALM_BEACH = {
+    key: 'FL_PB', name: 'Palm Beach County, FL', homeState: 'FL',
+    url: 'https://wpbgisportal.wpb.org/server/rest/services/Parcel/Parcels_New/FeatureServer/0/query',
+    fields: 'OWNER_NAME1,OWNER_NAME2,SITE_ADDR_STR,MUNICIPALITY,ZIP1,PADDR1,CITYNAME,STATE,ZIP1,TOTAL_VALUE,LAND_MARKET,IMPRV_MRKT,ASSESSED_VAL,SALE_DATE,PRICE,YRBLT,ACRES,PROPERTY_USE,HMSTD_FLG,SUBDIV_NAME,MONTHS_SINCE_SALE',
+    max: 2000, bounds: { south: 26.3, north: 27.0, west: -80.7, east: -80.0 },
+    zipWhere: (zip) => `ZIP1='${zip}'`,
+    fieldMap: {
+        id: null, ownerName: ['OWNER_NAME1', 'OWNER_NAME2'], address: 'SITE_ADDR_STR',
+        situsCity: 'MUNICIPALITY', situsZip: 'ZIP1',
+        totalValue: ['TOTAL_VALUE', 'ASSESSED_VAL'], buildingValue: 'IMPRV_MRKT', landValue: 'LAND_MARKET',
+        acres: 'ACRES', yearBuilt: 'YRBLT', subdivision: 'SUBDIV_NAME',
+        saleDate: 'SALE_DATE', salePrice: 'PRICE',
+        mailAddress: 'PADDR1', mailCity: 'CITYNAME', mailState: 'STATE'
+    },
+    propTypeRules: {
+        style: 'regex', field: 'PROPERTY_USE',
+        exemptRx: /MUNICIPAL|GOVERNMENT|COUNTY|STATE|FEDERAL|SCHOOL|CHURCH|RELIGIOUS|CEMETERY|HOSPITAL|LIBRARY/i,
+        commercialRx: /STORE|OFFICE|WAREHOUSE|WAREH|RESTAURANT|AUTO|SERVICE STATION|LIGHT MFG|OPEN STORAGE|CLB|HOTEL|MOTEL|SHOPPING|BANK|THEATER|BOWLING|GOLF|MARINA|CAMP/i,
+        vacantRx: /^VACANT/i
+    },
+    parse(f) {
+        const p = parseParcel(f, this);
+        if (!p.id) p.id = `PB-${(p.address||'').replace(/\s/g,'')}-${(p.ownerName||'').substring(0,10)}`;
+        return p;
+    }
+};
+
+// ========================
+// SCORING ENGINE v3 — Four separate scores
+// Seller Likelihood | Off-Market Receptivity | Actionability | Confidence
+// ========================
+
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+function precomputeStats(parcels) {
+    const valid = parcels.filter(x => x.totalValue > 0 && !x.exempt);
+    const values = valid.map(x => x.totalValue).sort((a,b) => a-b);
+    const p75Value = values[Math.floor(values.length * 0.75)] || 0;
+    
+    // Pre-compute multi-property counts
+    const ownerCounts = {};
+    for (const p of valid) {
+        if (p.ownerName && p.ownerName.length > 3) {
+            const key = p.ownerName.toUpperCase().trim();
+            ownerCounts[key] = (ownerCounts[key] || 0) + 1;
+        }
+    }
+    return { p75Value, ownerCounts };
+}
+
+function scoreParcel(p, stats) {
+    const { p75Value, ownerCounts } = stats;
+    const signals = [];
+    
+    // Bail on exempt
+    if (p.exempt) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
+    
+    // Institutional filter
+    const govRx = /\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSITY\b|\bCOLLEGE\b|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
+    if (p.ownerName && govRx.test(p.ownerName)) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional'};
+    
+    // No-address filter
+    const on = (p.ownerName || '').toUpperCase();
+    if (!p.address && (!on || on.length < 4)) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Unknown'};
+
+    // -----------------------------------------------
+    // CLASSIFY PROPERTY TRAITS
+    // -----------------------------------------------
+    const pa = (p.address||'').toLowerCase().replace(/\s+/g,'');
+    const oa = (p.ownerAddress||'').toLowerCase().replace(/\s+/g,'');
+    const isAbsentee = p.mailDiffers || (oa && pa && pa.length > 5 && !oa.includes(pa.substring(0, Math.min(10, pa.length))));
+    const isOutOfState = p.ownerState && !['MT','WA','NY','TX'].includes(p.ownerState.toUpperCase());
+    const pt = (p.propType || '').toLowerCase();
+    const isVacant = pt.includes('vacant') || pt.includes('land') || (p.totalValue > 0 && p.buildingValue === 0);
+    const landHeavy = p.totalValue > 0 && p.landValue > 0 && p.buildingValue > 0 && (p.landValue / p.totalValue) > 0.6;
+    const isHighValue = p.totalValue > 0 && p75Value > 0 && p.totalValue > p75Value;
+    const isLuxury = !isVacant && p.totalValue > 750000 && p75Value > 0 && p.totalValue > p75Value * 1.5;
+    const hasMailingAddr = p.ownerAddress && p.ownerAddress.length > 5;
+    const hasOwnerName = on && on.length > 3;
+    
+    // Entity classification (must be before isJunkName)
+    const isLLC = /\bLLC\b|\bCORP\b|\bINC\b|\bPARTNERSHIP\b|\bHOLDINGS\b|\bPROPERTIES\b|\bINVESTMENTS\b|\bGROUP\b|\bREALTY\b|\bMANAGEMENT\b/i.test(on);
+    const isTrust = /\bTRUST\b/i.test(on);
+    const isEstate = /\bESTATE\b/i.test(on);
+    const isHeirs = /\bHEIRS\b|\bDECEASED\b|\bSURVIVOR\b/i.test(on);
+    const isRanch = /\bRANCH\b|\bFARM\b/i.test(on);
+    const isEntity = isLLC || isTrust || isEstate || isHeirs || isRanch;
+    const isCorporateOpaque = isLLC && !isTrust && !isEstate && !isHeirs && !isRanch;
+    
+    // Owner name quality — detect weak/junk names that survived cleaning
+    const isJunkName = hasOwnerName && (
+        /\bMANAGEMENT\b|\bPROPERTY\b|\bSERVICE|\bAGENCY\b|\bDEPARTMENT\b|\bOFFICE\b|\bCOMMITTEE\b|\bBOARD\b/i.test(on) && !isEntity ||
+        on.split(/\s+/).length === 1 || // single word names are suspicious
+        /^\d/.test(on) // starts with a number
+    );
+    const hasCleanOwnerName = hasOwnerName && !isJunkName;
+    
+    // Multi-property detection (pre-computed)
+    let multiCount = 1;
+    if (hasOwnerName) {
+        const ownerKey = on.trim();
+        multiCount = ownerCounts[ownerKey] || 1;
+    }
+    const isSmallPortfolio = multiCount >= 2 && multiCount <= 5;
+    const isLargePortfolio = multiCount > 5;
+    
+    // Operational property detection
+    const isOperational = isRanch && p.acres > 20;
+    
+    // -----------------------------------------------
+    // 1. SELLER LIKELIHOOD (0-100)
+    // How likely is this owner to sell in the next 6-24 months?
+    // Driven by transition signals, NOT structural complexity
+    // -----------------------------------------------
+    let sellerLikelihood = 20; // neutral base
+    
+    // === OWNERSHIP TRANSITION SIGNALS (strongest) ===
+    if (isHeirs) {
+        signals.push({text:'Heir/deceased/survivor — likely transition',type:'positive'});
+        sellerLikelihood += 22;
+    }
+    if (isEstate && !isHeirs) {
+        signals.push({text:'Estate ownership — may be in settlement',type:'positive'});
+        sellerLikelihood += 18;
+    }
+    if (isTrust && isAbsentee) {
+        signals.push({text:'Trust + absentee — succession or remote management',type:'positive'});
+        sellerLikelihood += 16;
+    } else if (isTrust && !isHeirs && !isEstate) {
+        signals.push({text:'Trust ownership — possible succession planning',type:'neutral'});
+        sellerLikelihood += 8; // trust alone is moderate, not strong
+    }
+    
+    // === ABSENTEE + DISTANCE (moderate-strong when combined) ===
+    if (isAbsentee && isOutOfState) {
+        signals.push({text:`Out-of-state absentee (${p.ownerState}) — distance creates friction`,type:'positive'});
+        sellerLikelihood += 14;
+    } else if (isOutOfState) {
+        signals.push({text:`Out-of-state owner (${p.ownerState})`,type:'positive'});
+        sellerLikelihood += 8;
+    } else if (isAbsentee) {
+        signals.push({text:'Absentee owner — not occupying property',type:'neutral'});
+        sellerLikelihood += 6;
+    }
+    
+    // === UTILIZATION / BURDEN SIGNALS ===
+    if (isVacant && isAbsentee) {
+        signals.push({text:'Vacant land + absentee — carrying cost with no use',type:'positive'});
+        sellerLikelihood += 12;
+    } else if (isVacant) {
+        signals.push({text:'Vacant land — carrying costs with no income',type:'neutral'});
+        sellerLikelihood += 6;
+    }
+    if (landHeavy && !isVacant) {
+        signals.push({text:'Land value exceeds building — possible teardown/redevelopment candidate',type:'neutral'});
+        sellerLikelihood += 4;
+    }
+    
+    // === PORTFOLIO / SIMPLIFICATION ===
+    if (isSmallPortfolio) {
+        signals.push({text:`Owner holds ${multiCount} properties locally — portfolio simplification possible`,type:'neutral'});
+        sellerLikelihood += 5;
+    }
+    if (isLargePortfolio) {
+        signals.push({text:`Owner holds ${multiCount}+ properties — active investor`,type:'neutral'});
+        sellerLikelihood += 2;
+    }
+    
+    // === TENURE / OWNERSHIP DURATION ===
+    if (p.tenureYears !== undefined && p.tenureYears !== null) {
+        if (p.tenureYears <= 1) {
+            signals.push({text:`Very recent transfer (${p.lastTransferDate || '<1yr'}) — unlikely to sell`,type:'negative'});
+            sellerLikelihood -= 15;
+        } else if (p.tenureYears <= 2) {
+            signals.push({text:`Recent buyer (~${Math.round(p.tenureYears)}yr ago) — low sell probability`,type:'negative'});
+            sellerLikelihood -= 10;
+        } else if (p.tenureYears <= 3) {
+            signals.push({text:`Purchased ~${Math.round(p.tenureYears)}yr ago — relatively recent`,type:'negative'});
+            sellerLikelihood -= 5;
+        }
+    } else if (p.tenureLongTerm) {
+        signals.push({text:'No sale in past 3 years — ownership appears stable',type:'positive'});
+        sellerLikelihood += 3;
+    }
+    // If no tenure data (Montana), reduce confidence slightly later
+    
+    // === DAMPENERS (critical — these prevent false positives) ===
+    if (isOperational) {
+        signals.push({text:'Active agricultural operation — lower sell probability',type:'negative'});
+        sellerLikelihood -= 16;
+    }
+    if (isCorporateOpaque && !isAbsentee && !isOutOfState && multiCount <= 1) {
+        signals.push({text:'Opaque entity with no transition signals',type:'negative'});
+        sellerLikelihood -= 10;
+    }
+    if (isLargePortfolio && !isAbsentee) {
+        sellerLikelihood -= 6; // active local investor, not disposing
+    }
+    // LLC alone without other signals — weak
+    if (isLLC && !isTrust && !isEstate && !isHeirs && !isAbsentee && !isOutOfState && multiCount <= 1) {
+        sellerLikelihood -= 5; // just an LLC, no disposition signal
+    }
+    
+    // === HOMEOWNER BALANCING (temporary — until tenure data available) ===
+    // Named individual with usable contact path gets a small boost
+    const isNamedIndividual = hasCleanOwnerName && !isLLC && !isTrust && !isEstate && !isHeirs && !isRanch;
+    if (isNamedIndividual && hasMailingAddr) {
+        sellerLikelihood += 4;
+    }
+    // Anonymous entity with no human path gets additional penalty
+    if (isCorporateOpaque && !hasMailingAddr) {
+        sellerLikelihood -= 4;
+    }
+    if (isJunkName) {
+        sellerLikelihood -= 3;
+    }
+    
+    sellerLikelihood = clamp(sellerLikelihood, 0, 100);
+    
+    // -----------------------------------------------
+    // 2. OFF-MARKET RECEPTIVITY (0-100)
+    // If they sell, would they prefer discreet/direct/off-market?
+    // This is the moat — entity/privacy/complexity signals belong HERE
+    // -----------------------------------------------
+    let offMarketReceptivity = 20;
+    
+    if (isTrust || isEstate || isHeirs) offMarketReceptivity += 12;
+    if (isLLC) offMarketReceptivity += 10;
+    if (isAbsentee) offMarketReceptivity += 10;
+    if (isOutOfState) offMarketReceptivity += 8;
+    if (isLuxury) offMarketReceptivity += 12;
+    if (isVacant) offMarketReceptivity += 6;
+    if (p.acres && p.acres > 10) offMarketReceptivity += 10;
+    if (isRanch) offMarketReceptivity += 8;
+    if (isHighValue) offMarketReceptivity += 4;
+    if (landHeavy) offMarketReceptivity += 4;
+    if (isSmallPortfolio || isLargePortfolio) offMarketReceptivity += 6;
+    
+    offMarketReceptivity = clamp(offMarketReceptivity, 0, 100);
+    
+    // -----------------------------------------------
+    // 3. ACTIONABILITY (0-100)
+    // Can an agent reasonably work this prospect now?
+    // -----------------------------------------------
+    let actionability = 25;
+    
+    // Contact path quality — only trust clean names
+    if (hasCleanOwnerName && hasMailingAddr) actionability += 15;
+    else if (hasCleanOwnerName) actionability += 8;
+    else if (hasOwnerName && hasMailingAddr) actionability += 5; // name exists but suspect
+    
+    // Named human vs opaque entity
+    if (hasCleanOwnerName && !isLLC) actionability += 12; // named individual or named trust
+    if (isTrust && hasMailingAddr) actionability += 8; // named trustee pattern
+    if (isHeirs || isEstate) actionability += 6; // clear transition, clear angle
+    
+    // Clarity of outreach
+    if (isAbsentee && hasMailingAddr) actionability += 6; // clear mail path
+    
+    // Penalties
+    if (isCorporateOpaque) actionability -= 15;
+    if (isOperational) actionability -= 10;
+    if (isLargePortfolio && isCorporateOpaque) actionability -= 8;
+    if (!hasOwnerName) actionability -= 10;
+    if (!hasMailingAddr && isCorporateOpaque) actionability -= 8;
+    if (isJunkName) actionability -= 8; // junk name = can't trust identity
+    
+    // Homeowner balancing (temporary — until tenure data)
+    if (isNamedIndividual && hasMailingAddr) actionability += 5;
+    if (isCorporateOpaque && !hasMailingAddr) actionability -= 5;
+    
+    actionability = clamp(actionability, 0, 100);
+    
+    // -----------------------------------------------
+    // 4. CONFIDENCE (0-100)
+    // How much evidence supports these assessments?
+    // -----------------------------------------------
+    let confidence = 30;
+    
+    if (hasCleanOwnerName) confidence += 10;
+    else if (hasOwnerName) confidence += 4; // name exists but questionable quality
+    if (hasMailingAddr) confidence += 8;
+    if (p.totalValue > 0) confidence += 6;
+    if (p.propType) confidence += 4;
+    if (p.acres > 0) confidence += 3;
+    if (isJunkName) confidence -= 6;
+    
+    // Consistent signals boost confidence
+    const posSignals = signals.filter(s => s.type === 'positive').length;
+    const negSignals = signals.filter(s => s.type === 'negative').length;
+    if (posSignals >= 3 && negSignals === 0) confidence += 10;
+    else if (posSignals >= 2) confidence += 5;
+    if (posSignals > 0 && negSignals > 0) confidence -= 5; // mixed signals = less certain
+    
+    // Thin data penalty
+    if (!hasOwnerName && !hasMailingAddr) confidence -= 10;
+    if (isVacant || isLuxury || isRanch) confidence -= 5; // thin comp markets = lower confidence
+    
+    // Tenure data quality
+    if (p.tenureConfidence === 'high') confidence += 6; // exact sale date known
+    else if (p.tenureLongTerm) confidence += 1; // 3yr absence = weak signal only
+    else if (!p.tenureSource) confidence -= 3; // no tenure data at all (Montana)
+    
+    confidence = clamp(confidence, 0, 100);
+    
+    // -----------------------------------------------
+    // BRIEFING RANK — weighted combination
+    // Seller Likelihood dominates. Off-Market Receptivity refines, doesn't hijack.
+    // -----------------------------------------------
+    const briefingRank = Math.round(
+        (sellerLikelihood * 0.50) +
+        (actionability * 0.30) +
+        (offMarketReceptivity * 0.15) +
+        (confidence * 0.05)
+    );
+    
+    // Score class based on briefing rank
+    const scoreClass = briefingRank >= 55 ? 'high' : briefingRank >= 35 ? 'medium' : 'low';
+    
+    // -----------------------------------------------
+    // COHORT
+    // -----------------------------------------------
+    let cohort = 'residential', cohortLabel = 'Residential';
+    if (isHeirs || isEstate) { cohort='estate'; cohortLabel='Estate / Heir'; }
+    else if (isTrust) { cohort='trust'; cohortLabel='Trust'; }
+    else if (isRanch) { cohort='ranch'; cohortLabel='Ranch / Farm'; }
+    else if (isLLC && !isTrust && !isEstate) { cohort='investor'; cohortLabel='Investor / Entity'; }
+    else if (isAbsentee || isOutOfState) { cohort='absentee'; cohortLabel='Absentee Owner'; }
+    else if (isVacant) { cohort='vacant'; cohortLabel='Vacant / Land'; }
+    else if (isLuxury) { cohort='luxury'; cohortLabel='Luxury / High-End'; }
+    
+    return { 
+        sellerLikelihood, offMarketReceptivity, actionability, confidence, briefingRank,
+        scoreClass, signals, cohort, cohortLabel,
+        _multiCount: multiCount, _isSmallPortfolio: isSmallPortfolio, _isLargePortfolio: isLargePortfolio,
+        _isAbsentee: isAbsentee, _isOutOfState: isOutOfState, _isVacant: isVacant, _isOperational: isOperational
+    };
+}
+
+
+function getSource(lat,lng){for(const[k,s]of Object.entries(SOURCES)){const b=s.bounds;if(lat>=b.south&&lat<=b.north&&lng>=b.west&&lng<=b.east)return{key:k,source:s}}return null}
+
+// ========================
+// MAP
+// ========================
+const map=L.map('map',{center:[46.8, -110.4],zoom:7});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OSM &copy; CARTO',subdomains:'abcd',maxZoom:20}).addTo(map);
+let markers=[],isLoading=false;const MIN_ZOOM=15;
+const colors={high:'#4ade80',medium:'#fbbf24',low:'#f87171'};
+const glows={high:'rgba(74,222,128,0.4)',medium:'rgba(251,191,36,0.3)',low:'rgba(248,113,113,0.2)'};
+
+
+function latlngToMerc(lat,lng){const x=lng*20037508.34/180;const y=Math.log(Math.tan((90+lat)*Math.PI/360))/(Math.PI/180)*20037508.34/180;return{x,y}}
+
+// ========================
+// LOAD PARCELS
+// ========================
+async function loadParcels(){
+    if(isLoading)return;const zoom=map.getZoom();
+    if(zoom<MIN_ZOOM){document.getElementById('zoomMessage').style.display='block';document.getElementById('statsBar').style.display='none';return}
+    document.getElementById('zoomMessage').style.display='none';
+    const c=map.getCenter();const match=getSource(c.lat,c.lng);
+    if(!match){document.getElementById('stateBadge').textContent='COVERAGE COMING SOON';document.getElementById('stateBadge').style.color='#f87171';return}
+    const{source}=match;document.getElementById('stateBadge').textContent=source.name.toUpperCase();document.getElementById('stateBadge').style.color='#c4a87c';
+    isLoading=true;document.getElementById('loadingText').textContent=`Loading ${source.name} parcels...`;document.getElementById('mapLoading').classList.add('active');
+    try{const b=map.getBounds();const sw=latlngToMerc(b.getSouth(),b.getWest());const ne=latlngToMerc(b.getNorth(),b.getEast());
+    const params=new URLSearchParams({
+        geometry:`${sw.x},${sw.y},${ne.x},${ne.y}`,geometryType:'esriGeometryEnvelope',inSR:'3857',spatialRel:'esriSpatialRelIntersects',
+        outFields:source.fields,
+        returnGeometry:source.noGeometry?'false':'true',
+        ...(source.noGeometry?{}:{returnCentroid:'true'}),
+        outSR:'4326',f:'json',resultRecordCount:String(source.max)
+    });
+    const res=await fetch(`${source.url}?${params}`);const data=await res.json();
+    if(data.features?.length>0){
+        const parcels=data.features.map(f=>source.parse(f)).filter(p=>p.lat!==0&&!p.exempt&&(p.ownerName||p.address)&&!isUnsellableOwner(p.ownerName));
+        const stats=precomputeStats(parcels);
+        const scored=parcels.map(p=>{const result=scoreParcel(p,stats);return{...p,...result,score:result.sellerLikelihood,omFit:result.offMarketReceptivity}});
+        addMarkers(scored);updateStats()}}
+    catch(e){console.error(e)}finally{isLoading=false;document.getElementById('mapLoading').classList.remove('active')}}
+
+// ========================
+// MARKERS
+// ========================
+function addMarkers(parcels){for(const p of parcels){if(p.score===0)continue;
+if(markers.some(m=>{const pos=m.getLatLng();return Math.abs(pos.lat-p.lat)<0.00001&&Math.abs(pos.lng-p.lng)<0.00001}))continue;
+const icon=L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:${colors[p.scoreClass]};border-radius:50%;border:2px solid rgba(0,0,0,0.4);box-shadow:0 0 8px ${glows[p.scoreClass]},0 2px 4px rgba(0,0,0,0.3);transition:transform 0.15s" onmouseover="this.style.transform='scale(1.5)'" onmouseout="this.style.transform='scale(1)'"></div>`,iconSize:[14,14],iconAnchor:[7,7]});
+const marker=L.marker([p.lat,p.lng],{icon}).addTo(map);marker._pd=p;
+marker.bindPopup(()=>popup(p),{maxWidth:340,minWidth:320,closeButton:true,autoPan:true,autoPanPaddingTopLeft:[10,80]});markers.push(marker)}}
+
+// ========================
+// COHORT FILTER
+// ========================
+let activeCohort = 'all';
+
+function setCohortFilter(cohort, btn) {
+    activeCohort = cohort;
+    document.querySelectorAll('.cohort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    markers.forEach(m => {
+        const p = m._pd;
+        const visible = cohort === 'all' || p.cohort === cohort;
+        if (visible) {
+            if (!map.hasLayer(m)) m.addTo(map);
+        } else {
+            if (map.hasLayer(m)) map.removeLayer(m);
+        }
+    });
+    updateStats();
+}
+
+function popup(p){
+    const val=p.totalValue?`$${(p.totalValue/1000).toFixed(0)}K`:'N/A';
+    const bv=p.buildingValue?`$${(p.buildingValue/1000).toFixed(0)}K`:'—';
+    const lv=p.landValue?`$${(p.landValue/1000).toFixed(0)}K`:'—';
+    const sigs=p.signals.map(s=>`<span class="popup-signal">${s.text}</span>`).join('');
+    
+    let ownerHtml;
+    if(p.ownerRevealed&&p.ownerName){
+        ownerHtml=`<div class="popup-owner">${p.ownerName}</div>`;
+    } else {
+        ownerHtml=`<div class="popup-owner">${p.address}</div><div class="popup-redacted">🔒 Owner revealed with Deep Signal</div>`;
+    }
+    
+    // Street View image
+    const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=640x280&location=${encodeURIComponent(p.address+(p.cityStateZip?', '+p.cityStateZip:''))}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&fov=90&pitch=10`;
+    
+    return `<div class="popup-card" style="padding:0">
+        <div class="popup-photo">
+            <img src="${svUrl}" alt="Street view" onerror="this.parentElement.style.display='none'">
+            <div class="popup-photo-score ${p.scoreClass}">${p.score}</div>
+            <div class="popup-photo-label">Street View</div>
+        </div>
+        <div style="padding:16px">
+        <div class="popup-header"><div>${ownerHtml}<div class="popup-type">${p.propType||'Property'}</div></div></div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+            <span style="padding:3px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;background:rgba(196,168,124,0.15);color:var(--accent);border:1px solid rgba(196,168,124,0.3)">${p.cohortLabel||'Residential'}</span>
+            <span style="font-size:11px;color:var(--text-tertiary)">Sell: <strong style="color:${p.scoreClass==='high'?'var(--score-high)':p.scoreClass==='medium'?'var(--score-medium)':'var(--score-low)'}">${p.score}</strong></span>
+            <span style="font-size:11px;color:var(--text-tertiary)">Off-Mkt: <strong style="color:${p.omFit>=60?'var(--score-high)':p.omFit>=40?'var(--score-medium)':'var(--text-tertiary)'}">${p.omFit}</strong></span>
+        </div>
+        <div class="popup-address">${p.address}${p.cityStateZip?', '+p.cityStateZip:''}</div>
+        <div class="popup-metrics"><div><div class="popup-metric-label">County Assessed</div><div class="popup-metric-value">${val}</div><div style="font-size:9px;color:var(--text-tertiary);margin-top:2px">Tax basis • Deep Signal for market est.</div></div><div><div class="popup-metric-label">Building / Land</div><div class="popup-metric-value">${bv} / ${lv}</div></div><div><div class="popup-metric-label">Acres</div><div class="popup-metric-value plain">${p.acres?p.acres.toFixed(2):'—'}</div></div><div><div class="popup-metric-label">Plat</div><div class="popup-metric-value plain" style="font-size:11px">${p.subdivision||'—'}</div></div></div>
+        ${p.signals.length>0?`<div class="popup-signals">${sigs}</div>`:'<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px">No strong sell signals from parcel data</div>'}
+        <button class="popup-deep-btn" onclick="runDeep('${p.address.replace(/'/g,"\\'")}','${(p.cityStateZip||'').replace(/'/g,"\\'")}',${p.score},'${p.scoreClass}',${p.totalValue},${p.buildingValue},${p.landValue},'${(p.ownerName||'').replace(/'/g,"\\'")}','${(p.propType||'').replace(/'/g,"\\'")}','${(p.subdivision||'').replace(/'/g,"\\'")}')">Deep Signal → Full Research</button>
+        </div>
+    </div>`}
+
+// ========================
+// STATS
+// ========================
+function updateStats(){
+const vis=markers.filter(m=>map.getBounds().contains(m.getLatLng()) && map.hasLayer(m));
+document.getElementById('countHigh').textContent=vis.filter(m=>m._pd.scoreClass==='high').length;
+document.getElementById('countMed').textContent=vis.filter(m=>m._pd.scoreClass==='medium').length;
+document.getElementById('countLow').textContent=vis.filter(m=>m._pd.scoreClass==='low').length;
+document.getElementById('countTotal').textContent=vis.length;
+document.getElementById('statsBar').style.display=vis.length>0?'flex':'none';
+updateSidebar()}
+
+function updateSidebar(){
+    const vis=markers.filter(m=>map.getBounds().contains(m.getLatLng()) && map.hasLayer(m));
+    const prospects=vis.filter(m=>m._pd.scoreClass==='high'||m._pd.scoreClass==='medium')
+        .sort((a,b)=>b._pd.score-a._pd.score);
+    
+    const limit=parseInt(document.getElementById('sidebarLimit').value)||10;
+    const top=prospects.slice(0,limit);
+    const list=document.getElementById('sidebarList');
+    const countEl=document.getElementById('sidebarCount');
+    
+    countEl.textContent=`${prospects.length} prospects`;
+    
+    if(top.length===0){
+        list.innerHTML='<div class="sidebar-empty">No high-likelihood prospects in current view.<br><br>Pan or zoom to explore different areas.</div>';
+        return;
+    }
+    
+    const svKey='AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o';
+    
+    list.innerHTML=top.map(m=>{
+        const p=m._pd;
+        const addr=p.address+(p.cityStateZip?', '+p.cityStateZip:'');
+        const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=200x132&location=${encodeURIComponent(addr)}&key=${svKey}&fov=90&pitch=5`;
+        const owner=p.ownerName||p.address;
+        const topSignals=p.signals.slice(0,2).map(s=>`<span class="prospect-card-signal">${s.text}</span>`).join('');
+        
+        return `<div class="prospect-card" onclick="flyToProperty(${p.lat},${p.lng})" data-lat="${p.lat}" data-lng="${p.lng}">
+            <div class="prospect-card-img">
+                <img src="${svUrl}" alt="" onerror="this.style.display='none'" loading="lazy">
+                <div class="prospect-card-score ${p.scoreClass}">${p.score}</div>
+            </div>
+            <div class="prospect-card-info">
+                <div class="prospect-card-owner">${owner}</div>
+                <div class="prospect-card-addr">${p.address}</div>
+                <div style="display:flex;gap:6px;align-items:center;margin:4px 0">
+                    <span style="padding:2px 6px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;background:rgba(196,168,124,0.15);color:var(--accent)">${p.cohortLabel||'Residential'}</span>
+                    <span style="font-size:10px;color:var(--text-tertiary)">OM: <strong style="color:${p.omFit>=60?'var(--score-high)':p.omFit>=40?'var(--score-medium)':'var(--text-tertiary)'}">${p.omFit}</strong></span>
+                </div>
+                <div class="prospect-card-signals">${topSignals}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function flyToProperty(lat,lng){
+    map.flyTo([lat,lng],18,{duration:0.8});
+    // Find and open the marker popup
+    setTimeout(()=>{
+        const target=markers.find(m=>{const pos=m.getLatLng();return Math.abs(pos.lat-lat)<0.00005&&Math.abs(pos.lng-lng)<0.00005});
+        if(target)target.openPopup();
+    },1000);
+}
+
+// ========================
+// NAVIGATION
+// ========================
+async function flyToSearch(){const q=document.getElementById('searchInput').value.trim();if(!q)return;
+try{const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`,{headers:{'User-Agent':'SellerSignal/1.0'}});const d=await r.json();if(d?.[0])map.flyTo([parseFloat(d[0].lat),parseFloat(d[0].lon)],16,{duration:1.5})}catch(e){console.error(e)}}
+function flyTo(lat,lng,label){document.getElementById('searchInput').value=label||'';map.flyTo([lat,lng],16,{duration:1.5})}
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')flyToSearch()});
+
+let loadTimeout,lastLoad=0;
+map.on('moveend',()=>{clearTimeout(loadTimeout);const d=Date.now()-lastLoad<2000?800:300;loadTimeout=setTimeout(()=>{lastLoad=Date.now();loadParcels();updateStats()},d)});
+map.on('zoomend',()=>{const z=map.getZoom();document.getElementById('zoomMessage').style.display=z<MIN_ZOOM?'block':'none';if(z<MIN_ZOOM)document.getElementById('statsBar').style.display='none'});
+
+// ========================
+// DEEP SIGNAL — Calls real backend, falls back to demo
+// ========================
+const API_BASE = 'https://sellersignal.co'; // Change to your Railway URL
+let useRealAPI = true; // Set false to force demo mode
+
+function closeDeep(){document.getElementById('deepOverlay').classList.remove('active')}
+
+async function runDeep(address,csz,score,scoreClass,totalVal,bldgVal,landVal,ownerName,propType,subdivision){
+    const overlay=document.getElementById('deepOverlay');
+    const body=document.getElementById('deepBody');
+    overlay.classList.add('active');
+    
+    const fullAddr=address+(csz?', '+csz:'');
+    body.innerHTML=`<div class="deep-loading"><div class="deep-spinner"></div><p>Running Deep Signal on ${address}...</p><div class="substep" id="ds-step">Connecting to research engine...</div><div id="ds-preview" style="margin-top:16px"></div></div>`;
+    
+    if (!useRealAPI) {
+        setTimeout(()=>renderDemoDeepSignal(address,csz,score,scoreClass,totalVal,bldgVal,landVal,ownerName,propType,subdivision), 2000);
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams({
+            owner: ownerName || '',
+            address: fullAddr,
+            score: score,
+            assessed: totalVal || 0,
+            building: bldgVal || 0,
+            land: landVal || 0,
+            propType: propType || '',
+            acres: subdivision || ''
+        });
+        const evtSource = new EventSource(`${API_BASE}/api/beta-research/stream?${params}`);
+        let gotResult = false;
+        let sseConnected = false;
+        
+        evtSource.onopen = () => { sseConnected = true; };
+        
+        evtSource.addEventListener('progress', (e) => {
+            try {
+                const d = JSON.parse(e.data);
+                const el = document.getElementById('ds-step');
+                if (el) {
+                    el.textContent = d.message || '';
+                    el.style.opacity = '1';
+                    // Flash effect on update
+                    el.style.color = '#c4a87c';
+                    setTimeout(() => { if (el) el.style.color = ''; }, 300);
+                }
+            } catch(err) {}
+        });
+
+        evtSource.addEventListener('preview', (e) => {
+            try {
+                const d = JSON.parse(e.data);
+                const el = document.getElementById('ds-preview');
+                if (el && d.facts && d.facts.length > 0) {
+                    el.innerHTML = '<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Early findings:</div>' +
+                        d.facts.map(f => 
+                            `<div style="font-size:11px;color:var(--text-secondary);padding:4px 0;border-left:2px solid var(--score-high);padding-left:8px;margin-bottom:4px">${f}</div>`
+                        ).join('');
+                }
+            } catch(err) {}
+        });
+
+        evtSource.addEventListener('result', (e) => {
+            try {
+                gotResult = true;
+                const result = JSON.parse(e.data);
+                evtSource.close();
+                renderRealDeepSignal(result, fullAddr, scoreClass);
+            } catch(err) {
+                console.log('Result parse error:', err);
+                evtSource.close();
+                fallbackPost(fullAddr, ownerName, score, scoreClass, address, csz, totalVal, bldgVal, landVal, propType, subdivision);
+            }
+        });
+
+        evtSource.addEventListener('error', (e) => {
+            if (e.data) {
+                try { console.log('SSE server error:', JSON.parse(e.data).error); } catch(err) {}
+            }
+            evtSource.close();
+            if (!gotResult) {
+                fallbackPost(fullAddr, ownerName, score, scoreClass, address, csz, totalVal, bldgVal, landVal, propType, subdivision);
+            }
+        });
+
+        // EventSource fires onerror when connection closes — only fallback if we never got a result
+        evtSource.onerror = () => {
+            if (!gotResult && !sseConnected) {
+                // Never connected — server might not support SSE
+                evtSource.close();
+                console.log('SSE never connected, falling back to POST');
+                fallbackPost(fullAddr, ownerName, score, scoreClass, address, csz, totalVal, bldgVal, landVal, propType, subdivision);
+            } else if (!gotResult) {
+                // Connected but lost connection before result
+                // Give it plenty of time — Claude analysis can take 15+ seconds
+                setTimeout(() => {
+                    if (!gotResult) {
+                        evtSource.close();
+                        console.log('SSE connection lost, falling back to POST');
+                        fallbackPost(fullAddr, ownerName, score, scoreClass, address, csz, totalVal, bldgVal, landVal, propType, subdivision);
+                    }
+                }, 30000);
+            }
+            // If gotResult is true, connection close is expected — do nothing
+        };
+    } catch(e) {
+        console.log('SSE setup failed:', e.message);
+        fallbackPost(fullAddr, ownerName, score, scoreClass, address, csz, totalVal, bldgVal, landVal, propType, subdivision);
+    }
+}
+
+async function fallbackPost(fullAddr, ownerName, score, scoreClass, address, csz, totalVal, bldgVal, landVal, propType, subdivision) {
+    try {
+        const res = await fetch(`${API_BASE}/api/beta-research`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ownerName: ownerName || '', propertyAddress: fullAddr, preliminaryScore: score, assessedValue: totalVal || 0, buildingValue: bldgVal || 0, landValue: landVal || 0, propType: propType || '' })
+        });
+        if (res.ok) {
+            const result = await res.json();
+            renderRealDeepSignal(result, fullAddr, scoreClass);
+        } else {
+            renderDemoDeepSignal(address, csz, score, scoreClass, totalVal, bldgVal, landVal, ownerName, propType, subdivision);
+        }
+    } catch(e) {
+        renderDemoDeepSignal(address, csz, score, scoreClass, totalVal, bldgVal, landVal, ownerName, propType, subdivision);
+    }
+}
+
+function renderRealDeepSignal(d, fullAddr, fallbackScoreClass) {
+    const body = document.getElementById('deepBody');
+    const sc = d.score >= 65 ? 'high' : d.score >= 40 ? 'medium' : 'low';
+    const name = d.name || 'Unknown Owner';
+    const addr = d.address || fullAddr;
+    
+    // Metrics — separate market from assessed
+    const marketVal = d.metrics?.estimatedMarketValue || 'Not found';
+    const marketRange = d.metrics?.estimatedMarketValueRange || null;
+    const marketConf = d.metrics?.marketValueConfidence || null;
+    const marketMethod = d.metrics?.marketValueMethod || null;
+    const valuationBlocked = d.metrics?.valuationBlockedReason || null;
+    const assessedVal = d.metrics?.countyAssessedValue || 'Not found';
+    const eq = d.metrics?.estimatedEquity || 'Not found';
+    const os = d.metrics?.ownedSince || 'Not found';
+    const ar = d.metrics?.ageRange || 'Not found';
+    
+    // Determine if market value is a real number or a blocked/insufficient message
+    const hasRealMarketValue = marketVal && !marketVal.includes('Insufficient') && !marketVal.includes('Not found') && !marketVal.includes('Not enough') && marketVal.includes('$');
+    
+    // Data quality badge
+    const dq = d.dataQuality || 'Moderate';
+    const dqColor = dq === 'Rich' ? 'var(--score-high)' : dq === 'Limited' ? 'var(--score-low)' : 'var(--score-medium)';
+
+    // Confirmed facts
+    const factsHtml = (d.confirmedFacts || []).map(f => 
+        `<div style="padding:8px 12px;background:var(--bg);border-left:3px solid var(--score-high);font-size:12px;color:var(--text-secondary);margin-bottom:6px">${f}</div>`
+    ).join('') || '<div style="font-size:12px;color:var(--text-tertiary);padding:8px">No confirmed facts extracted from search results</div>';
+
+    // Contact info
+    const phones = d.contactInfo?.phones?.filter(p => p && p !== 'Not found' && p !== 'None found') || [];
+    const emails = d.contactInfo?.emails?.filter(e => e && e !== 'Not found' && e !== 'None found') || [];
+    const relatives = d.contactInfo?.relatives?.filter(r => r && r !== 'Not found' && r !== 'None found') || [];
+    const hasContact = phones.length > 0 || emails.length > 0;
+    const contactHtml = hasContact ? `
+        <div style="padding:24px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(74,222,128,0.05) 0%,transparent 100%)">
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-high);margin-bottom:12px">Contact Information</h4>
+            ${phones.length > 0 ? `<div style="margin-bottom:8px">${phones.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;width:50px">Phone</span><span style="font-size:14px;font-weight:600;color:var(--text)">${p}</span></div>`).join('')}</div>` : ''}
+            ${emails.length > 0 ? `<div style="margin-bottom:8px">${emails.map(e => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;width:50px">Email</span><span style="font-size:14px;font-weight:600;color:var(--text)">${e}</span></div>`).join('')}</div>` : ''}
+            ${relatives.length > 0 ? `<div><span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase">Associates</span><div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${relatives.join(', ')}</div></div>` : ''}
+        </div>` : '';
+
+    // Entity info
+    const ei = d.entityInfo;
+    const hasEntity = ei && ei.entityName && ei.entityName !== 'null' && ei.entityName !== 'N/A';
+    const entityHtml = hasEntity ? `
+        <div style="padding:24px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(196,168,124,0.05) 0%,transparent 100%)">
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px">Entity Information</h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Entity</span><span style="color:var(--text);font-weight:600">${ei.entityName}</span></div>
+                ${ei.registeredAgent ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Registered Agent</span><span style="color:var(--text)">${ei.registeredAgent}${ei.registeredAgentRole ? ` <span style="color:var(--text-tertiary);font-size:11px">(${ei.registeredAgentRole})</span>` : ''}</span></div>` : ''}
+                ${ei.members && ei.members.length > 0 && ei.members[0] !== 'Not found' ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Members/Principals</span><span style="color:var(--score-high);font-weight:600">${ei.members.join(', ')}</span></div>` : ''}
+                ${ei.filingDate ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Filed</span><span style="color:var(--text)">${ei.filingDate}</span></div>` : ''}
+                ${ei.status ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text-tertiary)">Status</span><span style="color:var(--text)">${ei.status}</span></div>` : ''}
+            </div>
+        </div>` : '';
+
+    // Signals
+    const sigsHtml = (d.signals || []).map(s => {
+        const conf = s.confidence === 'Confirmed' ? 'positive' : '';
+        return `<div class="deep-signal-tag ${s.type||''}" style="${s.confidence==='Inferred'?'opacity:0.7':''}">${s.text}${s.confidence==='Inferred'?' (inferred)':''}</div>`;
+    }).join('');
+
+    // Scripts
+    const letter = d.scripts?.letter || 'No personalized letter available — insufficient data.';
+    const phone = d.scripts?.phone || 'No personalized phone script available — insufficient data.';
+    const door = d.scripts?.door || 'No personalized door script available — insufficient data.';
+    const email = d.scripts?.email || 'No personalized email available — insufficient data.';
+
+    // Street View
+    const svUrl = `https://maps.googleapis.com/maps/api/streetview?size=900x300&location=${encodeURIComponent(addr)}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&fov=90&pitch=5`;
+
+    body.innerHTML = `
+    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;position:relative">
+        <img src="${svUrl}" style="width:100%;height:200px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(transparent,rgba(0,0,0,0.8))">
+            <div style="font-family:'DM Serif Display',serif;font-size:24px">${name}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${addr}</div>
+        </div>
+        <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px;align-items:center">
+            <div style="padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,0.6);color:${dqColor};border:1px solid ${dqColor}">${dq.toUpperCase()} DATA</div>
+            <div class="popup-score ${sc}" style="width:48px;height:48px;font-size:18px">${d.score}</div>
+        </div>
+    </div>
+    <div class="deep-card">
+        <div style="padding:20px 24px;border-bottom:2px solid var(--accent);background:linear-gradient(135deg,rgba(196,168,124,0.06) 0%,transparent 100%)">
+            <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px">Quick Brief</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Seller Type</div>
+                    <div style="font-size:15px;font-weight:700;color:var(--accent)">${d.segment || 'Unknown'}</div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Timeframe</div>
+                    <div style="font-size:15px;font-weight:700;color:${d.timeframe?.includes('0-3')?'var(--score-high)':d.timeframe?.includes('3-6')?'var(--score-medium)':'var(--text)'}">${d.timeframe || 'Unknown'}</div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Primary Angle</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text)">${d.approach?.angle || d.motivationCategory || 'Unknown'}</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Sell Likelihood</div>
+                    <div style="font-size:22px;font-weight:800;color:${sc==='high'?'var(--score-high)':sc==='medium'?'var(--score-medium)':'var(--score-low)'}">${d.score}<span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">/100</span></div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Off-Market Fit</div>
+                    <div style="font-size:22px;font-weight:800;color:${(d.offMarketScore||0)>=70?'var(--score-high)':(d.offMarketScore||0)>=40?'var(--score-medium)':'var(--text-tertiary)'}">${d.offMarketScore||'?'}<span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">/100</span></div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Confidence</div>
+                    <div style="font-size:22px;font-weight:800;color:var(--text)">${d.confidenceScore||'?'}<span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">/100</span></div>
+                </div>
+            </div>
+            ${(d.redFlags && d.redFlags.length > 0 && d.redFlags[0] !== 'None identified' && d.redFlags[0] !== 'None') ? `<div style="padding:8px 12px;background:rgba(248,113,113,0.08);border-left:3px solid var(--score-low);border-radius:4px;font-size:12px;color:var(--score-low)"><strong>Risk:</strong> ${d.redFlags[0]}</div>` : ''}
+        </div>
+        <div style="padding:16px 24px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary);line-height:1.5">
+            <strong style="color:var(--accent)">Score basis:</strong> ${d.scoreBasis || 'Based on preliminary parcel data analysis'}
+        </div>
+        <div class="deep-metrics">
+            <div class="deep-metric"><div class="deep-metric-label">Market Value</div><div class="deep-metric-val ${hasRealMarketValue ? 'gold' : ''}" style="${!hasRealMarketValue ? 'font-size:12px;color:var(--text-tertiary)' : ''}">${hasRealMarketValue ? (marketRange || marketVal) : (valuationBlocked ? 'Insufficient evidence' : marketVal)}</div>${marketConf && hasRealMarketValue ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${marketConf} confidence</div>` : ''}${marketMethod && hasRealMarketValue ? `<div style="font-size:9px;color:var(--text-tertiary)">${marketMethod}</div>` : ''}</div>
+            <div class="deep-metric"><div class="deep-metric-label">Est. Equity</div><div class="deep-metric-val gold">${typeof eq==='object'?eq.value:eq}</div></div>
+            <div class="deep-metric"><div class="deep-metric-label">Owned Since</div><div class="deep-metric-val">${typeof os==='object'?os.value:os}</div></div>
+            <div class="deep-metric"><div class="deep-metric-label">Age Range</div><div class="deep-metric-val">${typeof ar==='object'?ar.value:ar}</div></div>
+        </div>
+        <div style="padding:8px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+            <span style="font-size:10px;color:var(--text-tertiary)">County Assessed: ${assessedVal}</span>
+            ${valuationBlocked ? `<span style="font-size:10px;color:var(--score-low)">${valuationBlocked}</span>` : hasRealMarketValue ? `<span style="font-size:10px;color:var(--text-tertiary)">Market value via ${marketMethod || 'search data'}</span>` : '<span style="font-size:10px;color:var(--text-tertiary)">No reliable market estimate available</span>'}
+        </div>
+        </div>
+        <div style="padding:24px;border-bottom:1px solid var(--border)">
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-high);margin-bottom:12px">Confirmed Facts <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(74,222,128,0.15);color:var(--score-high);font-weight:600;margin-left:4px">VERIFIED</span></h4>
+            ${factsHtml}
+        </div>
+        ${contactHtml}
+        ${entityHtml}
+        <div class="deep-grid">
+            <div class="deep-block"><h4>Who They Are <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(74,222,128,0.15);color:var(--score-high);font-weight:600;margin-left:8px;vertical-align:middle">SOURCED</span></h4>
+                <div class="deep-row"><span class="deep-row-label">Name</span><span class="deep-row-value">${name}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Spouse</span><span class="deep-row-value">${d.whoTheyAre?.spouse||'Not found'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Occupation</span><span class="deep-row-value">${d.whoTheyAre?.occupation||'Not found'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Ownership</span><span class="deep-row-value">${d.whoTheyAre?.ownership||'Not found'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Decision Style</span><span class="deep-row-value">${d.whoTheyAre?.decisionStyle||'Not enough data'}</span></div>
+            </div>
+            <div class="deep-block"><h4>How They Think <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(251,191,36,0.15);color:var(--score-medium);font-weight:600;margin-left:8px;vertical-align:middle">INFERRED</span></h4>
+                <div class="deep-row"><span class="deep-row-label">Financial</span><span class="deep-row-value">${d.howTheyThink?.financialMindset||'Not enough data'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Communication</span><span class="deep-row-value">${d.howTheyThink?.communication||'Not enough data'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Social Position</span><span class="deep-row-value">${d.howTheyThink?.socialPosition||'Not enough data'}</span></div>
+                <div class="deep-row"><span class="deep-row-label">Best Channel</span><span class="deep-row-value">${d.howTheyThink?.bestChannel||'Letter'}</span></div>
+            </div>
+        </div>
+        <div class="deep-tick"><h4>Seller Psychology <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(251,191,36,0.15);color:var(--score-medium);font-weight:600;margin-left:8px;vertical-align:middle">INFERRED</span></h4>
+            <div class="deep-tick-grid">
+                <div><span class="deep-tick-label">Motivations</span><div class="deep-tick-value">${d.sellerPsychology?.motivations||d.whatMakesThemTick?.motivators||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Hesitations</span><div class="deep-tick-value">${d.sellerPsychology?.hesitations||d.whatMakesThemTick?.concerns||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Off-Market Preference</span><div class="deep-tick-value">${d.sellerPsychology?.offMarketPreference||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Decision Process</span><div class="deep-tick-value">${d.sellerPsychology?.decisionProcess||d.whatMakesThemTick?.decisionSpeed||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Trigger Events</span><div class="deep-tick-value">${d.sellerPsychology?.triggerEvents||'Insufficient data'}</div></div>
+                <div><span class="deep-tick-label">Life Stage</span><div class="deep-tick-value">${d.whatMakesThemTick?.lifeStage||'Insufficient data'}</div></div>
+            </div>
+        </div>
+        <div class="deep-signals">
+            <div class="deep-signals-header"><h4>Selling Signals</h4><span style="font-size:12px;color:var(--text-tertiary)">${(d.signals||[]).length} signals</span></div>
+            <div class="deep-signal-tags">${sigsHtml||'<div style="font-size:12px;color:var(--text-tertiary)">No signals detected beyond parcel data</div>'}</div>
+        </div>
+        <div class="deep-approach"><h4>Recommended Approach <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(196,168,124,0.2);color:var(--accent);font-weight:600;margin-left:8px;vertical-align:middle">ADVISORY</span></h4>
+            ${d.approach?.angle ? `<div style="margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg,rgba(196,168,124,0.1) 0%,transparent 100%);border-radius:8px;border-left:3px solid var(--accent)"><span style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent)">Primary Angle:</span> <span style="font-size:13px;color:var(--text)">${d.approach.angle}</span></div>` : ''}
+            <div class="deep-approach-grid">
+                <div class="deep-approach-block"><h5>Opening</h5><p>${d.approach?.opening||'Not enough data for personalized approach'}</p></div>
+                <div class="deep-approach-block"><h5>Key Messages</h5><p>${d.approach?.keyMessages||'Not enough data'}</p></div>
+                <div class="deep-approach-block"><h5>Avoid</h5><p>${d.approach?.avoid||'General: avoid pressure tactics'}</p></div>
+                <div class="deep-approach-block"><h5>Timing</h5><p>${d.approach?.timing||'Spring or early fall recommended'}</p></div>
+            </div>
+            ${d.approach?.whyOffMarket ? `<div style="margin-top:16px;padding:16px;background:var(--bg);border-radius:8px;border-left:3px solid var(--score-high)"><span style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--score-high);display:block;margin-bottom:6px">Why Off-Market Benefits This Seller</span><span style="font-size:13px;color:var(--text-secondary);line-height:1.5">${d.approach.whyOffMarket}</span></div>` : ''}
+        </div>
+        ${(d.redFlags && d.redFlags.length > 0 && d.redFlags[0] !== 'None identified') ? `<div style="padding:24px;border-bottom:1px solid var(--border)"><h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-low);margin-bottom:12px">Red Flags / False Positive Risk</h4>${d.redFlags.map(f=>`<div style="padding:8px 12px;background:var(--bg);border-left:3px solid var(--score-low);font-size:12px;color:var(--text-secondary);margin-bottom:6px">${f}</div>`).join('')}</div>` : ''}
+        <div class="deep-scripts"><h4>Personalized Scripts</h4>
+            <div class="deep-script-tabs">
+                <button class="deep-script-tab active" onclick="switchScript('letter',this)">Letter</button>
+                <button class="deep-script-tab" onclick="switchScript('phone',this)">Phone</button>
+                <button class="deep-script-tab" onclick="switchScript('door',this)">Door</button>
+                <button class="deep-script-tab" onclick="switchScript('email',this)">Email</button>
+            </div>
+            <div class="deep-script-content active" id="ds-letter">${letter}</div>
+            <div class="deep-script-content" id="ds-phone">${phone}</div>
+            <div class="deep-script-content" id="ds-door">${door}</div>
+            <div class="deep-script-content" id="ds-email">${email}</div>
+        </div>
+    </div>`;
+}
+
+function renderDemoDeepSignal(address,csz,score,scoreClass,totalVal,bldgVal,landVal,ownerName,propType,subdivision){
+    const body=document.getElementById('deepBody');
+    const fullAddr=address+(csz?', '+csz:'');
+    const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=900x300&location=${encodeURIComponent(fullAddr)}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&fov=90&pitch=5`;
+    const name=ownerName||address;
+    const sc=scoreClass;
+
+    body.innerHTML=`
+    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;position:relative">
+        <img src="${svUrl}" style="width:100%;height:200px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(transparent,rgba(0,0,0,0.8))">
+            <div style="font-family:'DM Serif Display',serif;font-size:24px">${name}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${fullAddr}</div>
+        </div>
+        <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px;align-items:center">
+            <div style="padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,0.6);color:var(--score-medium);border:1px solid var(--score-medium)">DEMO MODE</div>
+            <div class="popup-score ${sc}" style="width:48px;height:48px;font-size:18px">${score}</div>
+        </div>
+    </div>
+    <div class="deep-card">
+        <div style="padding:20px 24px;text-align:center;border-bottom:1px solid var(--border)">
+            <p style="color:var(--accent);font-size:14px;font-weight:600;margin-bottom:8px">Deep Signal API Not Connected</p>
+            <p style="color:var(--text-secondary);font-size:13px;line-height:1.6">To see real research results, deploy the updated server to Railway.<br>The research engine will query 12 data sources in parallel and deliver<br>a full intelligence report with confirmed facts and personalized scripts.</p>
+        </div>
+        <div style="padding:20px 24px">
+            <div style="font-size:13px;color:var(--text-tertiary);line-height:1.6">
+                <strong style="color:var(--text-secondary)">What the live Deep Signal delivers:</strong><br><br>
+                ✓ Owner identity resolved from county records and public data<br>
+                ✓ Confirmed purchase date, price paid, and equity position<br>
+                ✓ LinkedIn profile, employer, career history<br>
+                ✓ Life event detection (retirement, divorce, relocation signals)<br>
+                ✓ Seller likelihood score adjusted by confirmed facts<br>
+                ✓ Psychological approach strategy based on real data<br>
+                ✓ Personalized scripts for letter, phone, door, and email<br>
+                ✓ Every data point labeled Confirmed, Corroborated, or Inferred
+            </div>
+        </div>
+    </div>`;
+}
+
+function switchScript(tab,btn){
+    document.querySelectorAll('.deep-script-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.deep-script-content').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('ds-'+tab).classList.add('active');
+}
+
+// Initial load — check URL params first, then geolocation, then show zoom message
+(function init() {
+    const params = new URLSearchParams(window.location.search);
+    const urlLat = parseFloat(params.get('lat'));
+    const urlLng = parseFloat(params.get('lng'));
+    const urlSearch = params.get('search');
+    
+    if (urlSearch) {
+        // Search param from briefing — auto-search the address
+        const autoDeep = params.get('autoDeep') === 'true';
+        document.getElementById('searchInput').value = urlSearch;
+        console.log(`Auto-searching: ${urlSearch}${autoDeep ? ' (auto Deep Signal)' : ''}`);
+        (async () => {
+            try {
+                const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(urlSearch)}&format=json&limit=1&countrycodes=us`,{headers:{'User-Agent':'SellerSignal/1.0'}});
+                const d = await r.json();
+                if (d?.[0]) {
+                    const lat = parseFloat(d[0].lat);
+                    const lng = parseFloat(d[0].lon);
+                    map.setView([lat, lng], 18);
+                    setTimeout(() => {
+                        loadParcels();
+                        // After parcels load, find the closest marker and open its popup
+                        setTimeout(() => {
+                            const target = markers.reduce((best, m) => {
+                                const pos = m.getLatLng();
+                                const dist = Math.abs(pos.lat - lat) + Math.abs(pos.lng - lng);
+                                return (!best || dist < best.dist) ? {marker: m, dist} : best;
+                            }, null);
+                            if (target && target.dist < 0.002) {
+                                target.marker.openPopup();
+                                // Auto-trigger Deep Signal if requested
+                                if (autoDeep) {
+                                    setTimeout(() => {
+                                        const deepBtn = document.querySelector('.popup-deep-btn');
+                                        if (deepBtn) deepBtn.click();
+                                    }, 500);
+                                }
+                            }
+                        }, 3000);
+                    }, 500);
+                }
+            } catch(e) { console.error(e); }
+        })();
+    } else if (urlLat && urlLng) {
+        // URL parameters — fly directly there
+        console.log(`Opening at URL coords: ${urlLat}, ${urlLng}`);
+        map.setView([urlLat, urlLng], 16);
+        setTimeout(loadParcels, 500);
+    } else if (navigator.geolocation) {
+        // Try browser geolocation
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                console.log(`Geolocation: ${lat}, ${lng}`);
+                // Check if they're in a covered area
+                const match = getSource(lat, lng);
+                if (match) {
+                    map.flyTo([lat, lng], 16, { duration: 1.5 });
+                    setTimeout(loadParcels, 2000);
+                } else {
+                    // In uncovered area — show Montana overview with zoom message
+                    document.getElementById('zoomMessage').style.display = 'block';
+                    document.getElementById('searchInput').placeholder = 'Search an address in Montana or King County, WA...';
+                }
+            },
+            (err) => {
+                // Denied or failed — show Montana overview
+                console.log('Geolocation denied/failed:', err.message);
+                document.getElementById('zoomMessage').style.display = 'block';
+                document.getElementById('searchInput').placeholder = 'Search an address to get started...';
+            },
+            { timeout: 5000 }
+        );
+    } else {
+        document.getElementById('zoomMessage').style.display = 'block';
+    }
+})();
+</script>
+</body>
+</html>
