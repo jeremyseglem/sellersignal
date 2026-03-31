@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — My Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+    --bg:#070b10;--bg-card:#0e1419;--bg-card-hover:#141c24;--bg-elevated:#111921;
+    --text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;
+    --gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);--accent:#c4a87c;
+    --green:#4ade80;--green-dim:rgba(74,222,128,0.1);--green-border:rgba(74,222,128,0.2);
+    --yellow:#fbbf24;--yellow-dim:rgba(251,191,36,0.1);
+    --red:#f87171;--red-dim:rgba(248,113,113,0.08);
+    --blue:#60a5fa;--blue-dim:rgba(96,165,250,0.08);--blue-border:rgba(96,165,250,0.2);
+    --border:#172030;--border-light:#1e2d3d;
+    --radius:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::selection{background:var(--gold);color:var(--bg)}
+.header{padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(7,11,16,0.92);backdrop-filter:blur(20px);z-index:100}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.header-actions{display:flex;gap:12px;align-items:center}
+.nav-btn{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s;text-decoration:none;display:flex;align-items:center;gap:6px}
+.nav-btn:hover{border-color:var(--gold);color:var(--gold)}
+.nav-btn.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+.page{max-width:900px;margin:0 auto;padding:24px 24px 80px}
+.page-header{margin-bottom:28px;animation:fadeUp 0.4s ease}
+.page-date{font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.page-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:4px}
+.page-sub{font-size:14px;color:var(--text-secondary)}
+.stats-bar{display:flex;gap:24px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:24px}
+.bstat{display:flex;flex-direction:column;gap:2px;cursor:pointer}
+.bstat-val{font-size:22px;font-weight:700;color:var(--text)}
+.bstat-val.gold{color:var(--gold)}.bstat-val.green{color:var(--green)}
+.bstat-label{font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-dim)}
+.tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:20px;color:var(--text-dim);font-size:11px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s;letter-spacing:0.03em}
+.tab:hover{border-color:var(--border-light);color:var(--text-secondary)}
+.tab.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+.prospect{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;transition:all 0.2s;cursor:pointer}
+.prospect:hover{border-color:var(--border-light);background:var(--bg-card-hover)}
+.prospect.expanded{border-color:var(--gold-border)}
+.prospect-main{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 18px;align-items:center}
+.prospect-score{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:2px solid rgba(0,0,0,0.3);flex-shrink:0}
+.prospect-score.high{background:rgba(74,222,128,0.15);color:var(--green);border-color:var(--green-border)}
+.prospect-score.medium{background:var(--yellow-dim);color:var(--yellow);border-color:rgba(251,191,36,0.2)}
+.prospect-score.low{background:var(--red-dim);color:var(--red);border-color:rgba(248,113,113,0.15)}
+.prospect-info{min-width:0}
+.prospect-addr{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prospect-owner{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.prospect-meta{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em}
+.chip.t-hot{background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)}
+.chip.t-out{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
+.chip.t-watch{background:rgba(255,255,255,0.03);color:var(--text-dim);border:1px solid var(--border)}
+.chip.s-contacted{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue-border)}
+.chip.s-responded{background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)}
+.chip.s-listing{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
+.prospect-actions{display:flex;gap:6px;flex-shrink:0}
+.action-btn{padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.15s;color:var(--text-secondary)}
+.action-btn:hover{border-color:var(--gold);color:var(--gold)}
+.prospect-detail{display:none;padding:0 20px 16px;border-top:1px solid var(--border)}
+.prospect.expanded .prospect-detail{display:block}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.detail-item{display:flex;flex-direction:column;gap:2px}
+.detail-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)}
+.detail-value{font-size:13px;color:var(--text-secondary)}
+.contact-form{background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+.contact-form h4{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--gold);margin-bottom:12px}
+.form-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)}
+.form-group select,.form-group input,.form-group textarea{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;outline:none;transition:border-color 0.2s}
+.form-group select:focus,.form-group input:focus,.form-group textarea:focus{border-color:var(--gold)}
+.form-group textarea{resize:vertical;min-height:60px}
+.btn-p{padding:10px 20px;background:var(--gold);border:none;border-radius:6px;color:var(--bg);font-size:12px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.2s}
+.btn-p:hover{background:#d4b88c}
+.btn-s{padding:10px 20px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s}
+.btn-s:hover{border-color:var(--gold);color:var(--gold)}
+.contact-history{margin-top:14px}
+.ch-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);margin-bottom:8px}
+.ch-entry{background:var(--bg);border-left:3px solid var(--gold);padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:6px}
+.ch-meta{font-size:11px;color:var(--text-dim);display:flex;gap:8px;align-items:center}
+.ch-result{font-weight:600;color:var(--text-secondary)}
+.ch-notes{font-size:12px;color:var(--text-secondary);line-height:1.5;margin-top:4px}
+.empty-state{text-align:center;padding:80px 24px;animation:fadeUp 0.4s ease}
+.empty-state h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--text);margin-bottom:8px}
+.empty-state p{color:var(--text-dim);font-size:14px;line-height:1.6}
+.empty-state a{color:var(--gold);text-decoration:none}
+.empty-state a:hover{text-decoration:underline}
+.loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:60px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:640px){.prospect-main{grid-template-columns:36px 1fr;gap:10px}.prospect-actions{display:none}.stats-bar{flex-wrap:wrap;gap:16px}.detail-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="header">
+    <a class="logo" href="/"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <div class="header-actions">
+        <a class="nav-btn" href="sellersignal-briefing.html?resume">Briefing</a>
+        <a class="nav-btn" href="sellersignal-map.html">Map</a>
+        <a class="nav-btn active">Pipeline</a>
+    </div>
+</header>
+<div class="page">
+    <div class="page-header">
+        <div class="page-date" id="pageDate"></div>
+        <div class="page-title">My Pipeline</div>
+        <div class="page-sub">Every lead you've seen, scored, and contacted.</div>
+    </div>
+    <div class="stats-bar" id="statsBar">
+        <div class="bstat" onclick="switchTab('all')"><div class="bstat-val" id="sT">—</div><div class="bstat-label">Total</div></div>
+        <div class="bstat" onclick="switchTab('hot')"><div class="bstat-val green" id="sH">—</div><div class="bstat-label">Hot Leads</div></div>
+        <div class="bstat" onclick="switchTab('contacted')"><div class="bstat-val gold" id="sC">—</div><div class="bstat-label">Contacted</div></div>
+        <div class="bstat"><div class="bstat-val" id="sR">—</div><div class="bstat-label">Responded</div></div>
+        <div class="bstat"><div class="bstat-val green" id="sA">—</div><div class="bstat-label">Appointments</div></div>
+        <div class="bstat"><div class="bstat-val gold" id="sL">—</div><div class="bstat-label">Listings</div></div>
+    </div>
+    <div class="tabs" id="tabBar">
+        <div class="tab active" data-tab="all" onclick="switchTab('all')">All</div>
+        <div class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot</div>
+        <div class="tab" data-tab="contacted" onclick="switchTab('contacted')">Contacted</div>
+        <div class="tab" data-tab="follow-up" onclick="switchTab('follow-up')">Follow Up</div>
+        <div class="tab" data-tab="won" onclick="switchTab('won')">🏆 Won</div>
+        <div class="tab" data-tab="archived" onclick="switchTab('archived')">Archived</div>
+    </div>
+    <div id="leadList"><div class="loading-spinner"></div></div>
+</div>
+<script>
+const API_BASE = 'https://sellersignal.co';
+const CC='ss_crm_contacts';
+
+// === CONTACT STORAGE — localStorage is source of truth, server is backup ===
+// This avoids the race condition where server re-fetch overwrites local writes
+
+function getLocalContacts(){try{return JSON.parse(localStorage.getItem(CC)||'{}')}catch{return{}}}
+function setLocalContacts(d){try{localStorage.setItem(CC,JSON.stringify(d))}catch(e){}}
+
+let allLeads=[],curTab='all',expId=null;
+const dd=new Date();document.getElementById('pageDate').textContent=dd.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+// Contact accessor — always reads from localStorage (source of truth)
+function gC(){ return getLocalContacts(); }
+
+// Sync server contacts INTO localStorage on initial load (one-time merge)
+async function syncServerContacts(){
+    try {
+        const res = await fetch(`${API_BASE}/api/persist/contacts`);
+        if (res.ok) {
+            const data = await res.json();
+            const server = data.contacts || {};
+            const local = getLocalContacts();
+            let merged = 0;
+            // Merge: if server has entries we don't have locally, add them
+            for (const [id, entries] of Object.entries(server)) {
+                if (!local[id] || local[id].length < entries.length) {
+                    local[id] = entries;
+                    merged++;
+                }
+            }
+            if (merged > 0) {
+                setLocalContacts(local);
+                console.log(`Synced ${merged} leads from server`);
+            }
+        }
+    } catch(e) { console.log('Server sync skipped:', e.message); }
+}
+
+// Push a contact to server (fire-and-forget, localStorage is already updated)
+function pushToServer(id, entry) {
+    fetch(`${API_BASE}/api/persist/contact`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+            parcelId: id,
+            channel: entry.channel,
+            result: entry.result,
+            notes: entry.notes || '',
+            followUpDate: entry.followUpDate || null
+        })
+    }).catch(e => console.log('Server push failed:', e.message));
+}
+
+function loadFromSnapshots(){
+    const leads={};
+    try{
+        const store=JSON.parse(localStorage.getItem('ss_snapshots')||'{}');
+        for(const[id,s]of Object.entries(store)){
+            leads[id]={id,
+                ownerName:s.ownerName||s.ownerCleaned||s.ownerRaw||'Unknown',
+                address:s.address||s.situsAddress||'',
+                cityStateZip:s.cityStateZip||'',
+                ownerAddress:s.mailingAddress||'',
+                totalValue:s.totalValue||s.assessedValue||0,
+                tier:s.tier||'watch',
+                briefingRank:s.briefingRank||0,
+                scoreClass:s.scoreClass||'low',
+                sellerLikelihood:s.sellerLikelihood||0,
+                offMarketReceptivity:s.offMarketReceptivity||0,
+                actionability:s.actionability||0,
+                confidence:s.confidence||0,
+                cohortLabel:s.cohortLabel||'',
+                whyNow:s.whyNow||s.topReason||'',
+                status:'new',
+                addedDate:s.firstSeen||Date.now(),
+                lastBriefing:s.lastSeen||Date.now()
+            };
+        }
+    }catch(e){console.log('Snapshot read error:',e.message)}
+    
+    // Apply statuses from contact history
+    const contacts=gC();
+    for(const[id,entries]of Object.entries(contacts)){
+        if(leads[id]&&entries.length>0){
+            const last=entries[entries.length-1];
+            if(last.result==='listing')leads[id].status='won';
+            else if(last.result==='appointment')leads[id].status='appointment';
+            else if(last.result==='not_fit'||last.result==='wrong_person')leads[id].status='not_fit';
+            else if(last.result==='response')leads[id].status='responded';
+            else leads[id].status='contacted';
+        }
+    }
+    
+    try{
+        const archived=JSON.parse(localStorage.getItem('ss_crm_archived')||'[]');
+        for(const aid of archived){if(leads[aid])leads[aid].status='archived'}
+    }catch(e){}
+    
+    return leads;
+}
+
+function refreshLeads(){
+    const leads=loadFromSnapshots();
+    allLeads=Object.values(leads).sort((a,b)=>(b.briefingRank||0)-(a.briefingRank||0));
+    stats();render();
+}
+
+async function load(){
+    await syncServerContacts();
+    refreshLeads();
+}
+
+function stats(){
+    const c=gC();
+    const contacted=new Set(),responded=new Set(),appts=new Set(),listings=new Set();
+    for(const[id,es]of Object.entries(c)){
+        if(!es.length) continue;
+        contacted.add(id);
+        for(const e of es){
+            if(['response','appointment','listing'].includes(e.result))responded.add(id);
+            if(['appointment','listing'].includes(e.result))appts.add(id);
+            if(e.result==='listing')listings.add(id);
+        }
+    }
+    document.getElementById('sT').textContent=allLeads.length;
+    document.getElementById('sH').textContent=allLeads.filter(l=>l.tier==='act_today'||l.briefingRank>=55).length;
+    document.getElementById('sC').textContent=contacted.size;
+    document.getElementById('sR').textContent=responded.size;
+    document.getElementById('sA').textContent=appts.size;
+    document.getElementById('sL').textContent=listings.size;
+}
+
+function filt(){
+    const c=gC();
+    const cIds=new Set(Object.keys(c).filter(id=>c[id].length>0));
+    switch(curTab){
+        case'hot':return allLeads.filter(l=>l.tier==='act_today'||l.briefingRank>=55);
+        case'contacted':return allLeads.filter(l=>cIds.has(l.id));
+        case'follow-up':{
+            // Show ALL leads with any follow-up date set (future or past)
+            return allLeads.filter(l=>{
+                const entries=c[l.id]||[];
+                return entries.some(e => e.followUpDate);
+            });
+        }
+        case'won':return allLeads.filter(l=>{const e=c[l.id]||[];return e.some(x=>x.result==='listing')});
+        case'archived':return allLeads.filter(l=>l.status==='archived'||l.status==='not_fit');
+        default:return allLeads.filter(l=>l.status!=='archived'&&l.status!=='not_fit');
+    }
+}
+
+function switchTab(t){curTab=t;document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));render()}
+
+function render(){
+    const leads=filt();const el=document.getElementById('leadList');
+    
+    // Follow-up banner — check for any leads with pending follow-ups
+    const c=gC();
+    const fuLeads = allLeads.filter(l => {
+        const entries = c[l.id]||[];
+        const lastFu = [...entries].reverse().find(e => e.followUpDate);
+        if (!lastFu) return false;
+        return new Date(lastFu.followUpDate) <= new Date(new Date().toISOString().split('T')[0] + 'T23:59:59');
+    });
+    
+    let fuBanner = '';
+    if (curTab === 'all' && fuLeads.length > 0) {
+        fuBanner = `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:14px 18px;margin-bottom:16px;cursor:pointer" onclick="switchTab('follow-up')">
+            <div style="font-size:12px;font-weight:600;color:#fbbf24;margin-bottom:4px">📅 ${fuLeads.length} Follow-Up${fuLeads.length>1?'s':''} Due</div>
+            <div style="font-size:11px;color:var(--text-dim)">Click to view</div>
+        </div>`;
+    }
+    
+    if(!leads.length){el.innerHTML=fuBanner+`<div class="empty-state"><h2>${curTab==='all'?'No leads yet':'Nothing here'}</h2><p>${curTab==='all'?'Run a <a href="sellersignal-briefing.html?resume">Daily Briefing</a> to start.':'Try a different filter.'}</p></div>`;return}
+    const contacts=gC();
+    el.innerHTML=fuBanner+leads.map(l=>{
+        const id=l.id,log=contacts[id]||[],last=log.length?log[log.length-1]:null;
+        const sc=l.scoreClass||(l.briefingRank>=55?'high':l.briefingRank>=35?'medium':'low');
+        const tc=l.tier==='act_today'?'t-hot':l.tier==='outreach_queue'||l.tier==='deep_signal_first'?'t-out':'t-watch';
+        const tl=l.tier==='act_today'?'Hot Lead':l.tier==='outreach_queue'?'Outreach':l.tier==='deep_signal_first'?'Investigate':'Watch';
+        const contactCount = log.length;
+        const lastContact = last ? `<span class="chip s-${last.result==='listing'?'listing':['response','appointment'].includes(last.result)?'responded':'contacted'}">${last.channel} · ${last.result.replace(/_/g,' ')}</span>` : '';
+        
+        // Follow-up indicator
+        const lastFu = [...log].reverse().find(e => e.followUpDate);
+        let fuChip = '';
+        if (lastFu) {
+            const fuDate = new Date(lastFu.followUpDate);
+            const today = new Date(new Date().toISOString().split('T')[0]);
+            const daysUntil = Math.round((fuDate - today) / (1000*60*60*24));
+            if (daysUntil < 0) fuChip = `<span class="chip" style="background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2)">📅 Overdue ${Math.abs(daysUntil)}d</span>`;
+            else if (daysUntil === 0) fuChip = `<span class="chip" style="background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2)">📅 Due today</span>`;
+            else fuChip = `<span class="chip" style="background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.2)">📅 ${lastFu.followUpDate}</span>`;
+        }
+        
+        const ex=expId===id;
+        return`<div class="prospect${ex?' expanded':''}" id="prospect-${id}" onclick="toggle('${id}')"><div class="prospect-main"><div class="prospect-score ${sc}">${l.briefingRank||'—'}</div><div class="prospect-info"><div class="prospect-addr">${l.address||'Unknown'}</div><div class="prospect-owner">${l.ownerName||''} ${contactCount>0?`<span style="color:var(--text-dim);font-size:10px">(${contactCount} contact${contactCount>1?'s':''})</span>`:''}</div><div class="prospect-meta"><span class="chip ${tc}">${tl}</span>${lastContact}${fuChip}${l.totalValue?`<span class="chip t-watch">$${(l.totalValue/1000).toFixed(0)}K</span>`:''}</div></div><div class="prospect-actions"><button class="action-btn" onclick="event.stopPropagation();openLog('${id}','call')" title="Log call">📞</button><button class="action-btn" onclick="event.stopPropagation();openLog('${id}','mail')" title="Log mail">✉️</button><button class="action-btn" onclick="event.stopPropagation();openLog('${id}','door')" title="Door knock">🚪</button></div></div><div class="prospect-detail" onclick="event.stopPropagation()">${ex?detail(l,log):''}</div></div>`;
+    }).join('');
+}
+
+function detail(l,log){
+    const id=l.id;
+    
+    // Score breakdown
+    const scores = `<div style="display:flex;gap:16px;margin-top:4px">
+        <div><span style="font-size:10px;color:var(--text-dim)">Seller</span><br><span style="font-weight:700;color:var(--text)">${l.sellerLikelihood||'—'}</span></div>
+        <div><span style="font-size:10px;color:var(--text-dim)">Off-Market</span><br><span style="font-weight:700;color:var(--text)">${l.offMarketReceptivity||'—'}</span></div>
+        <div><span style="font-size:10px;color:var(--text-dim)">Actionability</span><br><span style="font-weight:700;color:var(--text)">${l.actionability||'—'}</span></div>
+        <div><span style="font-size:10px;color:var(--text-dim)">Confidence</span><br><span style="font-weight:700;color:var(--text)">${l.confidence||'—'}</span></div>
+    </div>`;
+    
+    // Why now
+    const whyNow = l.whyNow ? `<div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--gold);border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:600;color:var(--gold);letter-spacing:0.05em;margin-bottom:4px">WHY NOW</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${l.whyNow}</div></div>` : '';
+    
+    return`<div class="detail-grid">
+        <div class="detail-item"><div class="detail-label">Mailing Address</div><div class="detail-value">${l.ownerAddress||'Same as property'}</div></div>
+        <div class="detail-item"><div class="detail-label">Assessed Value</div><div class="detail-value">${l.totalValue?'$'+l.totalValue.toLocaleString():'Unknown'}</div></div>
+        <div class="detail-item"><div class="detail-label">Cohort</div><div class="detail-value">${l.cohortLabel||'—'}</div></div>
+        <div class="detail-item"><div class="detail-label">First Seen</div><div class="detail-value">${l.addedDate?new Date(l.addedDate).toLocaleDateString():''}</div></div>
+    </div>
+    ${scores}
+    ${whyNow}
+    <div class="contact-form" id="contact-form-${id}">
+        <h4>Log Contact</h4>
+        <div class="form-row">
+            <div class="form-group"><label>Channel</label><select id="ch-${id}"><option value="call">📞 Call</option><option value="mail">✉️ Mail</option><option value="door">🚪 Door</option><option value="email">📧 Email</option><option value="text">💬 Text</option></select></div>
+            <div class="form-group"><label>Result</label><select id="rs-${id}"><option value="no_response">No Response</option><option value="response">Got Response</option><option value="appointment">Appointment Set</option><option value="listing">Listing Won 🎉</option><option value="declined">Declined</option><option value="wrong_person">Wrong Person</option><option value="not_fit">Not a Fit</option></select></div>
+            <div class="form-group"><label>Follow Up</label><input type="date" id="fu-${id}"></div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px"><label>Notes</label><textarea id="nt-${id}" placeholder="What happened? What did they say?"></textarea></div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-p" onclick="event.stopPropagation();saveContact('${id}')">Save Contact</button>
+            <button class="btn-s" onclick="event.stopPropagation();archive('${id}')">Archive</button>
+            <div id="save-status-${id}" style="font-size:11px;color:var(--text-dim);margin-left:8px"></div>
+        </div>
+    </div>
+    ${log.length?`<div class="contact-history"><div class="ch-label">Contact History (${log.length})</div>${log.slice().reverse().map(c=>`<div class="ch-entry"><div class="ch-meta"><span>${new Date(c.date).toLocaleDateString()}</span><span style="font-weight:600">${c.channel||'?'}</span><span class="ch-result">${(c.result||'pending').replace(/_/g,' ')}</span>${c.followUpDate?`<span style="color:#fbbf24">📅 Follow up: ${c.followUpDate}</span>`:''}</div>${c.notes?`<div class="ch-notes">${c.notes}</div>`:''}</div>`).join('')}</div>`:'<div style="padding:12px 0;font-size:12px;color:var(--text-dim)">No contact history yet. Use the form above to log your first outreach.</div>'}`;
+}
+
+function toggle(id){
+    expId=expId===id?null:id;
+    render();
+}
+
+// Quick-action buttons now OPEN the card and pre-select the channel (instead of silently logging)
+function openLog(id, channel){
+    expId = id;
+    render();
+    // After render, set the channel dropdown and scroll to the form
+    setTimeout(() => {
+        const chSelect = document.getElementById(`ch-${id}`);
+        if (chSelect) chSelect.value = channel;
+        const form = document.getElementById(`contact-form-${id}`);
+        if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+}
+
+// Save contact — writes to localStorage immediately, pushes to server in background
+function saveContact(id){
+    const ch=document.getElementById(`ch-${id}`)?.value || 'call';
+    const rs=document.getElementById(`rs-${id}`)?.value || 'no_response';
+    const fu=document.getElementById(`fu-${id}`)?.value || null;
+    const nt=document.getElementById(`nt-${id}`)?.value || '';
+    const statusEl = document.getElementById(`save-status-${id}`);
+    
+    const entry = {date:new Date().toISOString(),channel:ch,result:rs,notes:nt,followUpDate:fu};
+    
+    // Write to localStorage (source of truth)
+    const c=getLocalContacts();
+    if(!c[id]) c[id]=[];
+    c[id].push(entry);
+    setLocalContacts(c);
+    
+    // Show confirmation immediately
+    if(statusEl) { 
+        statusEl.textContent = '✓ Saved'; 
+        statusEl.style.color = '#4ade80';
+        setTimeout(() => { if(statusEl) statusEl.textContent = ''; }, 3000);
+    }
+    
+    // Clear the form
+    const ntEl = document.getElementById(`nt-${id}`);
+    if(ntEl) ntEl.value = '';
+    const fuEl = document.getElementById(`fu-${id}`);
+    if(fuEl) fuEl.value = '';
+    const rsEl = document.getElementById(`rs-${id}`);
+    if(rsEl) rsEl.value = 'no_response';
+    
+    // Push to server in background (non-blocking)
+    pushToServer(id, entry);
+    
+    // Re-render WITHOUT re-fetching server data (keeps card open, updates stats + history)
+    refreshLeads();
+}
+
+function archive(id){
+    try{const archived=JSON.parse(localStorage.getItem('ss_crm_archived')||'[]');if(!archived.includes(id)){archived.push(id);localStorage.setItem('ss_crm_archived',JSON.stringify(archived))}}catch(e){}
+    expId = null;
+    refreshLeads();
+}
+
+// Init
+try { localStorage.removeItem('ss_crm_leads'); } catch(e) {}
+load().catch(e => { 
+    document.getElementById('leadList').innerHTML = '<div style="padding:40px;color:#f87171;font-size:13px;font-family:Outfit,sans-serif">Error loading pipeline: ' + e.message + '<br><br>Try running a <a href="sellersignal-briefing.html?resume" style="color:#c4a87c">Daily Briefing</a> first.</div>'; 
+});
+</script>
+</body>
+</html>
