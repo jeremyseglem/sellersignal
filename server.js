@@ -3633,6 +3633,38 @@ app.post('/api/batch/trigger', async (req, res) => {
   });
 });
 
+// GET /api/batch/start — spawn batch as background process (returns immediately)
+// Usage: sellersignal.co/api/batch/start?key=ss_batch_2026 (all ZIPs)
+//        sellersignal.co/api/batch/start?key=ss_batch_2026&market=FL_MD
+//        sellersignal.co/api/batch/start?key=ss_batch_2026&zip=28207
+//        sellersignal.co/api/batch/start?key=ss_batch_2026&noai=1
+app.get('/api/batch/start', (req, res) => {
+  const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
+  if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid batch key' });
+  
+  const args = [];
+  if (req.query.zip) args.push('--zip', req.query.zip);
+  else if (req.query.market) args.push('--market', req.query.market);
+  else args.push('--all');
+  if (req.query.noai === '1') args.push('--noai');
+  
+  const { spawn } = require('child_process');
+  const worker = spawn('node', ['batch/worker.js', ...args], {
+    stdio: 'inherit',
+    env: process.env,
+    detached: true,
+  });
+  worker.unref(); // let it run independently
+  
+  worker.on('error', (err) => console.error(`Batch spawn error: ${err.message}`));
+  
+  res.json({
+    started: true,
+    command: `node batch/worker.js ${args.join(' ')}`,
+    message: 'Batch started in background. Check Railway logs for progress.',
+  });
+});
+
 // GET /api/batch/run — run batch inline via browser URL
 // Usage: sellersignal.co/api/batch/run?zip=28207&key=ss_batch_2026
 app.get('/api/batch/run', async (req, res) => {
@@ -4197,6 +4229,28 @@ app.listen(PORT, () => {
     // Then every 24 hours
     setInterval(() => runBackgroundLabeler(), 24 * 60 * 60 * 1000);
     console.log('Background labeler: scheduled (daily)');
+  }
+  
+  // Nightly batch cron — runs at 2am Mountain (8am UTC)
+  try {
+    const cron = require('node-cron');
+    cron.schedule('0 8 * * *', () => {
+      console.log('=== NIGHTLY BATCH CRON STARTING ===');
+      const { spawn } = require('child_process');
+      const worker = spawn('node', ['batch/worker.js', '--all'], {
+        stdio: 'inherit',  // pipe output to server logs
+        env: process.env,   // pass all env vars
+      });
+      worker.on('exit', (code) => {
+        console.log(`=== NIGHTLY BATCH CRON FINISHED (exit code: ${code}) ===`);
+      });
+      worker.on('error', (err) => {
+        console.error(`Batch cron error: ${err.message}`);
+      });
+    }, { timezone: 'America/Denver' });
+    console.log('Batch cron: scheduled (2am Mountain / 8am UTC daily)');
+  } catch(cronErr) {
+    console.log('Batch cron: not configured (' + cronErr.message + ')');
   }
 });
 
