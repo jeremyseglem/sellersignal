@@ -1,613 +1,218 @@
 #!/usr/bin/env node
-// SellerSignal Batch Worker
-// Runs nightly (or on-demand) to fetch, score, and store all parcel data
-// Usage: node batch/worker.js [--zip 33134] [--market FL_MD] [--all] [--dry-run]
+// SellerSignal Batch Worker — standalone process
+// Runs nightly via Railway cron or on-demand
+// Usage: node batch/worker.js [--zip 33134] [--market FL_MD] [--all] [--noai]
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Anthropic = require('@anthropic-ai/sdk');
 const { MARKETS, getAllZips, getMarketForZip } = require('./markets');
 
-// =============================================
-// CLIENTS
-// =============================================
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-  : null;
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY) : null;
 const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
 
-// =============================================
-// CONFIG
-// =============================================
-const CONFIG = {
-  liteScoreBatchSize: 500,     // how many parcels get AI Lite scoring per ZIP
-  deepSignalCount: 15,          // top N get full Deep Signal per ZIP
-  fetchDelayMs: 1500,           // delay between GIS requests (be polite)
-  liteDelayMs: 200,             // delay between Lite API calls
-  dryRun: false,                // log but don't write to DB
-};
-
-// =============================================
-// CLI ARGS
-// =============================================
 const args = process.argv.slice(2);
-let targetZip = null, targetMarket = null, runAll = false;
+let targetZip = null, targetMarket = null, runAll = false, skipAI = false;
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--zip' && args[i+1]) targetZip = args[++i];
-  if (args[i] === '--market' && args[i+1]) targetMarket = args[++i];
-  if (args[i] === '--all') runAll = true;
-  if (args[i] === '--dry-run') CONFIG.dryRun = true;
+  if (args[i]==='--zip'&&args[i+1]) targetZip=args[++i];
+  if (args[i]==='--market'&&args[i+1]) targetMarket=args[++i];
+  if (args[i]==='--all') runAll=true;
+  if (args[i]==='--noai') skipAI=true;
 }
-if (!supabase) { CONFIG.dryRun = true; log('No Supabase connection — forcing dry-run mode', 'warn'); }
+if (!targetZip && !targetMarket && !runAll) runAll = true;
 
-// =============================================
-// LOGGING
-// =============================================
-function log(msg, level = 'info') {
-  const ts = new Date().toISOString().substring(11, 19);
-  const prefix = { info: '  ', warn: '⚠ ', error: '✗ ', ok: '✓ ' }[level] || '  ';
-  console.log(`[${ts}] ${prefix}${msg}`);
-}
+function log(msg) { console.log(`[${new Date().toISOString().substring(11,19)}] ${msg}`); }
 
-// =============================================
-// GIS FETCHER — pulls parcels from ArcGIS REST endpoints
-// =============================================
-async function fetchParcels(market, zip) {
-  const url = new URL(market.url);
-  
-  // Build WHERE clause — different markets use different ZIP field patterns
-  let where;
-  if (market.key === 'FL_MD') where = `TRUE_SITE_ZIP_CODE LIKE '${zip}%'`;
-  else if (market.key === 'FL_PB') where = `ZIP1='${zip}'`;
-  else if (market.key === 'NC') where = `szip='${zip}'`;
-  else if (market.key === 'MT') where = `1=1`; // Montana uses spatial query, not ZIP
-  else if (market.key === 'WA_KING') where = `ZIPCODE='${zip}'`;
-  else if (market.key === 'OR_DESCHUTES') where = `SitusZip='${zip}'`;
-  else if (market.key === 'AZ_MARICOPA') where = `ZIP_CODE='${zip}'`;
-  else if (market.key === 'TX_SA') where = `situs_zip='${zip}'`;
-  else if (market.key === 'NY') where = `1=1`; // NY uses spatial, complex
-  else where = `1=1`;
-  
-  const params = new URLSearchParams({
-    where,
-    outFields: market.fields,
-    returnGeometry: 'true',
-    outSR: '4326',
-    f: 'json',
-    resultRecordCount: String(market.max || 2000),
-  });
-  
-  const fullUrl = `${market.url}?${params}`;
-  log(`Fetching ${zip} from ${market.name}...`);
-  
-  let resp;
-  try {
-    resp = await fetch(fullUrl, { signal: AbortSignal.timeout(30000) });
-  } catch(fetchErr) {
-    throw new Error(`GIS fetch failed for ${zip}: ${fetchErr.message}`);
-  }
-  if (!resp.ok) throw new Error(`GIS HTTP ${resp.status} for ${zip}`);
-  
-  const data = await resp.json();
-  if (data.error) throw new Error(`GIS error: ${data.error.message}`);
-  
-  const features = data.features || [];
-  log(`Got ${features.length} parcels for ${zip}`, 'ok');
-  return features;
-}
-
-// =============================================
-// PARCEL PARSER — converts GIS features to normalized parcel objects
-// =============================================
-function parseParcel(feature, market) {
-  const a = feature.attributes || {};
+function parseFeature(f, market) {
+  const a = f.attributes || {};
   const fm = market.fieldMap;
-  
-  // Helper to get value from field name or array of field names
-  function getVal(fieldDef) {
-    if (!fieldDef) return null;
-    if (Array.isArray(fieldDef)) {
-      for (const f of fieldDef) {
-        const v = a[f];
-        if (v !== null && v !== undefined && v !== '' && v !== 0) return v;
-      }
-      return a[fieldDef[0]] || null;
-    }
-    return a[fieldDef] ?? null;
-  }
-  
-  function getStr(fieldDef) {
-    const v = getVal(fieldDef);
-    return v ? String(v).trim() : '';
-  }
-  
-  function getNum(fieldDef) {
-    const v = getVal(fieldDef);
-    return v ? parseFloat(v) || 0 : 0;
-  }
-  
-  // Owner name — may be array of fields to concatenate
-  let ownerName = '';
-  if (Array.isArray(fm.ownerName)) {
-    ownerName = fm.ownerName.map(f => (a[f] || '').toString().trim()).filter(Boolean).join(' ');
-  } else {
-    ownerName = getStr(fm.ownerName);
-  }
-  
-  // Owner type classification
-  const on = ownerName.toUpperCase();
-  let ownerType = 'individual';
-  if (/\bTRUST\b|\bTRSTEE?\b|\bTRUSTEE\b/.test(on)) ownerType = 'trust';
-  else if (/\bESTATE\b|\bHEIRS?\b|\bDECEASED\b/.test(on)) ownerType = 'estate';
-  else if (/\bLLC\b|\bCORP\b|\bINC\b|\bLTD\b|\bLP\b|\bPARTNERSHIP\b|\bHOLDINGS?\b|\bGROUP\b|\bPROPERTIES\b|\bINVESTMENTS?\b|\bMANAGEMENT\b|\bREALTY\b/.test(on)) ownerType = 'llc_corp';
-  
-  // Values
-  const totalValue = getNum(fm.totalValue) || (getNum(fm.landValue) + getNum(fm.buildingValue));
-  const buildingValue = getNum(fm.buildingValue);
-  const landValue = getNum(fm.landValue);
-  const yearBuilt = parseInt(getVal(fm.yearBuilt)) || 0;
-  const sqft = parseInt(getVal(fm.livingSpace)) || 0;
-  
-  // Address
+  function getVal(fd) { if(!fd)return null; if(Array.isArray(fd)){for(const ff of fd){const v=a[ff];if(v)return v;}return null;} return a[fd]??null; }
+  function getStr(fd) { const v=getVal(fd); return v?String(v).trim():''; }
+  function getNum(fd) { const v=getVal(fd); return v?parseFloat(v)||0:0; }
+
+  let ownerName = Array.isArray(fm.ownerName)?fm.ownerName.map(ff=>(a[ff]||'').toString().trim()).filter(Boolean).join(' '):getStr(fm.ownerName);
+  if (!ownerName||ownerName.length<3) return null;
   const address = getStr(fm.address);
-  const city = getStr(fm.situsCity);
-  
-  // Mailing
-  const mailAddr = getStr(fm.mailAddress);
-  const mailCity = getStr(fm.mailCity);
-  const mailState = getStr(fm.mailState);
-  const mailZip = getStr(fm.mailZip);
-  
-  // Absentee detection
-  const situsNorm = address.toLowerCase().replace(/\s+/g, '');
-  const mailNorm = mailAddr.toLowerCase().replace(/\s+/g, '');
-  const isAbsentee = mailAddr && address && situsNorm.length > 5 && !mailNorm.includes(situsNorm.substring(0, Math.min(10, situsNorm.length)));
-  const isOutOfState = mailState && mailState.toUpperCase() !== market.homeState;
-  
-  // Vacant land detection
-  const hasBuilding = buildingValue > 0 || yearBuilt > 1800 || sqft > 0;
-  const isVacantLand = !hasBuilding && totalValue > 0;
-  
-  // Tenure
-  let lastTransferYear = null, lastTransferDate = null, salePrice = 0;
-  const rawSaleDate = getVal(fm.saleDate);
-  if (rawSaleDate) {
-    const sd = String(rawSaleDate);
-    // Try YYYYMMDD format (Florida)
-    if (/^\d{8}$/.test(sd)) {
-      lastTransferYear = parseInt(sd.substring(0, 4));
-      lastTransferDate = `${sd.substring(0,4)}-${sd.substring(4,6)}-${sd.substring(6,8)}`;
-    }
-    // Try epoch ms
-    else if (/^\d{10,13}$/.test(sd)) {
-      const d = new Date(parseInt(sd.length > 10 ? sd : sd + '000'));
-      if (d.getFullYear() > 1900) { lastTransferYear = d.getFullYear(); lastTransferDate = d.toISOString().substring(0,10); }
-    }
-    // Try ISO or date string
-    else {
-      const d = new Date(sd);
-      if (!isNaN(d) && d.getFullYear() > 1900) { lastTransferYear = d.getFullYear(); lastTransferDate = d.toISOString().substring(0,10); }
-    }
+  if (!address||address.length<3) return null;
+  const on = ownerName.toUpperCase();
+  if (/\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bSCHOOL DIST|\bCHURCH\b|\bHOA\b|\bCONDO\s*ASSOC/i.test(on)) return null;
+
+  let ownerType='individual';
+  if(/\bTRUST\b|\bTRSTEE?\b/.test(on))ownerType='trust';
+  else if(/\bESTATE\b|\bHEIRS?\b|\bDECEASED\b/.test(on))ownerType='estate';
+  else if(/\bLLC\b|\bCORP\b|\bINC\b|\bLTD\b|\bLP\b|\bPARTNERSHIP\b|\bHOLDINGS?\b|\bGROUP\b|\bPROPERTIES\b|\bINVESTMENTS?\b|\bMANAGEMENT\b|\bREALTY\b/.test(on))ownerType='llc_corp';
+
+  const totalValue=getNum(fm.totalValue)||(getNum(fm.landValue)+getNum(fm.buildingValue));
+  let buildingValue=getNum(fm.buildingValue); const landValue=getNum(fm.landValue);
+  const yearBuilt=parseInt(getVal(fm.yearBuilt))||0; const sqft=parseInt(getVal(fm.livingSpace))||0;
+  if(!buildingValue&&totalValue>0&&(yearBuilt>1800||sqft>0)) buildingValue=Math.round(totalValue*0.7);
+  const hasBuilding=buildingValue>0||yearBuilt>1800||sqft>0;
+  const isVacantLand=!hasBuilding&&totalValue>0;
+
+  const mailAddr=getStr(fm.mailAddress); const mailState=getStr(fm.mailState);
+  const situsNorm=address.toLowerCase().replace(/\s+/g,'');
+  const mailNorm=mailAddr.toLowerCase().replace(/\s+/g,'');
+  const isAbsentee=!!(mailAddr&&address&&situsNorm.length>5&&!mailNorm.includes(situsNorm.substring(0,Math.min(10,situsNorm.length))));
+  const isOutOfState=!!(mailState&&mailState.toUpperCase()!==market.homeState);
+
+  let lastTransferYear=null,lastTransferDate=null,salePrice=0;
+  const rawDate=getVal(fm.saleDate);
+  if(rawDate){const sd=String(rawDate);
+    if(/^\d{8}$/.test(sd)){lastTransferYear=parseInt(sd.substring(0,4));lastTransferDate=sd.substring(0,4)+'-'+sd.substring(4,6)+'-'+sd.substring(6,8);}
+    else if(/^\d{10,13}$/.test(sd)){const d=new Date(parseInt(sd.length>10?sd:sd+'000'));if(d.getFullYear()>1900){lastTransferYear=d.getFullYear();lastTransferDate=d.toISOString().substring(0,10);}}
+    else{const d=new Date(sd);if(!isNaN(d)&&d.getFullYear()>1900){lastTransferYear=d.getFullYear();lastTransferDate=d.toISOString().substring(0,10);}}
   }
-  salePrice = getNum(fm.salePrice);
-  
-  const currentYear = new Date().getFullYear();
-  const tenureYears = lastTransferYear ? currentYear - lastTransferYear : null;
-  
-  // Lat/Lng
-  let lat = 0, lng = 0;
-  if (feature.geometry) {
-    if (feature.geometry.x) { lng = feature.geometry.x; lat = feature.geometry.y; }
-    else if (feature.geometry.rings) {
-      const ring = feature.geometry.rings[0];
-      if (ring && ring.length > 0) {
-        lat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-        lng = ring.reduce((s, p) => s + p[0], 0) / ring.length;
-      }
-    }
-  }
-  
-  // Acres
-  let acres = getNum(fm.acres);
-  if (market.acresIsSqft && acres > 0) acres = Math.round(acres / 43560 * 100) / 100;
-  
-  return {
-    id: `${market.key}-${getStr(fm.id) || address.replace(/\s/g,'')}`,
-    zip_code: null, // set by caller
-    market_key: market.key,
-    owner_name: ownerName,
-    owner_type: ownerType,
-    address, city, state: market.homeState,
-    lat, lng,
-    assessed_value: Math.round(totalValue),
-    building_value: Math.round(buildingValue),
-    land_value: Math.round(landValue),
-    year_built: yearBuilt || null,
-    sqft: sqft || null,
-    bedrooms: parseInt(getVal('BEDROOM_COUNT')) || null,
-    acres: acres || null,
-    subdivision: getStr(fm.subdivision),
-    prop_type: isVacantLand ? 'Vacant Land' : 'Residential',
-    is_vacant_land: isVacantLand,
-    is_absentee: !!isAbsentee,
-    is_out_of_state: !!isOutOfState,
-    owner_state: mailState || null,
-    mailing_address: mailAddr || null,
-    mailing_city: mailCity || null,
-    mailing_state: mailState || null,
-    mailing_zip: mailZip || null,
-    multi_count: 1, // computed in batch
-    last_transfer_year: lastTransferYear,
-    last_transfer_date: lastTransferDate,
-    sale_price: salePrice || null,
-    tenure_years: tenureYears,
-    raw_attributes: a,
-  };
+  salePrice=getNum(fm.salePrice);
+  const tenureYears=lastTransferYear?new Date().getFullYear()-lastTransferYear:null;
+
+  let lat=0,lng=0;
+  if(f.geometry){if(f.geometry.x){lng=f.geometry.x;lat=f.geometry.y;}
+    else if(f.geometry.rings&&f.geometry.rings[0]){const ring=f.geometry.rings[0];lat=ring.reduce((s,p)=>s+p[1],0)/ring.length;lng=ring.reduce((s,p)=>s+p[0],0)/ring.length;}}
+
+  return { id:`${market.key}-${getStr(fm.id)||address.replace(/\s/g,'')}`, zip_code:null, market_key:market.key,
+    owner_name:ownerName, owner_type:ownerType, address, city:getStr(fm.situsCity), state:market.homeState,
+    lat, lng, assessed_value:Math.round(totalValue), building_value:Math.round(buildingValue), land_value:Math.round(landValue),
+    year_built:yearBuilt||null, sqft:sqft||null, bedrooms:null, acres:null, subdivision:getStr(fm.subdivision),
+    prop_type:isVacantLand?'Vacant Land':'Residential', is_vacant_land:isVacantLand,
+    is_absentee:isAbsentee, is_out_of_state:isOutOfState, owner_state:mailState||null,
+    mailing_address:mailAddr||null, mailing_city:getStr(fm.mailCity), mailing_state:mailState||null, mailing_zip:getStr(fm.mailZip),
+    multi_count:1, last_transfer_year:lastTransferYear, last_transfer_date:lastTransferDate,
+    sale_price:salePrice||null, tenure_years:tenureYears };
 }
 
-// =============================================
-// HEURISTIC SCORER — scores every parcel (fast, no API calls)
-// =============================================
-function scoreParcel(p, calibration) {
-  let sl = 20, omr = 20, act = 25, conf = 30;
-  const signals = [];
-  
-  // Filter junk
-  const on = (p.owner_name || '').toUpperCase();
-  const govRx = /\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bSCHOOL DIST|\bCHURCH\b|\bHOA\b|\bCOMMON\s*AREA|\bCONDO\s*ASSOC/i;
-  if (govRx.test(on)) return null; // skip institutional
-  
-  function cal(defaultBonus, featureKey) {
-    if (!calibration || !calibration.lifts || !(featureKey in calibration.lifts)) return defaultBonus;
-    const lift = calibration.lifts[featureKey];
-    if (lift >= 1) return Math.round(defaultBonus * Math.min(lift, 3));
-    return Math.round(-defaultBonus * (1 - lift));
-  }
-  
-  // Entity signals
-  const isTrust = p.owner_type === 'trust';
-  const isEstate = p.owner_type === 'estate';
-  const isLLC = p.owner_type === 'llc_corp';
-  const isIndividual = p.owner_type === 'individual';
-  
-  if (isEstate) sl += cal(20, 'Estates / Heirs');
-  if (isTrust && p.is_absentee) sl += cal(16, 'Trusts');
-  else if (isTrust) sl += cal(8, 'Trusts');
-  
-  if (p.is_absentee && p.is_out_of_state) sl += cal(14, 'Out-of-State');
-  else if (p.is_out_of_state) sl += cal(8, 'Out-of-State');
-  else if (p.is_absentee) sl += cal(6, 'Absentee Owners');
-  
-  if (p.is_vacant_land && p.is_absentee) sl += cal(12, 'Vacant Land');
-  else if (p.is_vacant_land) sl += cal(6, 'Vacant Land');
-  
-  if (isIndividual && p.mailing_address) sl += cal(4, 'Named Individuals');
-  
-  // Tenure
-  if (p.tenure_years !== null) {
-    if (p.tenure_years <= 1) sl -= 15;
-    else if (p.tenure_years <= 2) sl -= 10;
-    else if (p.tenure_years <= 3) sl -= 5;
-    else if (p.tenure_years <= 10) sl += cal(10, 'Tenure 3-10yr');
-    else if (p.tenure_years <= 20) sl += cal(8, 'Tenure 10-20yr');
-    else sl += cal(6, 'Tenure 20yr+');
-  }
-  
-  // LLC penalty
-  if (isLLC && !p.is_absentee && !p.is_out_of_state) sl -= 5;
-  
-  // Vacant land dampener
-  if (p.is_vacant_land && !p.tenure_years) sl -= 6;
-  
-  sl = Math.max(0, Math.min(100, sl));
-  
-  // Off-market receptivity
-  if (isTrust || isEstate) omr += 12;
-  if (isLLC) omr += 10;
-  if (p.is_absentee) omr += 10;
-  if (p.is_out_of_state) omr += 8;
-  if (p.assessed_value > 750000) omr += 10;
-  if (p.is_vacant_land) omr += 6;
-  omr = Math.max(0, Math.min(100, omr));
-  
-  // Actionability
-  const hasName = on.length > 3;
-  const hasMail = (p.mailing_address || '').length > 5;
-  if (hasName && hasMail) act += 15;
-  else if (hasName) act += 8;
-  if (isIndividual && hasName) act += 12;
-  if (isTrust && hasMail) act += 8;
-  if (isLLC && !hasMail) act -= 15;
-  act = Math.max(0, Math.min(100, act));
-  
-  // Confidence
-  if (hasName) conf += 10;
-  if (hasMail) conf += 8;
-  if (p.assessed_value > 0) conf += 6;
-  if (p.tenure_years !== null) conf += 10;
-  conf = Math.max(0, Math.min(100, conf));
-  
-  const briefingRank = Math.round(sl * 0.50 + act * 0.30 + omr * 0.15 + conf * 0.05);
-  const scoreClass = briefingRank >= 55 ? 'high' : briefingRank >= 35 ? 'medium' : 'low';
-  
-  let cohort = 'residential';
-  if (isEstate) cohort = 'estate';
-  else if (isTrust) cohort = 'trust';
-  else if (isLLC) cohort = 'investor';
-  else if (p.is_absentee || p.is_out_of_state) cohort = 'absentee';
-  else if (p.is_vacant_land) cohort = 'vacant';
-  
-  return {
-    seller_likelihood: sl, off_market_receptivity: omr,
-    actionability: act, confidence: conf,
-    briefing_rank: briefingRank, score_class: scoreClass,
-    cohort, signals,
-  };
+function scoreParcel(p, cal) {
+  function c(d,k){if(!cal?.lifts?.[k])return d;const l=cal.lifts[k];return l>=1?Math.round(d*Math.min(l,3)):Math.round(-d*(1-l));}
+  let sl=20;
+  if(p.owner_type==='estate')sl+=c(20,'Estates / Heirs');
+  if(p.owner_type==='trust'&&p.is_absentee)sl+=c(16,'Trusts');else if(p.owner_type==='trust')sl+=c(8,'Trusts');
+  if(p.is_absentee&&p.is_out_of_state)sl+=c(14,'Out-of-State');else if(p.is_out_of_state)sl+=c(8,'Out-of-State');else if(p.is_absentee)sl+=c(6,'Absentee Owners');
+  if(p.is_vacant_land)sl+=c(6,'Vacant Land');
+  if(p.owner_type==='individual'&&p.mailing_address)sl+=c(4,'Named Individuals');
+  if(p.tenure_years!==null){if(p.tenure_years<=1)sl-=15;else if(p.tenure_years<=2)sl-=10;else if(p.tenure_years<=3)sl-=5;
+    else if(p.tenure_years<=10)sl+=c(10,'Tenure 3-10yr');else if(p.tenure_years<=20)sl+=c(8,'Tenure 10-20yr');else sl+=c(6,'Tenure 20yr+');}
+  if(p.owner_type==='llc_corp'&&!p.is_absentee)sl-=5;
+  if(p.is_vacant_land&&!p.tenure_years)sl-=6;
+  sl=Math.max(0,Math.min(100,sl));
+  let act=25,omr=20,conf=30;
+  const hasName=(p.owner_name||'').length>3,hasMail=(p.mailing_address||'').length>5;
+  if(hasName&&hasMail)act+=15;else if(hasName)act+=8;
+  if(p.owner_type==='individual'&&hasName)act+=12;
+  if(p.owner_type==='trust'||p.owner_type==='estate')omr+=12;
+  if(p.is_absentee)omr+=10;if(p.assessed_value>750000)omr+=10;
+  if(hasName)conf+=10;if(hasMail)conf+=8;if(p.assessed_value>0)conf+=6;if(p.tenure_years!==null)conf+=10;
+  act=Math.max(0,Math.min(100,act));omr=Math.max(0,Math.min(100,omr));conf=Math.max(0,Math.min(100,conf));
+  const br=Math.round(sl*0.50+act*0.30+omr*0.15+conf*0.05);
+  let cohort='residential';if(p.owner_type==='estate')cohort='estate';else if(p.owner_type==='trust')cohort='trust';
+  else if(p.owner_type==='llc_corp')cohort='investor';else if(p.is_absentee)cohort='absentee';
+  return{seller_likelihood:sl,off_market_receptivity:omr,actionability:act,confidence:conf,briefing_rank:br,score_class:br>=55?'high':br>=35?'medium':'low',cohort};
 }
 
-// =============================================
-// BACKTEST + CALIBRATION — compute conversion rates from historical sales
-// =============================================
-function computeCalibration(parcels, scores) {
-  const now = new Date();
-  const cutoff24 = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
-  
-  const scored = parcels.map((p, i) => ({ ...p, ...scores[i] })).filter(s => s);
-  const sold24 = scored.filter(p => {
-    if (!p.last_transfer_date) return false;
-    const d = new Date(p.last_transfer_date);
-    return d >= cutoff24 && d < now && (p.sale_price > 10000 || !p.sale_price);
-  });
-  
-  if (sold24.length < 10) return null; // insufficient data
-  
-  const baseRate = sold24.length / scored.length;
-  
-  function featureRate(filterFn) {
-    const pool = scored.filter(filterFn);
-    const soldInPool = sold24.filter(filterFn);
-    return pool.length > 0 ? soldInPool.length / pool.length : 0;
-  }
-  
-  const rates = {
-    'All Properties': baseRate,
-    'Trusts': featureRate(p => p.owner_type === 'trust'),
-    'Estates / Heirs': featureRate(p => p.owner_type === 'estate'),
-    'LLCs / Corps': featureRate(p => p.owner_type === 'llc_corp'),
-    'Absentee Owners': featureRate(p => p.is_absentee),
-    'Out-of-State': featureRate(p => p.is_out_of_state),
-    'Vacant Land': featureRate(p => p.is_vacant_land),
-    'Named Individuals': featureRate(p => p.owner_type === 'individual'),
-  };
-  
-  // Tenure buckets
-  const withTenure = scored.filter(p => p.tenure_years !== null);
-  if (withTenure.length > scored.length * 0.3) {
-    rates['Tenure 0-3yr'] = featureRate(p => p.tenure_years !== null && p.tenure_years <= 3);
-    rates['Tenure 3-10yr'] = featureRate(p => p.tenure_years !== null && p.tenure_years > 3 && p.tenure_years <= 10);
-    rates['Tenure 10-20yr'] = featureRate(p => p.tenure_years !== null && p.tenure_years > 10 && p.tenure_years <= 20);
-    rates['Tenure 20yr+'] = featureRate(p => p.tenure_years !== null && p.tenure_years > 20);
-  }
-  
-  // Compute lifts
-  const lifts = {};
-  for (const [key, rate] of Object.entries(rates)) {
-    if (key !== 'All Properties' && baseRate > 0) {
-      lifts[key] = rate / baseRate;
-    }
-  }
-  
-  const avgScoreSold = sold24.reduce((s, p) => s + (p.briefing_rank || 0), 0) / sold24.length;
-  const avgScoreNotSold = scored.filter(p => !sold24.includes(p)).reduce((s, p) => s + (p.briefing_rank || 0), 0) / (scored.length - sold24.length);
-  
-  return {
-    baseRate, lifts, rates,
-    sold24: sold24.length, total: scored.length,
-    avgScoreSold: Math.round(avgScoreSold),
-    avgScoreNotSold: Math.round(avgScoreNotSold),
-    scoreGap: Math.round(avgScoreSold - avgScoreNotSold),
-  };
-}
-
-// =============================================
-// MAIN: Process a single ZIP code
-// =============================================
 async function processZip(zip, market) {
-  const startTime = Date.now();
-  log(`\n${'='.repeat(50)}`);
-  log(`Processing ${zip} — ${market.name}`);
-  log(`${'='.repeat(50)}`);
-  
-  // 1. FETCH parcels
-  const features = await fetchParcels(market, zip);
-  if (features.length === 0) { log(`No parcels found for ${zip}`, 'warn'); return; }
-  
-  // 2. PARSE parcels
-  const parcels = features.map(f => {
-    const p = parseParcel(f, market);
-    p.zip_code = zip;
-    return p;
-  }).filter(p => p.address && p.owner_name);
-  
-  log(`Parsed ${parcels.length} valid parcels (${features.length - parcels.length} filtered)`);
-  
-  // 3. Compute multi-property counts
-  const ownerCounts = {};
-  for (const p of parcels) {
-    const key = p.owner_name.toUpperCase().trim();
-    ownerCounts[key] = (ownerCounts[key] || 0) + 1;
+  const t0=Date.now();
+  log(`=== ${zip} — ${market.name} ===`);
+  if(!market.zipWhere){log('  SKIP: needs spatial query');return null;}
+
+  // Paginated fetch
+  let allF=[],offset=0,go=true;log('  Fetching...');
+  while(go){
+    const params=new URLSearchParams({where:market.zipWhere(zip),outFields:market.fields,returnGeometry:'true',outSR:'4326',f:'json',resultRecordCount:'2000',resultOffset:String(offset)});
+    const resp=await fetch(`${market.url}?${params}`,{signal:AbortSignal.timeout(90000)});
+    const data=await resp.json();const features=data.features||[];allF=allF.concat(features);
+    const capped=data.exceededTransferLimit===true||(features.length>0&&features.length>=1000&&features.length%1000===0);
+    if(features.length===0||(!capped&&features.length<2000))go=false;
+    else{offset+=features.length;log(`  ... ${allF.length}`);await new Promise(r=>setTimeout(r,500));}
+    if(allF.length>=20000)go=false;
   }
-  for (const p of parcels) {
-    p.multi_count = ownerCounts[p.owner_name.toUpperCase().trim()] || 1;
+  log(`  ${allF.length} features`);
+  if(!allF.length)return null;
+
+  const parcels=allF.map(f=>parseFeature(f,market)).filter(Boolean);
+  for(const p of parcels)p.zip_code=zip;
+  log(`  ${parcels.length} parcels`);
+
+  const oc={};for(const p of parcels){const k=p.owner_name.toUpperCase().trim();oc[k]=(oc[k]||0)+1;}
+  for(const p of parcels)p.multi_count=oc[p.owner_name.toUpperCase().trim()]||1;
+
+  let scores=parcels.map(p=>scoreParcel(p,null));
+
+  // Calibration
+  const cut=new Date();cut.setFullYear(cut.getFullYear()-2);
+  const scored=parcels.map((p,i)=>({...p,...scores[i]}));
+  const sold=scored.filter(p=>p.last_transfer_date&&new Date(p.last_transfer_date)>=cut&&(p.sale_price>10000||!p.sale_price));
+  let calibration=null;
+  if(sold.length>=10){
+    const br=sold.length/scored.length;
+    function fr(fn){const pool=scored.filter(fn),s=sold.filter(fn);return pool.length>0?s.length/pool.length:0;}
+    const lifts={};const rates={'All Properties':br,'Trusts':fr(p=>p.owner_type==='trust'),'Estates / Heirs':fr(p=>p.owner_type==='estate'),
+      'LLCs / Corps':fr(p=>p.owner_type==='llc_corp'),'Absentee Owners':fr(p=>p.is_absentee),'Out-of-State':fr(p=>p.is_out_of_state),
+      'Vacant Land':fr(p=>p.is_vacant_land),'Named Individuals':fr(p=>p.owner_type==='individual')};
+    for(const[k,r]of Object.entries(rates))if(k!=='All Properties'&&br>0)lifts[k]=r/br;
+    calibration={baseRate:br,lifts,rates,sold24:sold.length,total:scored.length};
+    log(`  Cal: base=${(br*100).toFixed(1)}%, ${sold.length} sold`);
+    scores=parcels.map(p=>scoreParcel(p,calibration));
+  } else log(`  No cal (${sold.length} sales)`);
+
+  let ranked=parcels.map((p,i)=>({p,s:scores[i]})).sort((a,b)=>b.s.briefing_rank-a.s.briefing_rank);
+
+  // AI Lite
+  if(!skipAI&&anthropic){
+    const top=ranked.slice(0,25);
+    try{
+      log(`  AI scoring ${top.length}...`);
+      const d=top.map((r,i)=>`[${i+1}] ${r.p.owner_name} — ${r.p.address}\n  ${r.p.owner_type} | $${(r.p.assessed_value||0).toLocaleString()} | Abs:${r.p.is_absentee?'Y':'N'} OOS:${r.p.is_out_of_state?'Y':'N'} | Ten:${r.p.tenure_years!=null?r.p.tenure_years+'yr':'?'} | Multi:${r.p.multi_count}`).join('\n\n');
+      const p=anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:`Score seller likelihood 0-100. ONLY JSON: [{"idx":1,"score":72,"headline":"..."}]\n\n${d}`}]});
+      const r=await Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),60000))]);
+      const arr=JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
+      let u=0;if(Array.isArray(arr))for(const a of arr){const i=(a.idx||a.index)-1;if(i>=0&&i<top.length&&a.score){top[i].s.lite_score=a.score;top[i].s.lite_headline=a.headline||'';u++;}}
+      log(`  AI: ${u}/${top.length}`);
+    }catch(e){log(`  AI failed: ${e.message}`);}
+    ranked.sort((a,b)=>(b.s.lite_score||b.s.briefing_rank)-(a.s.lite_score||a.s.briefing_rank));
   }
-  
-  // 4. FIRST PASS: Score with generic weights
-  let scores = parcels.map(p => scoreParcel(p, null)).filter(Boolean);
-  log(`Scored ${scores.length} parcels (generic weights)`);
-  
-  // 5. BACKTEST: Compute calibration from historical data
-  const calibration = computeCalibration(parcels, scores);
-  if (calibration) {
-    log(`Calibration: base=${(calibration.baseRate*100).toFixed(1)}%, sold=${calibration.sold24}, gap=${calibration.scoreGap > 0 ? '+' : ''}${calibration.scoreGap}`, 'ok');
-    
-    // 6. SECOND PASS: Re-score with calibrated weights
-    scores = parcels.map(p => scoreParcel(p, calibration)).filter(Boolean);
-    
-    const cal2 = computeCalibration(parcels, scores);
-    if (cal2) {
-      log(`After calibration: gap=${cal2.scoreGap > 0 ? '+' : ''}${cal2.scoreGap} (was ${calibration.scoreGap > 0 ? '+' : ''}${calibration.scoreGap})`, 'ok');
-    }
-  } else {
-    log(`No calibration data (< 10 sales in 24mo)`, 'warn');
+
+  // Deep Signal
+  if(!skipAI&&anthropic){
+    const top=ranked.slice(0,10);
+    try{
+      log(`  Deep Signal ${top.length}...`);
+      const d=top.map((r,i)=>`[${i+1}] ${r.p.owner_name} — ${r.p.address}, ${r.p.city||''} ${r.p.state||''}\n  ${r.p.owner_type} | $${(r.p.assessed_value||0).toLocaleString()} | Mail: ${r.p.mailing_address||'?'} ${r.p.mailing_state||''}\n  Tenure: ${r.p.tenure_years!=null?r.p.tenure_years+'yr':'?'} | AI: ${r.s.lite_score||'?'} ${r.s.lite_headline||''}`).join('\n\n');
+      const p=anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:4000,messages:[{role:'user',content:`Seller intelligence brief per prospect. ONLY JSON: [{"idx":1,"motivation":"...","timeline":"...","best_channel":"call|mail|door","call_script":"...","mail_script":"...","door_script":"...","what_not_to_say":"..."}]\n\n${d}`}]});
+      const r=await Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),60000))]);
+      const arr=JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
+      if(Array.isArray(arr)){const rows=[];for(const ds of arr){const i=(ds.idx||ds.index)-1;if(i>=0&&i<top.length)rows.push({parcel_id:top[i].p.id,zip_code:zip,report:ds,motivation:ds.motivation||null,timeline:ds.timeline||null,best_channel:ds.best_channel||null,call_script:ds.call_script||null,mail_script:ds.mail_script||null,door_script:ds.door_script||null,what_not_to_say:ds.what_not_to_say||null,generated_at:new Date().toISOString()});}
+        if(rows.length){const{error}=await supabase.from('deep_signals').upsert(rows,{onConflict:'parcel_id'});if(error)log(`  DS err: ${error.message}`);else log(`  DS: ${rows.length} stored`);}}
+    }catch(e){log(`  DS failed: ${e.message}`);}
   }
-  
-  // 7. RANK and pick candidates for AI scoring
-  const ranked = parcels.map((p, i) => ({ parcel: p, score: scores[i] }))
-    .filter(x => x.score)
-    .sort((a, b) => b.score.briefing_rank - a.score.briefing_rank);
-  
-  const topForLite = ranked.slice(0, CONFIG.liteScoreBatchSize);
-  log(`Top ${topForLite.length} candidates selected for AI Lite scoring`);
-  
-  // 8. STORE parcels + scores in Supabase
-  if (!CONFIG.dryRun) {
-    log(`Writing ${parcels.length} parcels to Supabase...`);
-    
-    // Upsert parcels in batches of 500
-    for (let i = 0; i < parcels.length; i += 500) {
-      const batch = parcels.slice(i, i + 500).map(p => ({
-        ...p,
-        raw_attributes: undefined, // don't store raw for now (save space)
-        fetched_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-      
-      const { error } = await supabase.from('parcels').upsert(batch, { onConflict: 'id' });
-      if (error) log(`Parcel upsert error: ${error.message}`, 'error');
-    }
-    
-    // Upsert scores
-    const scoreRows = ranked.map(r => ({
-      parcel_id: r.parcel.id,
-      zip_code: zip,
-      market_key: market.key,
-      ...r.score,
-      calibrated_rank: r.score.briefing_rank, // same for now, until AI re-scores
-      scored_at: new Date().toISOString(),
-    }));
-    
-    for (let i = 0; i < scoreRows.length; i += 500) {
-      const batch = scoreRows.slice(i, i + 500);
-      const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
-      if (error) log(`Score upsert error: ${error.message}`, 'error');
-    }
-    
-    // Store briefing summary
-    const { error: briefErr } = await supabase.from('zip_briefings').upsert({
-      zip_code: zip,
-      market_key: market.key,
-      market_name: market.name,
-      total_parcels: parcels.length,
-      unique_owners: new Set(parcels.map(p => p.owner_name.toUpperCase())).size,
-      act_today_count: ranked.filter(r => r.score.briefing_rank >= 55).length,
-      outreach_queue_count: ranked.filter(r => r.score.briefing_rank >= 35).length,
-      act_today_ids: ranked.filter(r => r.score.briefing_rank >= 55).slice(0, 15).map(r => r.parcel.id),
-      outreach_queue_ids: ranked.filter(r => r.score.briefing_rank >= 35).slice(0, 50).map(r => r.parcel.id),
-      calibration: calibration || null,
-      computed_at: new Date().toISOString(),
-      computation_time_ms: Date.now() - startTime,
-    }, { onConflict: 'zip_code' });
-    
-    if (briefErr) log(`Briefing upsert error: ${briefErr.message}`, 'error');
-    
-    log(`Stored in Supabase`, 'ok');
-  }
-  
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  log(`Completed ${zip} in ${elapsed}s — ${parcels.length} parcels, top score: ${ranked[0]?.score.briefing_rank || 0}`);
-  
-  return { zip, parcels: parcels.length, elapsed, calibration };
+
+  // Dedup + store
+  const seen=new Set();const uP=parcels.filter(p=>{if(seen.has(p.id))return false;seen.add(p.id);return true;});
+  const seen2=new Set();const uR=ranked.filter(r=>{if(seen2.has(r.p.id))return false;seen2.add(r.p.id);return true;});
+  if(uP.length<parcels.length)log(`  Dedup: ${parcels.length} → ${uP.length}`);
+
+  for(let i=0;i<uP.length;i+=500){const b=uP.slice(i,i+500).map(p=>({id:p.id,zip_code:p.zip_code,market_key:p.market_key,owner_name:p.owner_name,owner_type:p.owner_type,address:p.address,city:p.city,state:p.state,lat:p.lat||null,lng:p.lng||null,assessed_value:p.assessed_value||null,building_value:p.building_value||null,land_value:p.land_value||null,year_built:p.year_built||null,sqft:p.sqft||null,bedrooms:p.bedrooms||null,acres:p.acres||null,subdivision:p.subdivision||null,prop_type:p.prop_type||'Residential',is_vacant_land:!!p.is_vacant_land,is_absentee:!!p.is_absentee,is_out_of_state:!!p.is_out_of_state,owner_state:p.owner_state||null,mailing_address:p.mailing_address||null,mailing_city:p.mailing_city||null,mailing_state:p.mailing_state||null,mailing_zip:p.mailing_zip||null,multi_count:p.multi_count||1,last_transfer_year:p.last_transfer_year||null,last_transfer_date:p.last_transfer_date||null,sale_price:p.sale_price||null,tenure_years:p.tenure_years,fetched_at:new Date().toISOString(),updated_at:new Date().toISOString()}));const{error}=await supabase.from('parcels').upsert(b,{onConflict:'id'});if(error)log(`  Parcel err: ${error.message}`);}
+  for(let i=0;i<uR.length;i+=500){const b=uR.slice(i,i+500).map(r=>({parcel_id:r.p.id,zip_code:zip,market_key:market.key,seller_likelihood:r.s.seller_likelihood,off_market_receptivity:r.s.off_market_receptivity,actionability:r.s.actionability,confidence:r.s.confidence,briefing_rank:r.s.briefing_rank,score_class:r.s.score_class,cohort:r.s.cohort,calibrated_rank:r.s.briefing_rank,lite_score:r.s.lite_score||null,lite_headline:r.s.lite_headline||null,scored_at:new Date().toISOString()}));const{error}=await supabase.from('parcel_scores').upsert(b,{onConflict:'parcel_id'});if(error)log(`  Score err: ${error.message}`);}
+
+  const ac=uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).length;
+  await supabase.from('zip_briefings').upsert({zip_code:zip,market_key:market.key,market_name:market.name,total_parcels:parcels.length,unique_owners:new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,act_today_count:ac,outreach_queue_count:uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).length,act_today_ids:uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).slice(0,15).map(r=>r.p.id),outreach_queue_ids:uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).slice(0,50).map(r=>r.p.id),calibration:calibration||null,computed_at:new Date().toISOString(),computation_time_ms:Date.now()-t0},{onConflict:'zip_code'});
+
+  log(`  DONE: ${uP.length} parcels, ${ac} act today, ${((Date.now()-t0)/1000).toFixed(1)}s\n`);
+  return{zip,parcels:uP.length,actToday:ac};
 }
 
-// =============================================
-// MAIN: Run the batch
-// =============================================
 async function main() {
-  log('SellerSignal Batch Worker starting...');
-  log(`Config: liteSize=${CONFIG.liteScoreBatchSize}, deepSignals=${CONFIG.deepSignalCount}, dryRun=${CONFIG.dryRun}`);
-  
-  // Determine which ZIPs to process
-  let zipsToProcess = [];
-  
-  if (targetZip) {
-    const market = getMarketForZip(targetZip);
-    if (!market) { log(`Unknown ZIP: ${targetZip}`, 'error'); process.exit(1); }
-    zipsToProcess = [{ zip: targetZip, market }];
-  } else if (targetMarket) {
-    const market = MARKETS[targetMarket];
-    if (!market) { log(`Unknown market: ${targetMarket}`, 'error'); process.exit(1); }
-    zipsToProcess = market.zips.map(zip => ({ zip, market }));
-  } else if (runAll) {
-    zipsToProcess = getAllZips().map(z => ({ zip: z.zip, market: MARKETS[z.marketKey] }));
-  } else {
-    log('Usage: node batch/worker.js [--zip 33134] [--market FL_MD] [--all] [--dry-run]');
-    log(`Available markets: ${Object.keys(MARKETS).join(', ')}`);
-    log(`Total ZIPs: ${getAllZips().length}`);
-    process.exit(0);
-  }
-  
-  log(`Processing ${zipsToProcess.length} ZIP codes across ${new Set(zipsToProcess.map(z => z.market.key)).size} markets\n`);
-  
-  // Create batch run record
-  let batchRunId = null;
-  if (!CONFIG.dryRun) {
-    const { data } = await supabase.from('batch_runs').insert({
-      started_at: new Date().toISOString(),
-      status: 'running',
-    }).select('id').single();
-    batchRunId = data?.id;
-  }
-  
-  const results = [];
-  const errors = [];
-  
-  for (const { zip, market } of zipsToProcess) {
-    try {
-      const result = await processZip(zip, market);
-      results.push(result);
-      
-      // Be polite to GIS servers
-      await new Promise(r => setTimeout(r, CONFIG.fetchDelayMs));
-    } catch (err) {
-      log(`FAILED: ${zip} — ${err.message}`, 'error');
-      errors.push({ zip, error: err.message });
-    }
-  }
-  
-  // Update batch run
-  if (!CONFIG.dryRun && batchRunId) {
-    await supabase.from('batch_runs').update({
-      completed_at: new Date().toISOString(),
-      status: errors.length > 0 ? 'completed_with_errors' : 'completed',
-      zips_processed: results.length,
-      parcels_processed: results.reduce((s, r) => s + (r?.parcels || 0), 0),
-      errors: errors.length > 0 ? errors : null,
-    }).eq('id', batchRunId);
-  }
-  
-  // Summary
-  log(`\n${'='.repeat(50)}`);
-  log(`BATCH COMPLETE`);
-  log(`${'='.repeat(50)}`);
-  log(`ZIPs processed: ${results.length}/${zipsToProcess.length}`);
-  log(`Total parcels: ${results.reduce((s, r) => s + (r?.parcels || 0), 0).toLocaleString()}`);
-  if (errors.length) log(`Errors: ${errors.length}`, 'error');
+  if(!supabase){console.error('SUPABASE_URL + SUPABASE_SERVICE_KEY required');process.exit(1);}
+  let zips=[];
+  if(targetZip){const m=getMarketForZip(targetZip);if(!m){console.error('Unknown ZIP');process.exit(1);}zips=[{zip:targetZip,market:m}];}
+  else if(targetMarket){const m=MARKETS[targetMarket];if(!m){console.error('Unknown market. Available: '+Object.keys(MARKETS).join(', '));process.exit(1);}zips=m.zips.map(z=>({zip:z,market:m}));}
+  else zips=getAllZips().map(z=>({zip:z.zip,market:MARKETS[z.marketKey]}));
+
+  log(`SellerSignal Batch — ${zips.length} ZIPs${skipAI?' (no AI)':' (AI + Deep Signal)'}`);
+  const{data:run}=await supabase.from('batch_runs').insert({started_at:new Date().toISOString(),status:'running'}).select('id').single();
+  let tP=0,tA=0,errs=[];
+  for(const{zip,market}of zips){try{const r=await processZip(zip,market);if(r){tP+=r.parcels;tA+=r.actToday;}await new Promise(r=>setTimeout(r,1500));}catch(e){log(`  FAILED: ${zip} — ${e.message}`);errs.push({zip,error:e.message});}}
+  if(run?.id)await supabase.from('batch_runs').update({completed_at:new Date().toISOString(),status:errs.length?'completed_with_errors':'completed',zips_processed:zips.length-errs.length,parcels_processed:tP,errors:errs.length?errs:null}).eq('id',run.id);
+  log(`\n=== DONE: ${zips.length-errs.length}/${zips.length} ZIPs | ${tP.toLocaleString()} parcels | ${tA} act today ===`);
 }
 
-main().catch(err => {
-  log(`Fatal error: ${err.message}`, 'error');
-  console.error(err);
-  process.exit(1);
-});
+main().catch(e=>{console.error('Fatal:',e);process.exit(1);});
