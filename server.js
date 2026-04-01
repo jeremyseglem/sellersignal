@@ -3898,10 +3898,23 @@ app.get('/api/batch/run', async (req, res) => {
         // Rank
         const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
         
+        // Deduplicate parcels by ID (condos/units can share parcel numbers)
+        const seenIds = new Set();
+        const uniqueParcels = [];
+        for (const p of parcels) {
+          if (!seenIds.has(p.id)) { seenIds.add(p.id); uniqueParcels.push(p); }
+        }
+        const uniqueRanked = [];
+        const seenScoreIds = new Set();
+        for (const r of ranked) {
+          if (!seenScoreIds.has(r.p.id)) { seenScoreIds.add(r.p.id); uniqueRanked.push(r); }
+        }
+        if (uniqueParcels.length < parcels.length) send(`  Deduped: ${parcels.length} → ${uniqueParcels.length} unique parcels`);
+        
         // Store parcels — explicitly pick only DB columns
-        send(`  Storing ${parcels.length} parcels...`);
-        for (let i = 0; i < parcels.length; i += 500) {
-          const batch = parcels.slice(i, i+500).map(p => ({
+        send(`  Storing ${uniqueParcels.length} parcels...`);
+        for (let i = 0; i < uniqueParcels.length; i += 500) {
+          const batch = uniqueParcels.slice(i, i+500).map(p => ({
             id: p.id, zip_code: p.zip_code, market_key: p.market_key,
             owner_name: p.owner_name, owner_type: p.owner_type,
             address: p.address, city: p.city, state: p.state,
@@ -3921,13 +3934,13 @@ app.get('/api/batch/run', async (req, res) => {
           }));
           const { error } = await supabase.from('parcels').upsert(batch, { onConflict: 'id' });
           if (error) send(`  ERROR parcels batch ${i}: ${error.message} | ${error.details || ''} | ${error.hint || ''}`);
-          else send(`  Stored parcels ${i+1}-${Math.min(i+500, parcels.length)}`);
+          else send(`  Stored parcels ${i+1}-${Math.min(i+500, uniqueParcels.length)}`);
         }
         
         // Store scores — explicitly pick only DB columns
         send(`  Storing scores...`);
-        for (let i = 0; i < ranked.length; i += 500) {
-          const batch = ranked.slice(i, i+500).map(r => ({
+        for (let i = 0; i < uniqueRanked.length; i += 500) {
+          const batch = uniqueRanked.slice(i, i+500).map(r => ({
             parcel_id: r.p.id, zip_code: zip, market_key: market.key,
             seller_likelihood: r.s.seller_likelihood,
             off_market_receptivity: r.s.off_market_receptivity,
@@ -3941,7 +3954,7 @@ app.get('/api/batch/run', async (req, res) => {
           }));
           const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
           if (error) send(`  ERROR scores batch ${i}: ${error.message} | ${error.details || ''} | ${error.hint || ''}`);
-          else send(`  Stored scores ${i+1}-${Math.min(i+500, ranked.length)}`);
+          else send(`  Stored scores ${i+1}-${Math.min(i+500, uniqueRanked.length)}`);
         }
         
         // Store briefing
