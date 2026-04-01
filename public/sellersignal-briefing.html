@@ -626,8 +626,9 @@ function classifyPropType(a, cfg) {
         const isExempt = rules.exemptRx ? rules.exemptRx.test(val) : false;
         const isCommercial = rules.commercialRx ? rules.commercialRx.test(val) : false;
         const isVacant = rules.vacantRx ? rules.vacantRx.test(val) : false;
+        const isResidential = rules.residentialRx ? rules.residentialRx.test(val) : false;
         const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : val || 'Residential';
-        return { propType, isExempt, isVacant, isCommercial };
+        return { propType, isExempt, isVacant, isCommercial, isResidential };
     }
     
     return { propType: 'Residential', isExempt: false, isVacant: false, isCommercial: false };
@@ -703,7 +704,7 @@ function parseParcel(feature, cfg) {
     
     // === DETECT VACANT FROM VALUES when classification misses ===
     const hasBuilding = buildingValue > 0 || (fm.yearBuilt && a[fm.yearBuilt]) || (fm.livingSpace && parseNumericValue(a[fm.livingSpace]) > 0);
-    const isVacant = ptResult.isVacant || (!hasBuilding && totalValue > 0 && !ptResult.isCommercial && !ptResult.isExempt);
+    const isVacant = ptResult.isVacant || (!hasBuilding && totalValue > 0 && !ptResult.isCommercial && !ptResult.isExempt && !ptResult.isResidential);
     
     // === LAT/LNG ===
     const { lat, lng } = extractLatLng(feature, cfg);
@@ -933,7 +934,7 @@ SOURCES.FL_MIAMI_DADE = {
         id: 'FOLIO', ownerName: ['TRUE_OWNER1', 'TRUE_OWNER2', 'TRUE_OWNER3'], address: 'TRUE_SITE_ADDR',
         situsCity: 'TRUE_SITE_CITY', situsZip: 'TRUE_SITE_ZIP_CODE',
         totalValue: 'ASSESSED_VAL_CUR', buildingValue: null, landValue: null,
-        yearBuilt: 'YEAR_BUILT', subdivision: 'SUBDIVISION',
+        yearBuilt: 'YEAR_BUILT', subdivision: 'SUBDIVISION', livingSpace: 'BUILDING_HEATED_AREA',
         saleDate: 'DOS_1', salePrice: 'PRICE_1',
         mailAddress: 'TRUE_MAILING_ADDR1', mailCity: 'TRUE_MAILING_CITY', mailState: 'TRUE_MAILING_STATE', mailZip: 'TRUE_MAILING_ZIP_CODE'
     },
@@ -941,7 +942,8 @@ SOURCES.FL_MIAMI_DADE = {
         style: 'regex', field: 'DOR_DESC',
         exemptRx: /GOVERNMENT|COUNTY|STATE|FEDERAL|CHURCH|RELIGIOUS|SCHOOL|HOSPITAL|CEMETERY|MUNICIPAL|CITY|MILITARY|PARKS/i,
         commercialRx: /STORE|OFFICE|WAREHOUSE|RESTAURANT|AUTO|HOTEL|MOTEL|SHOPPING|BANK|THEATER|PROFESSIONAL|COMMERCIAL|INDUSTRIAL/i,
-        vacantRx: /^VACANT/i
+        vacantRx: /^VACANT/i,
+        residentialRx: /SINGLE FAMILY|CONDOMINIUM|DUPLEX|TRIPLEX|APARTMENT|TOWNHOUSE|MULTI.?FAMILY|MOBILE HOME|COOPERATIVE|RESIDENTIAL/i
     },
     parse(f) {
         const p = parseParcel(f, this);
@@ -965,6 +967,18 @@ SOURCES.FL_MIAMI_DADE = {
             const zip = String(a.TRUE_SITE_ZIP_CODE).split('-')[0];
             p.cityStateZip = (a.TRUE_SITE_CITY || 'Miami') + ', FL ' + zip;
         }
+        // Estimate building value from available indicators
+        // Miami-Dade doesn't split assessed value, but we have heated area, bedrooms, year built
+        const heatedArea = parseFloat(a.BUILDING_HEATED_AREA) || 0;
+        const bedrooms = parseInt(a.BEDROOM_COUNT) || 0;
+        const yearBuilt = parseInt(a.YEAR_BUILT) || 0;
+        if (!p.buildingValue && p.totalValue > 0 && (heatedArea > 0 || bedrooms > 0 || yearBuilt > 1800)) {
+            // Property has a building — estimate 70% of assessed value is improvements
+            p.buildingValue = Math.round(p.totalValue * 0.7);
+            p.landValue = p.totalValue - p.buildingValue;
+        }
+        if (heatedArea > 0) p.sqft = heatedArea;
+        if (bedrooms > 0) p.bedrooms = bedrooms;
         return p;
     }
 };
@@ -1098,6 +1112,8 @@ function loadCalibration(zipCode) {
         if (!stored) return null;
         const cal = JSON.parse(stored);
         if (!cal || !cal.featureRates || !cal.featureRates['All Properties']) return null;
+        // Invalidate pre-v2 calibration (before vacant land fix)
+        if (!cal.version || cal.version < 2) { localStorage.removeItem('ss_backtest_' + zipCode); return null; }
         
         // Pre-compute lift multipliers
         const baseRate = parseFloat(cal.featureRates['All Properties']);
@@ -4854,6 +4870,7 @@ async function runBacktest() {
     
     // Build calibration data for Lite prompt
     const calibration = {
+        version: 2,
         zipCode: document.getElementById('farmInput')?.value?.trim() || '',
         sampleSize: allScored.length,
         sold24mo: sold24.length,
