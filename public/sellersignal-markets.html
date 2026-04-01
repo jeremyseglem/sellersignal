@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — Claim Your Territory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0a0e13;
+    --bg-card: #0f1419;
+    --bg-elevated: #141b23;
+    --border: rgba(74,222,128,0.08);
+    --border-active: rgba(74,222,128,0.25);
+    --green: #4ade80;
+    --green-dim: rgba(74,222,128,0.08);
+    --green-glow: rgba(74,222,128,0.15);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251,191,36,0.08);
+    --red: #f87171;
+    --text: #e8eaed;
+    --text-secondary: #9ca3af;
+    --text-dim: #4b5563;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'DM Serif Display', serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--mono); min-height:100vh; overflow-x:hidden; }
+
+/* Scan line overlay */
+body::before {
+    content:''; position:fixed; top:0; left:0; right:0; bottom:0; z-index:9999; pointer-events:none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+/* Grid background */
+body::after {
+    content:''; position:fixed; top:0; left:0; right:0; bottom:0; z-index:-1; pointer-events:none;
+    background-image: 
+        linear-gradient(rgba(74,222,128,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(74,222,128,0.015) 1px, transparent 1px);
+    background-size: 60px 60px;
+}
+
+.header {
+    padding:24px 40px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border);
+}
+.logo { font-family:var(--serif); font-size:22px; color:var(--green); letter-spacing:0.02em; }
+.logo span { color:var(--text-dim); font-size:12px; font-family:var(--mono); margin-left:12px; letter-spacing:0.08em; text-transform:uppercase; }
+.header-status { font-size:11px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; }
+.header-status .live { color:var(--green); animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.5} }
+
+.main { display:flex; height:calc(100vh - 73px); }
+
+/* Map area */
+.map-container { flex:1; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.map-title { position:absolute; top:32px; left:40px; z-index:10; }
+.map-title h1 { font-family:var(--serif); font-size:36px; color:var(--text); margin-bottom:4px; }
+.map-title p { font-size:11px; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase; }
+
+/* US Map SVG positioning */
+.us-map { width:85%; max-width:900px; position:relative; }
+
+/* Market dots on the map */
+.market-dot {
+    position:absolute; cursor:pointer; z-index:5; transition:all 0.3s ease;
+}
+.market-dot .dot-ring {
+    width:24px; height:24px; border-radius:50%; border:2px solid var(--green);
+    background:var(--green-dim); position:relative;
+    animation:dotPulse 3s ease-in-out infinite;
+    transition:all 0.2s ease;
+}
+.market-dot:hover .dot-ring { transform:scale(1.3); box-shadow:0 0 20px var(--green-glow); }
+.market-dot .dot-label {
+    position:absolute; top:30px; left:50%; transform:translateX(-50%); white-space:nowrap;
+    font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--green);
+    opacity:0; transition:opacity 0.2s;
+}
+.market-dot:hover .dot-label { opacity:1; }
+.market-dot.active .dot-ring { background:var(--green); box-shadow:0 0 30px var(--green-glow); }
+@keyframes dotPulse { 0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,0.2)}50%{box-shadow:0 0 0 8px rgba(74,222,128,0)} }
+
+/* Side panel */
+.side-panel {
+    width:420px; background:var(--bg-card); border-left:1px solid var(--border);
+    display:flex; flex-direction:column; transition:all 0.3s ease;
+    overflow:hidden;
+}
+.panel-empty { display:flex; align-items:center; justify-content:center; flex:1; text-align:center; padding:40px; }
+.panel-empty h2 { font-family:var(--serif); font-size:20px; margin-bottom:8px; color:var(--text-secondary); }
+.panel-empty p { font-size:11px; color:var(--text-dim); line-height:1.6; }
+
+.panel-header {
+    padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px;
+}
+.panel-header .back-btn {
+    padding:6px 10px; background:transparent; border:1px solid var(--border); border-radius:4px;
+    color:var(--text-dim); font-size:10px; cursor:pointer; font-family:var(--mono); letter-spacing:0.05em;
+    transition:all 0.2s;
+}
+.panel-header .back-btn:hover { border-color:var(--green); color:var(--green); }
+.panel-header h3 { font-family:var(--serif); font-size:18px; flex:1; }
+.panel-header .market-stats { font-size:10px; color:var(--text-dim); letter-spacing:0.08em; }
+
+.zip-list { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+
+.zip-card {
+    padding:14px 16px; background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:6px; display:flex; align-items:center; gap:14px; cursor:pointer;
+    transition:all 0.2s ease;
+}
+.zip-card:hover { border-color:var(--border-active); background:var(--green-dim); }
+.zip-card.claimed { opacity:0.35; cursor:not-allowed; }
+.zip-card.claimed:hover { border-color:var(--border); background:var(--bg-elevated); }
+.zip-card.selected { border-color:var(--green); background:var(--green-dim); }
+
+.zip-code { font-size:16px; font-weight:700; color:var(--green); min-width:52px; }
+.zip-card.claimed .zip-code { color:var(--text-dim); }
+.zip-info { flex:1; }
+.zip-name { font-size:12px; font-weight:500; color:var(--text); margin-bottom:2px; }
+.zip-meta { font-size:10px; color:var(--text-dim); }
+.zip-status { font-size:9px; letter-spacing:0.1em; text-transform:uppercase; padding:3px 8px; border-radius:3px; }
+.zip-status.available { color:var(--green); background:var(--green-dim); }
+.zip-status.claimed { color:var(--red); background:rgba(248,113,113,0.08); }
+.zip-status.selected { color:var(--amber); background:var(--amber-dim); }
+
+/* Cart */
+.cart {
+    border-top:1px solid var(--border); padding:20px 24px; background:var(--bg);
+}
+.cart-summary { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.cart-count { font-size:12px; color:var(--text-secondary); }
+.cart-total { font-size:20px; font-weight:700; color:var(--green); }
+.cart-total span { font-size:11px; color:var(--text-dim); font-weight:400; }
+.claim-btn {
+    width:100%; padding:14px; background:var(--green); color:var(--bg); border:none;
+    border-radius:6px; font-family:var(--mono); font-size:13px; font-weight:600;
+    letter-spacing:0.06em; text-transform:uppercase; cursor:pointer;
+    transition:all 0.2s; opacity:0.3; pointer-events:none;
+}
+.claim-btn.active { opacity:1; pointer-events:auto; }
+.claim-btn.active:hover { background:#86efac; transform:translateY(-1px); box-shadow:0 4px 20px var(--green-glow); }
+
+/* Coordinates display */
+.coords {
+    position:fixed; bottom:16px; left:40px; font-size:10px; color:var(--text-dim);
+    letter-spacing:0.06em; z-index:10;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">SellerSignal <span>Territory Command</span></div>
+    <div class="header-status"><span class="live">●</span> SYSTEM ACTIVE — 9 MARKETS ONLINE</div>
+</div>
+
+<div class="main">
+    <div class="map-container" id="mapContainer">
+        <div class="map-title">
+            <h1>Claim Your Territory</h1>
+            <p>Select a market region to view available ZIP codes — $1,000/month per ZIP · exclusive access</p>
+        </div>
+        
+        <!-- Simple US map with positioned market dots -->
+        <div class="us-map" id="usMap" style="width:850px;height:500px;position:relative">
+            <!-- SVG outline of US as background -->
+            <svg viewBox="0 0 960 600" style="width:100%;height:100%;opacity:0.08" xmlns="http://www.w3.org/2000/svg">
+                <path d="M833 324L830 310 845 304 848 293 842 283 845 270 838 263 835 250 823 238 810 240 800 233 788 235 775 228 763 230 750 218 743 220 738 210 728 213 718 205 708 210 698 203 688 208 678 198 668 203 658 195 648 200 638 190 625 193 615 185 605 190 595 180 585 185 575 175 565 180 555 170 545 175 533 168 523 173 513 168 500 170 490 163 478 168 468 160 458 165 448 158 438 163 425 158 415 163 405 158 393 163 383 158 373 163 363 155 353 160 343 155 330 160 323 153 313 158 303 153 293 158 283 155 273 150 263 155 253 150 243 155 233 148 223 153 213 148 203 153 193 148 185 155 178 150 168 155 158 148 148 153 138 148 128 153 118 148 108 155 100 150 93 155 85 150 78 160 73 155 68 165 78 175 88 170 98 180 93 190 83 195 78 205 88 210 98 215 93 225 103 230 98 240 108 245 103 255 113 260 108 270 118 275 123 285 133 290 128 300 138 305 133 315 143 320 153 315 163 320 173 315 183 320 188 330 198 335 193 345 203 340 213 345 223 340 233 345 243 340 250 350 260 345 270 350 280 345 290 350 300 345 310 350 320 345 330 355 340 350 348 360 358 355 368 360 378 355 388 360 398 365 408 360 418 365 428 370 438 365 448 370 458 375 468 370 478 375 488 370 498 375 508 370 518 375 528 370 538 375 548 370 558 375 568 370 578 375 588 370 598 375 608 370 618 375 628 370 638 375 648 370 658 375 668 370 678 378 688 373 698 378 708 373 718 378 728 373 738 380 748 375 758 380 768 375 778 380 788 375 798 382 808 377 818 382 828 377 833 324Z" fill="none" stroke="var(--green)" stroke-width="1.5"/>
+            </svg>
+            
+            <!-- Market dots positioned on map -->
+            <div class="market-dot" style="left:14%;top:28%" onclick="selectMarket('MT')" id="dot-MT">
+                <div class="dot-ring"></div>
+                <div class="dot-label">Montana</div>
+            </div>
+            <div class="market-dot" style="left:10%;top:38%" onclick="selectMarket('WA_KING')" id="dot-WA_KING">
+                <div class="dot-ring"></div>
+                <div class="dot-label">King County, WA</div>
+            </div>
+            <div class="market-dot" style="left:12%;top:48%" onclick="selectMarket('OR_DESCHUTES')" id="dot-OR_DESCHUTES">
+                <div class="dot-ring"></div>
+                <div class="dot-label">Bend, OR</div>
+            </div>
+            <div class="market-dot" style="left:22%;top:62%" onclick="selectMarket('AZ_MARICOPA')" id="dot-AZ_MARICOPA">
+                <div class="dot-ring"></div>
+                <div class="dot-label">Phoenix / Scottsdale</div>
+            </div>
+            <div class="market-dot" style="left:40%;top:72%" onclick="selectMarket('TX_SA')" id="dot-TX_SA">
+                <div class="dot-ring"></div>
+                <div class="dot-label">San Antonio, TX</div>
+            </div>
+            <div class="market-dot" style="left:70%;top:55%" onclick="selectMarket('NC')" id="dot-NC">
+                <div class="dot-ring"></div>
+                <div class="dot-label">North Carolina</div>
+            </div>
+            <div class="market-dot" style="left:80%;top:30%" onclick="selectMarket('NY')" id="dot-NY">
+                <div class="dot-ring"></div>
+                <div class="dot-label">New York</div>
+            </div>
+            <div class="market-dot" style="left:78%;top:72%" onclick="selectMarket('FL_PB')" id="dot-FL_PB">
+                <div class="dot-ring"></div>
+                <div class="dot-label">Palm Beach, FL</div>
+            </div>
+            <div class="market-dot" style="left:76%;top:78%" onclick="selectMarket('FL_MD')" id="dot-FL_MD">
+                <div class="dot-ring"></div>
+                <div class="dot-label">Miami-Dade, FL</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="side-panel" id="sidePanel">
+        <div class="panel-empty" id="panelEmpty">
+            <div>
+                <h2>Select a Market</h2>
+                <p>Click a region on the map to view<br>available ZIP codes in that market</p>
+                <div style="margin-top:20px;font-size:10px;color:var(--text-dim);letter-spacing:0.08em">
+                    9 MARKETS · 85+ ZIP CODES<br>EXCLUSIVE TERRITORY ACCESS
+                </div>
+            </div>
+        </div>
+        <div id="panelContent" style="display:none;flex:1;display:none;flex-direction:column">
+            <div class="panel-header">
+                <button class="back-btn" onclick="clearMarket()">← BACK</button>
+                <h3 id="marketName"></h3>
+                <div class="market-stats" id="marketStats"></div>
+            </div>
+            <div class="zip-list" id="zipList"></div>
+        </div>
+        <div class="cart" id="cart">
+            <div class="cart-summary">
+                <div class="cart-count" id="cartCount">0 ZIP codes selected</div>
+                <div class="cart-total" id="cartTotal">$0<span>/mo</span></div>
+            </div>
+            <button class="claim-btn" id="claimBtn" onclick="claimTerritories()">Claim Territory</button>
+        </div>
+    </div>
+</div>
+
+<div class="coords" id="coords">46.8797°N 110.3626°W — BOZEMAN, MT</div>
+
+<script>
+// Market data with ZIP codes
+const MARKETS = {
+    MT: { name: 'Montana', coords: '46.8797°N 110.3626°W', zips: [
+        { code:'59718', name:'Bozeman', parcels:595 },
+        { code:'59715', name:'Bozeman S', parcels:480 },
+        { code:'59716', name:'Big Sky', parcels:2155 },
+        { code:'59730', name:'Gallatin Gateway', parcels:320 },
+        { code:'59714', name:'Belgrade', parcels:410 },
+        { code:'59711', name:'Anaconda', parcels:280 },
+    ]},
+    WA_KING: { name: 'King County, WA', coords: '47.6062°N 122.3321°W', zips: [
+        { code:'98112', name:'Capitol Hill', parcels:3200 },
+        { code:'98004', name:'Bellevue', parcels:4100 },
+        { code:'98033', name:'Kirkland', parcels:3800 },
+        { code:'98040', name:'Mercer Island', parcels:2900 },
+        { code:'98039', name:'Medina', parcels:850 },
+        { code:'98074', name:'Sammamish', parcels:4500 },
+        { code:'98103', name:'Fremont', parcels:3600 },
+        { code:'98109', name:'Queen Anne', parcels:2200 },
+        { code:'98105', name:'U District', parcels:2800 },
+        { code:'98199', name:'Magnolia', parcels:2100 },
+    ]},
+    OR_DESCHUTES: { name: 'Bend, OR', coords: '44.0582°N 121.3153°W', zips: [
+        { code:'97701', name:'Bend Central', parcels:2800 },
+        { code:'97702', name:'Bend SW', parcels:3200 },
+        { code:'97703', name:'Bend W / Tumalo', parcels:1800 },
+        { code:'97707', name:'Sunriver', parcels:2400 },
+        { code:'97756', name:'Redmond', parcels:3100 },
+        { code:'97759', name:'Sisters', parcels:1200 },
+    ]},
+    AZ_MARICOPA: { name: 'Phoenix / Scottsdale, AZ', coords: '33.4484°N 111.9431°W', zips: [
+        { code:'85253', name:'Paradise Valley', parcels:4200 },
+        { code:'85254', name:'N Scottsdale', parcels:6800 },
+        { code:'85262', name:'Scottsdale Ranch', parcels:5100 },
+        { code:'85255', name:'DC Ranch', parcels:7200 },
+        { code:'85268', name:'Fountain Hills', parcels:4800 },
+        { code:'85331', name:'Cave Creek', parcels:3900 },
+        { code:'85251', name:'Old Town Scottsdale', parcels:12000 },
+        { code:'85258', name:'S Scottsdale', parcels:5500 },
+        { code:'85260', name:'N Scottsdale', parcels:6200 },
+        { code:'85281', name:'Tempe', parcels:8400 },
+        { code:'85224', name:'Chandler', parcels:7100 },
+        { code:'85295', name:'Gilbert', parcels:6600 },
+        { code:'85206', name:'Mesa', parcels:5800 },
+    ]},
+    TX_SA: { name: 'San Antonio, TX', coords: '29.4241°N 98.4936°W', zips: [
+        { code:'78209', name:'Alamo Heights', parcels:3400 },
+        { code:'78255', name:'Stone Oak', parcels:4200 },
+        { code:'78258', name:'N San Antonio', parcels:5100 },
+        { code:'78230', name:'Medical Center', parcels:3800 },
+    ]},
+    NC: { name: 'North Carolina', coords: '35.2271°N 80.8431°W', zips: [
+        { code:'28202', name:'Uptown Charlotte', parcels:2100 },
+        { code:'28207', name:'Elizabeth', parcels:4533 },
+        { code:'28209', name:'Myers Park', parcels:5200 },
+        { code:'28211', name:'SouthPark', parcels:4800 },
+        { code:'28226', name:'Ballantyne', parcels:6100 },
+        { code:'28277', name:'Ballantyne W', parcels:5400 },
+        { code:'28270', name:'Providence', parcels:4900 },
+        { code:'28105', name:'Matthews', parcels:3600 },
+        { code:'27609', name:'N Raleigh', parcels:4100 },
+        { code:'27615', name:'N Hills', parcels:3800 },
+        { code:'27613', name:'W Raleigh', parcels:4300 },
+        { code:'27517', name:'Chapel Hill', parcels:2900 },
+        { code:'27707', name:'Durham', parcels:3200 },
+        { code:'28803', name:'S Asheville', parcels:2800 },
+        { code:'28804', name:'N Asheville', parcels:2600 },
+        { code:'28401', name:'Wilmington', parcels:3100 },
+    ]},
+    NY: { name: 'New York', coords: '40.7128°N 74.0060°W', zips: [
+        { code:'10021', name:'Upper East Side', parcels:4800 },
+        { code:'10024', name:'Upper West Side', parcels:4200 },
+        { code:'10014', name:'West Village', parcels:2900 },
+        { code:'10013', name:'Tribeca', parcels:2100 },
+        { code:'11201', name:'Brooklyn Heights', parcels:3600 },
+        { code:'10583', name:'Scarsdale', parcels:2800 },
+        { code:'10504', name:'Armonk', parcels:1900 },
+        { code:'11937', name:'East Hampton', parcels:3200 },
+        { code:'11976', name:'Water Mill', parcels:1400 },
+        { code:'12866', name:'Saratoga', parcels:2600 },
+    ]},
+    FL_PB: { name: 'Palm Beach County, FL', coords: '26.7153°N 80.0534°W', zips: [
+        { code:'33480', name:'Palm Beach', parcels:4100 },
+        { code:'33486', name:'Boca Raton', parcels:8343 },
+        { code:'33496', name:'Boca W', parcels:6200 },
+        { code:'33432', name:'Boca E', parcels:4800 },
+        { code:'33433', name:'Boca S', parcels:5100 },
+        { code:'33487', name:'Boca Beach', parcels:3200 },
+        { code:'33458', name:'Jupiter', parcels:5800 },
+        { code:'33408', name:'N Palm Beach', parcels:3400 },
+        { code:'33462', name:'Lantana', parcels:2900 },
+        { code:'33434', name:'W Boca', parcels:4600 },
+    ]},
+    FL_MD: { name: 'Miami-Dade County, FL', coords: '25.7617°N 80.1918°W', zips: [
+        { code:'33139', name:'Miami Beach', parcels:3087 },
+        { code:'33140', name:'N Miami Beach', parcels:2800 },
+        { code:'33131', name:'Brickell', parcels:4200 },
+        { code:'33133', name:'Coconut Grove', parcels:8284 },
+        { code:'33134', name:'Coral Gables', parcels:10206 },
+        { code:'33149', name:'Key Biscayne', parcels:1627 },
+        { code:'33156', name:'Pinecrest', parcels:4800 },
+        { code:'33143', name:'South Miami', parcels:3600 },
+    ]},
+};
+
+// Simulate some claimed ZIPs
+const CLAIMED = new Set(['98004','85253','10021','33480','28209']);
+let selected = new Set();
+let activeMarket = null;
+
+function selectMarket(key) {
+    // Deactivate all dots
+    document.querySelectorAll('.market-dot').forEach(d => d.classList.remove('active'));
+    document.getElementById('dot-' + key)?.classList.add('active');
+    
+    activeMarket = key;
+    const market = MARKETS[key];
+    
+    // Update coords
+    document.getElementById('coords').textContent = market.coords + ' — ' + market.name.toUpperCase();
+    
+    // Show panel
+    document.getElementById('panelEmpty').style.display = 'none';
+    const content = document.getElementById('panelContent');
+    content.style.display = 'flex';
+    
+    document.getElementById('marketName').textContent = market.name;
+    const available = market.zips.filter(z => !CLAIMED.has(z.code)).length;
+    document.getElementById('marketStats').textContent = available + '/' + market.zips.length + ' AVAILABLE';
+    
+    // Render ZIPs
+    const list = document.getElementById('zipList');
+    list.innerHTML = market.zips.map(z => {
+        const isClaimed = CLAIMED.has(z.code);
+        const isSelected = selected.has(z.code);
+        const cls = isClaimed ? 'claimed' : isSelected ? 'selected' : '';
+        const statusCls = isClaimed ? 'claimed' : isSelected ? 'selected' : 'available';
+        const statusText = isClaimed ? 'CLAIMED' : isSelected ? 'SELECTED' : 'AVAILABLE';
+        return `<div class="zip-card ${cls}" onclick="${isClaimed ? '' : 'toggleZip(\'' + z.code + '\')'}" data-zip="${z.code}">
+            <div class="zip-code">${z.code}</div>
+            <div class="zip-info">
+                <div class="zip-name">${z.name}</div>
+                <div class="zip-meta">${z.parcels.toLocaleString()} parcels</div>
+            </div>
+            <div class="zip-status ${statusCls}">${statusText}</div>
+        </div>`;
+    }).join('');
+}
+
+function clearMarket() {
+    activeMarket = null;
+    document.querySelectorAll('.market-dot').forEach(d => d.classList.remove('active'));
+    document.getElementById('panelEmpty').style.display = 'flex';
+    document.getElementById('panelContent').style.display = 'none';
+    document.getElementById('coords').textContent = '46.8797°N 110.3626°W — BOZEMAN, MT';
+}
+
+function toggleZip(code) {
+    if (CLAIMED.has(code)) return;
+    if (selected.has(code)) selected.delete(code);
+    else selected.add(code);
+    
+    // Re-render current market
+    if (activeMarket) selectMarket(activeMarket);
+    updateCart();
+}
+
+function updateCart() {
+    const count = selected.size;
+    document.getElementById('cartCount').textContent = count + ' ZIP code' + (count !== 1 ? 's' : '') + ' selected';
+    document.getElementById('cartTotal').innerHTML = '$' + (count * 1000).toLocaleString() + '<span>/mo</span>';
+    document.getElementById('claimBtn').classList.toggle('active', count > 0);
+}
+
+function claimTerritories() {
+    if (selected.size === 0) return;
+    const zips = Array.from(selected);
+    alert('Claiming ' + zips.length + ' territories: ' + zips.join(', ') + '\n\nTotal: $' + (zips.length * 1000).toLocaleString() + '/month\n\nThis would redirect to Stripe checkout.');
+}
+
+// Init cart
+updateCart();
+</script>
+</body>
+</html>
