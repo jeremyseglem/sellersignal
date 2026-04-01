@@ -3919,7 +3919,7 @@ app.get('/api/batch/run', async (req, res) => {
         const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
         
         // === AI LITE SCORING — one API call for top 50 candidates ===
-        const topForAI = ranked.slice(0, 50);
+        const topForAI = ranked.slice(0, 25);
         if (topForAI.length > 0 && anthropic) {
           try {
             send(`  AI scoring top ${topForAI.length} candidates...`);
@@ -3934,20 +3934,23 @@ app.get('/api/batch/run', async (req, res) => {
             
             const calContext = calibration ? `\nMarket calibration: base rate ${(calibration.baseRate*100).toFixed(1)}%. Trust lift: ${(calibration.lifts['Trusts']||1).toFixed(2)}x. Individual lift: ${(calibration.lifts['Named Individuals']||1).toFixed(2)}x. Absentee lift: ${(calibration.lifts['Absentee Owners']||1).toFixed(2)}x.` : '';
             
-            const aiResp = await anthropic.messages.create({
+            // 60-second timeout on the AI call
+            const aiPromise = anthropic.messages.create({
               model: 'claude-sonnet-4-20250514',
-              max_tokens: 4000,
+              max_tokens: 2000,
               messages: [{ role: 'user', content: `You are a real estate seller intelligence analyst. Score these ${topForAI.length} property owners by TRUE seller likelihood (0-100).${calContext}
 
 For each candidate, respond with ONLY a JSON array — no other text. Each entry: {"idx": 1, "score": 72, "headline": "Estate trust with out-of-state heir — probable transition"}
 
-Focus on: Who is MOST likely to actually sell in the next 6-24 months? Consider owner psychology, not just data patterns. A trust with out-of-state mailing might be an heir managing a deceased parent's estate, or it might be a 30-year estate planning vehicle. Use your judgment.
+Focus on: Who is MOST likely to actually sell in the next 6-24 months? Consider owner psychology, not just data patterns.
 
 CANDIDATES:
 ${candidateDescs}
 
-Respond with ONLY the JSON array. No markdown, no explanation.` }],
+Respond with ONLY the JSON array.` }],
             });
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout after 60s')), 60000));
+            const aiResp = await Promise.race([aiPromise, timeoutPromise]);
             
             const aiText = aiResp.content?.[0]?.text || '';
             try {
