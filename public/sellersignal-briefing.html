@@ -4862,7 +4862,7 @@ async function runBacktest() {
                 let powerLabel, powerColor, powerNote;
                 if (absGap >= 10) { powerLabel = 'Strong'; powerColor = 'var(--green)'; powerNote = 'The model shows meaningful separation between sellers and non-sellers in this market.'; }
                 else if (absGap >= 4) { powerLabel = 'Moderate'; powerColor = 'var(--gold)'; powerNote = 'Some separation between sellers and non-sellers. Model is directionally correct but calibration will improve accuracy.'; }
-                else { powerLabel = 'Low'; powerColor = '#f87171'; powerNote = 'Sold and not-sold properties score similarly. The heuristic features alone don\\'t differentiate sellers in this market — AI scoring and life-event signals carry the weight here.'; }
+                else { powerLabel = 'Low'; powerColor = '#f87171'; powerNote = 'Sold and not-sold properties score similarly. The heuristic features alone do not differentiate sellers in this market — AI scoring and life-event signals carry the weight here.'; }
                 return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
                     <div style="text-align:center;min-width:60px"><div style="font-size:24px;font-weight:800;color:${powerColor}">${gap > 0 ? '+' : ''}${gap}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.05em">SCORE GAP</div></div>
                     <div style="flex:1"><div style="font-size:12px;font-weight:600;color:${powerColor};margin-bottom:2px">Discriminative Power: ${powerLabel}</div><div style="font-size:11px;color:var(--text-dim);line-height:1.4">${powerNote}</div></div>
