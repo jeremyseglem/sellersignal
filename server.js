@@ -3684,15 +3684,37 @@ app.get('/api/batch/run', async (req, res) => {
         if (!market.zipWhere) { send(`  SKIP: ${market.name} needs spatial query (not yet supported in batch)`); continue; }
         const where = market.zipWhere(zip);
         
-        const params = new URLSearchParams({
-          where, outFields: market.fields, returnGeometry: 'true', outSR: '4326',
-          f: 'json', resultRecordCount: String(market.max || 2000),
-        });
+        // Paginated fetch — get ALL parcels, not just first page
+        const PAGE_SIZE = 2000;
+        let allFeatures = [];
+        let offset = 0;
+        let keepFetching = true;
         
         send(`  Fetching from GIS...`);
-        const resp = await fetch(`${market.url}?${params}`, { signal: AbortSignal.timeout(90000) });
-        const data = await resp.json();
-        const features = data.features || [];
+        while (keepFetching) {
+          const params = new URLSearchParams({
+            where, outFields: market.fields, returnGeometry: 'true', outSR: '4326',
+            f: 'json', resultRecordCount: String(PAGE_SIZE), resultOffset: String(offset),
+          });
+          
+          const resp = await fetch(`${market.url}?${params}`, { signal: AbortSignal.timeout(90000) });
+          const data = await resp.json();
+          const features = data.features || [];
+          allFeatures = allFeatures.concat(features);
+          
+          if (features.length < PAGE_SIZE) {
+            keepFetching = false; // got fewer than page size = last page
+          } else {
+            offset += PAGE_SIZE;
+            send(`  ... fetched ${allFeatures.length} so far, getting more...`);
+            await new Promise(r => setTimeout(r, 500)); // be polite between pages
+          }
+          
+          // Safety cap at 20K parcels per ZIP
+          if (allFeatures.length >= 20000) { send(`  Capped at ${allFeatures.length} parcels`); keepFetching = false; }
+        }
+        
+        const features = allFeatures;
         send(`  Got ${features.length} features`);
         
         if (features.length === 0) { send('  SKIP: no parcels'); continue; }
