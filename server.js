@@ -3982,6 +3982,86 @@ Respond with ONLY the JSON array.` }],
           return bScore - aScore;
         });
         
+        // === DEEP SIGNAL — full intelligence on top 10 prospects ===
+        const topForDeep = ranked.slice(0, 10);
+        if (topForDeep.length > 0 && anthropic) {
+          try {
+            send(`  Generating Deep Signals for top ${topForDeep.length}...`);
+            const deepDescs = topForDeep.map((r, i) => {
+              const p = r.p;
+              return `[${i+1}] ${p.owner_name} — ${p.address}, ${p.city||''} ${p.state||''}
+  Owner type: ${p.owner_type} | Value: $${(p.assessed_value||0).toLocaleString()} | Building: $${(p.building_value||0).toLocaleString()}
+  Absentee: ${p.is_absentee?'Yes':'No'} | Out-of-state: ${p.is_out_of_state?'Yes':'No'}${p.mailing_state?' (from '+p.mailing_state+')':''}
+  Mail: ${p.mailing_address||'unknown'}, ${p.mailing_city||''} ${p.mailing_state||''} ${p.mailing_zip||''}
+  Tenure: ${p.tenure_years!=null?p.tenure_years+' years':'unknown'} | Last sale: ${p.last_transfer_date||'unknown'} | Price: $${(p.sale_price||0).toLocaleString()}
+  Multi-property: ${p.multi_count} in ZIP | Subdivision: ${p.subdivision||'none'}
+  AI score: ${r.s.lite_score||'n/a'} | Headline: ${r.s.lite_headline||'n/a'}`;
+            }).join('\n\n');
+            
+            const deepPromise = anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 4000,
+              messages: [{ role: 'user', content: `You are SellerSignal's Deep Signal engine. For each prospect below, generate a detailed seller intelligence brief.
+
+Respond with ONLY a JSON array. Each entry:
+{
+  "idx": 1,
+  "motivation": "Why this owner might sell — infer from data patterns",
+  "timeline": "Estimated timeline (e.g. '3-6 months', '6-12 months', 'uncertain')",
+  "best_channel": "call, mail, or door",
+  "call_script": "2-sentence opening for a phone call",
+  "mail_script": "2-sentence letter opening",
+  "door_script": "2-sentence door knock opening",
+  "what_not_to_say": "One thing to avoid mentioning"
+}
+
+Be specific to each owner's situation. A trust with out-of-state heirs needs different messaging than a long-tenure homeowner. Reference their actual data.
+
+PROSPECTS:
+${deepDescs}
+
+Respond with ONLY the JSON array.` }],
+            });
+            const deepTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Deep Signal timeout')), 60000));
+            const deepResp = await Promise.race([deepPromise, deepTimeout]);
+            
+            const deepText = deepResp.content?.[0]?.text || '';
+            try {
+              const deepSignals = JSON.parse(deepText.replace(/```json|```/g, '').trim());
+              if (Array.isArray(deepSignals)) {
+                const deepRows = [];
+                for (const ds of deepSignals) {
+                  const idx = (ds.idx || ds.index) - 1;
+                  if (idx >= 0 && idx < topForDeep.length) {
+                    deepRows.push({
+                      parcel_id: topForDeep[idx].p.id,
+                      zip_code: zip,
+                      report: ds,
+                      motivation: ds.motivation || null,
+                      timeline: ds.timeline || null,
+                      best_channel: ds.best_channel || null,
+                      call_script: ds.call_script || null,
+                      mail_script: ds.mail_script || null,
+                      door_script: ds.door_script || null,
+                      what_not_to_say: ds.what_not_to_say || null,
+                      generated_at: new Date().toISOString(),
+                    });
+                  }
+                }
+                if (deepRows.length > 0) {
+                  const { error: dsErr } = await supabase.from('deep_signals').upsert(deepRows, { onConflict: 'parcel_id' });
+                  if (dsErr) send(`  Deep Signal store error: ${dsErr.message}`);
+                  else send(`  Deep Signals stored for ${deepRows.length} prospects`);
+                }
+              }
+            } catch(dpErr) {
+              send(`  Deep Signal parse error: ${dpErr.message}`);
+            }
+          } catch(deepErr) {
+            send(`  Deep Signal failed: ${deepErr.message}`);
+          }
+        }
+        
         // Deduplicate parcels by ID (condos/units can share parcel numbers)
         const seenIds = new Set();
         const uniqueParcels = [];
