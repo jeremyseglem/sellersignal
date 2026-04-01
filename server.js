@@ -4150,8 +4150,7 @@ Respond with ONLY the JSON array.` }],
             score_class: r.s.score_class,
             cohort: r.s.cohort,
             calibrated_rank: r.s.briefing_rank,
-            lite_score: r.s.lite_score || null,
-            lite_headline: r.s.lite_headline || null,
+            ...(r.s.lite_score ? { lite_score: r.s.lite_score, lite_headline: r.s.lite_headline || '' } : {}),
             scored_at: new Date().toISOString(),
           }));
           const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
