@@ -3702,12 +3702,17 @@ app.get('/api/batch/run', async (req, res) => {
           const features = data.features || [];
           allFeatures = allFeatures.concat(features);
           
-          if (features.length < PAGE_SIZE) {
-            keepFetching = false; // got fewer than page size = last page
+          // ArcGIS servers cap at their maxRecordCount (often 1000 or 2000)
+          // If exceededTransferLimit is true OR we got a round number like 1000/2000, there's more
+          const serverCapped = data.exceededTransferLimit === true || 
+            (features.length > 0 && features.length >= 1000 && features.length % 1000 === 0);
+          
+          if (features.length === 0 || (!serverCapped && features.length < PAGE_SIZE)) {
+            keepFetching = false;
           } else {
-            offset += PAGE_SIZE;
+            offset += features.length;
             send(`  ... fetched ${allFeatures.length} so far, getting more...`);
-            await new Promise(r => setTimeout(r, 500)); // be polite between pages
+            await new Promise(r => setTimeout(r, 500));
           }
           
           // Safety cap at 20K parcels per ZIP
