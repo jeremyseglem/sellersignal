@@ -52,8 +52,8 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .prospect-main{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 18px;align-items:center}
 .prospect-score{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:2px solid rgba(0,0,0,0.3);flex-shrink:0}
 .prospect-score.high{background:rgba(74,222,128,0.15);color:var(--green);border-color:var(--green-border)}
-.prospect-score.medium{background:var(--yellow-dim);color:var(--yellow);border-color:rgba(251,191,36,0.2)}
-.prospect-score.low{background:var(--red-dim);color:var(--red);border-color:rgba(248,113,113,0.15)}
+.prospect-score.medium{background:var(--gold-dim);color:var(--gold);border-color:var(--gold-border)}
+.prospect-score.low{background:rgba(255,255,255,0.03);color:var(--text-dim);border-color:var(--border)}
 .prospect-info{min-width:0}
 .prospect-addr{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prospect-owner{font-size:12px;color:var(--text-secondary);margin-top:2px}
@@ -123,6 +123,9 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .lead-tag.tag-individual{background:rgba(255,255,255,0.03);color:var(--text-dim);border:1px solid var(--border)}
 .lead-tag.tag-contacted{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue-border)}
 .lead-count{font-size:11px;color:var(--text-dim);margin-bottom:8px;padding-left:2px}
+.search-input{padding:7px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-weight:400;font-family:'Outfit',sans-serif;outline:none;width:220px;transition:border-color 0.2s}
+.search-input:focus{border-color:var(--gold)}
+.search-input::placeholder{color:var(--text-dim)}
 .loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:60px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -162,6 +165,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
     </div>
     <div class="toolbar" id="filterBar">
         <div class="toolbar-left">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search name or address..." oninput="applySearch()">
             <div id="activeFilters" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
         </div>
         <div class="toolbar-right">
@@ -196,7 +200,13 @@ function setLocalContacts(d){try{localStorage.setItem(CC,JSON.stringify(d))}catc
 let allLeads=[],curTab='all',expId=null;
 let activeFilters = new Set();
 let currentSort = 'score-desc';
+let searchQuery = '';
 const dd=new Date();document.getElementById('pageDate').textContent=dd.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+function applySearch(){
+    searchQuery = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+    render();
+}
 
 // Contact accessor — always reads from localStorage (source of truth)
 function gC(){ return getLocalContacts(); }
@@ -442,6 +452,16 @@ function render(){
         });
     }
     
+    // Apply search
+    if (searchQuery) {
+        leads = leads.filter(l => {
+            const name = (l.ownerName || '').toLowerCase();
+            const addr = (l.address || '').toLowerCase();
+            const city = (l.cityStateZip || '').toLowerCase();
+            return name.includes(searchQuery) || addr.includes(searchQuery) || city.includes(searchQuery);
+        });
+    }
+    
     // Apply sort
     leads = sortLeads(leads);
     
@@ -467,7 +487,7 @@ function render(){
     // Lead count
     const countText = `<div class="lead-count">${leads.length} lead${leads.length!==1?'s':''}${activeFilters.size > 0 ? ' (filtered)' : ''}</div>`;
     
-    if(!leads.length){el.innerHTML=fuBanner+countText+`<div class="empty-state"><h2>${curTab==='all'&&activeFilters.size>0?'No leads match filters':'No leads yet'}</h2><p>${curTab==='all'?activeFilters.size>0?'Try removing a filter.':'Run a <a href="sellersignal-briefing.html?resume">Daily Briefing</a> to start.':'Try a different filter.'}</p></div>`;return}
+    if(!leads.length){el.innerHTML=fuBanner+countText+`<div class="empty-state"><h2>${searchQuery?'No matches':'curTab==='all'&&activeFilters.size>0?'No leads match filters':'No leads yet'}</h2><p>${searchQuery?'No leads match "'+searchQuery+'". Try a different search.':curTab==='all'?activeFilters.size>0?'Try removing a filter.':'Run a <a href="sellersignal-briefing.html?resume">Daily Briefing</a> to start.':'Try a different filter.'}</p></div>`;return}
     const contacts=gC();
     el.innerHTML=fuBanner+countText+leads.map(l=>{
         const id=l.id,log=contacts[id]||[],last=log.length?log[log.length-1]:null;

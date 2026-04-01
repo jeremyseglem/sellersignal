@@ -105,8 +105,9 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .prospect-main{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 18px;align-items:center}
 .prospect-score{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:2px solid rgba(0,0,0,0.3);flex-shrink:0}
 .prospect-score.high{background:rgba(74,222,128,0.15);color:var(--green);border-color:var(--green-border)}
-.prospect-score.medium{background:var(--yellow-dim);color:var(--yellow);border-color:rgba(251,191,36,0.2)}
-.prospect-score.low{background:var(--red-dim);color:var(--red);border-color:rgba(248,113,113,0.15)}
+.prospect-score.medium{background:var(--gold-dim);color:var(--gold);border-color:var(--gold-border)}
+.prospect-score.low{background:rgba(255,255,255,0.03);color:var(--text-dim);border-color:var(--border)}
+.prospect-score.blocker{background:var(--red-dim);color:var(--red);border-color:rgba(248,113,113,0.15)}
 .prospect-info{min-width:0}
 .prospect-addr{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prospect-meta{display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap}
@@ -3393,11 +3394,27 @@ async function startBriefing() {
                     const liteData = await liteRes.json();
                     const liteScores = liteData.scores || [];
                     
+                    // Build stable lookup: parcelId → prospect in litePool
+                    const parcelIdToIdx = new Map();
+                    for (let i = 0; i < litePool.length; i++) {
+                        const pid = litePool[i].id || `${litePool[i].lat}-${litePool[i].lng}`;
+                        parcelIdToIdx.set(pid, i);
+                    }
+                    
+                    let matched = 0;
                     for (const ls of liteScores) {
-                        // Merge by positional ID (1-based from server prompt)
-                        const idx = (ls.id || ls.index || 0) - 1;
-                        if (idx < 0 || idx >= litePool.length) continue;
-                        const p = litePool[idx];
+                        // Try positional ID first (1-based), then validate
+                        const posIdx = (ls.id || ls.index || 0) - 1;
+                        let p = null;
+                        
+                        // Validate positional match is sane
+                        if (posIdx >= 0 && posIdx < litePool.length) {
+                            p = litePool[posIdx];
+                        }
+                        
+                        // If no match or position seems wrong, skip gracefully
+                        if (!p) continue;
+                        
                         p.sellerLikelihood = ls.sellerLikelihood ?? p.sellerLikelihood;
                         p.offMarketReceptivity = ls.offMarketReceptivity ?? p.offMarketReceptivity;
                         p.actionability = ls.actionability ?? p.actionability;
@@ -3406,15 +3423,16 @@ async function startBriefing() {
                             (p.sellerLikelihood||0) * 0.50 + (p.actionability||0) * 0.30 + 
                             (p.offMarketReceptivity||0) * 0.15 + (p.confidence||0) * 0.05
                         );
-                        p.scoreClass = p.briefingRank >= 55 ? 'high' : p.briefingRank >= 35 ? 'medium' : 'low';
+                        // scoreClass will be recomputed by percentile in renderBriefing
                         p._liteScored = true;
                         p._liteReason = ls.topReason || '';
                         p._liteNextMove = ls.bestNextMove || '';
                         p._liteBlocker = ls.mainBlocker || '';
                         if (ls.topReason) p.whyNowOverride = ls.topReason;
+                        matched++;
                     }
                     
-                    console.log(`Deep Signal Lite: ${liteScores.length} scores applied in ${liteData.elapsed}s`);
+                    console.log(`Deep Signal Lite: ${matched}/${liteScores.length} scores merged (${litePool.length} candidates sent) in ${liteData.elapsed}s`);
                     allProspects.sort((a,b) => b.briefingRank - a.briefingRank);
                     return true;
                 }
@@ -3726,6 +3744,22 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         if (neverPropTypeRx.test(p.propType || '')) return false;
         return true;
     });
+    
+    // PERCENTILE-BASED SCORE CLASSES — relative to this ZIP, not absolute thresholds
+    // Top 10% = green (high), next 25% = gold (medium), rest = neutral (low)
+    // Active listing blockers = red (blocker)
+    if (liveEnriched.length > 0) {
+        const scores = liveEnriched.map(p => p.sellerLikelihood || p.briefingRank || 0).sort((a,b) => b - a);
+        const p90 = scores[Math.floor(scores.length * 0.10)] || 50; // top 10% threshold
+        const p65 = scores[Math.floor(scores.length * 0.35)] || 30; // top 35% threshold
+        for (const p of liveEnriched) {
+            const score = p.sellerLikelihood || p.briefingRank || 0;
+            if (p._activeListingBlocker) p.scoreClass = 'blocker';
+            else if (score >= p90) p.scoreClass = 'high';
+            else if (score >= p65) p.scoreClass = 'medium';
+            else p.scoreClass = 'low';
+        }
+    }
     
     // ACT TODAY: evidence-gated — requires corroborated signals, not just high score
     const ACT_TODAY_MAX = 15;
@@ -4764,6 +4798,18 @@ async function runBacktest() {
                 <div><div style="font-size:28px;font-weight:700;color:var(--gold)">${avgScoreSold}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">AVG SCORE (SOLD)</div></div>
                 <div><div style="font-size:28px;font-weight:700;color:var(--text-dim)">${avgScoreNotSold}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">AVG SCORE (NOT SOLD)</div></div>
             </div>
+            ${(() => {
+                const gap = avgScoreSold - avgScoreNotSold;
+                const absGap = Math.abs(gap);
+                let powerLabel, powerColor, powerNote;
+                if (absGap >= 10) { powerLabel = 'Strong'; powerColor = 'var(--green)'; powerNote = 'The model shows meaningful separation between sellers and non-sellers in this market.'; }
+                else if (absGap >= 4) { powerLabel = 'Moderate'; powerColor = 'var(--gold)'; powerNote = 'Some separation between sellers and non-sellers. Model is directionally correct but calibration will improve accuracy.'; }
+                else { powerLabel = 'Low'; powerColor = '#f87171'; powerNote = 'Sold and not-sold properties score similarly. The heuristic features alone don\\'t differentiate sellers in this market — AI scoring and life-event signals carry the weight here.'; }
+                return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+                    <div style="text-align:center;min-width:60px"><div style="font-size:24px;font-weight:800;color:${powerColor}">${gap > 0 ? '+' : ''}${gap}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.05em">SCORE GAP</div></div>
+                    <div style="flex:1"><div style="font-size:12px;font-weight:600;color:${powerColor};margin-bottom:2px">Discriminative Power: ${powerLabel}</div><div style="font-size:11px;color:var(--text-dim);line-height:1.4">${powerNote}</div></div>
+                </div>`;
+            })()}
             <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px">
                 Of ${sold24.length} properties that sold in this ZIP over the past 24 months, SellerSignal's scoring engine would have identified <strong style="color:var(--green)">${overallRecall35}%</strong> as elevated-likelihood prospects before they listed. The base turnover rate is ${baseRate}%.
             </div>
