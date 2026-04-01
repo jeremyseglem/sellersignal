@@ -174,7 +174,7 @@ async function processZip(zip, market) {
 
   // Deep Signal
   if(!skipAI&&anthropic){
-    const top=ranked.slice(0,10);
+    const top=ranked.slice(0,5);
     try{
       log(`  Deep Signal ${top.length}...`);
       const d=top.map((r,i)=>`[${i+1}] ${r.p.owner_name} — ${r.p.address}, ${r.p.city||''} ${r.p.state||''}\n  ${r.p.owner_type} | $${(r.p.assessed_value||0).toLocaleString()} | Mail: ${r.p.mailing_address||'?'} ${r.p.mailing_state||''}\n  Tenure: ${r.p.tenure_years!=null?r.p.tenure_years+'yr':'?'} | AI: ${r.s.lite_score||'?'} ${r.s.lite_headline||''}`).join('\n\n');
@@ -185,7 +185,7 @@ Respond with ONLY a JSON array. Each entry:
 
 PROSPECTS:
 ${d}`}]});
-      const r=await Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),60000))]);
+      const r=await Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),120000))]);
       const arr=JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
       if(Array.isArray(arr)){const rows=[];for(const ds of arr){const i=(ds.idx||ds.index)-1;if(i>=0&&i<top.length)rows.push({parcel_id:top[i].p.id,zip_code:zip,report:ds,motivation:ds.motivation||null,timeline:ds.timeline||null,best_channel:ds.best_channel||null,call_script:ds.call_script||null,mail_script:ds.mail_script||null,door_script:ds.door_script||null,what_not_to_say:ds.what_not_to_say||null,generated_at:new Date().toISOString()});}
         if(rows.length){pendingDS=rows;log(`  DS: ${rows.length} generated (storing after parcels)`);}}

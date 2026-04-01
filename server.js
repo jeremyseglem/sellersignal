@@ -4017,7 +4017,7 @@ Respond with ONLY the JSON array.` }],
         });
         
         // === DEEP SIGNAL — full intelligence on top 10 prospects ===
-        const topForDeep = ranked.slice(0, 10);
+        const topForDeep = ranked.slice(0, 5);
         if (topForDeep.length > 0 && anthropic && !skipAI) {
           try {
             send(`  Generating Deep Signals for top ${topForDeep.length}...`);
@@ -4058,7 +4058,7 @@ ${deepDescs}
 
 Respond with ONLY the JSON array.` }],
             });
-            const deepTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Deep Signal timeout')), 90000));
+            const deepTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Deep Signal timeout')), 120000));
             const deepResp = await Promise.race([deepPromise, deepTimeout]);
             
             const deepText = deepResp.content?.[0]?.text || '';
