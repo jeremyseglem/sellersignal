@@ -3063,6 +3063,8 @@ async function startBriefing() {
                             // AI intelligence
                             liteScore: s.lite_score || null,
                             liteHeadline: s.lite_headline || null,
+                            _liteScored: !!s.lite_score,
+                            _liteReason: s.lite_headline || '',
                             signals: (s.signals || []).map(sig => typeof sig === 'string' ? {text:sig,type:'neutral'} : sig),
                             _sourceKey: preData.briefing?.market_key || '',
                             _precomputed: true,
@@ -3074,6 +3076,44 @@ async function startBriefing() {
                     // Show stats and map
                     document.getElementById('briefStats').style.display = '';
                     document.getElementById('briefMap').style.display = '';
+                    
+                    // Map pre-computed deep signals to prospects
+                    const dsMap = new Map();
+                    for (const ds of (preData.deepSignals || [])) {
+                        dsMap.set(ds.parcel_id, ds);
+                    }
+                    for (const p of prospects) {
+                        const ds = dsMap.get(p.id);
+                        if (ds) {
+                            p._batchDeepSignal = ds;
+                            p._deepSignalVerified = true;
+                            p._dsWhyNow = ds.motivation || '';
+                            p._dsTimeframe = ds.timeline || '';
+                            p._dsNextMove = ds.best_channel ? (ds.best_channel === 'call' ? 'Phone call' : ds.best_channel === 'mail' ? 'Letter' : 'Door knock') : '';
+                            p._dsScripts = {
+                                letter: ds.mail_script || '',
+                                phone: ds.call_script || '',
+                                door: ds.door_script || '',
+                                email: ''
+                            };
+                            p._dsAvoid = ds.what_not_to_say || '';
+                            p._deepSignal = {
+                                scoreBasis: ds.motivation || '',
+                                sellerLikelihoodBasis: ds.motivation || '',
+                                timeframe: ds.timeline || '',
+                                bestNextMove: ds.best_channel || '',
+                                scripts: {
+                                    letter: ds.mail_script || '',
+                                    phone: ds.call_script || '',
+                                    door: ds.door_script || '',
+                                    avoid: ds.what_not_to_say || ''
+                                },
+                                signals: [],
+                                redFlags: [],
+                                metrics: {},
+                            };
+                        }
+                    }
                     
                     // Store briefing metadata for stats display
                     window._precomputedBriefing = preData.briefing;
@@ -4415,6 +4455,29 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                             ${p._contradictions && p._contradictions.contradictions.length > 0 ? '<br><span style="color:var(--red)">Contradictions: ' + p._contradictions.contradictions.map(c => c.type).join(', ') + '</span>' : ''}
                         </div>
                         ${!p._deepSignalVerified ? '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Deep Signal upgrading in background...</div>' : ''}
+                    </div>
+                    ` : p._batchDeepSignal ? `
+                    <div style="padding:16px;margin:12px 0;background:rgba(17,25,33,0.5);border-radius:8px;border:1px solid var(--border)">
+                        <div style="display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+                            <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6)"><div style="font-size:22px;font-weight:700;color:${p.sellerLikelihood>=60?'var(--green)':p.sellerLikelihood>=40?'var(--accent)':'var(--text-dim)'}">${p.sellerLikelihood}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">SELL LIKELIHOOD</div></div>
+                            <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.offMarketReceptivity}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">OFF-MARKET FIT</div></div>
+                            <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.actionability}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">ACTIONABILITY</div></div>
+                            <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.confidence}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">CONFIDENCE</div></div>
+                        </div>
+                        ${p.cohort ? `<div style="display:flex;gap:16px;margin-bottom:12px"><div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:3px">COHORT</div><div style="font-size:13px;font-weight:600;color:var(--accent)">${p.cohortLabel || p.cohort}</div></div>${p.lastTransferDate ? `<div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:3px">TRANSFER HISTORY</div><div style="font-size:13px;color:var(--text-secondary)">Last sale: ${p.lastTransferDate}${p.tenureYears ? ' ('+p.tenureYears+'yr ago)' : ''}</div></div>` : ''}${p.totalValue ? `<div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:3px">COUNTY ASSESSED</div><div style="font-size:13px;color:var(--text-secondary)">$${Math.round(p.totalValue/1000)}K assessed</div></div>` : ''}${p.propType ? `<div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:3px">PROPERTY TYPE</div><div style="font-size:13px;color:var(--text-secondary)">${p.propType}</div></div>` : ''}</div>` : ''}
+                        <div style="padding:14px;background:rgba(17,25,33,0.4);border-radius:8px;border:1px solid var(--border);margin-bottom:14px">
+                            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--green);margin-bottom:8px">Why This Owner May Sell</div>
+                            <div style="font-size:13px;color:var(--text-secondary);line-height:1.6">${p._batchDeepSignal.motivation || p._dsWhyNow || 'Scored from parcel evidence'}</div>
+                            ${p._batchDeepSignal.timeline ? `<div style="margin-top:8px;font-size:11px"><span style="color:var(--accent);font-weight:600">Timeline:</span> <span style="color:var(--text-secondary)">${p._batchDeepSignal.timeline}</span></div>` : ''}
+                        </div>
+                        ${p._batchDeepSignal.call_script || p._batchDeepSignal.mail_script || p._batchDeepSignal.door_script ? `
+                        <div style="margin-bottom:14px">
+                            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin-bottom:10px">Recommended Approach${p._batchDeepSignal.best_channel ? ' · ' + (p._batchDeepSignal.best_channel === 'call' ? 'Phone First' : p._batchDeepSignal.best_channel === 'mail' ? 'Letter First' : 'Door Knock First') : ''}</div>
+                            ${p._batchDeepSignal.call_script ? `<div style="padding:10px 14px;background:rgba(74,222,128,0.04);border-left:3px solid rgba(74,222,128,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--green);letter-spacing:0.06em;margin-bottom:4px">PHONE SCRIPT</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${p._batchDeepSignal.call_script}"</div></div>` : ''}
+                            ${p._batchDeepSignal.mail_script ? `<div style="padding:10px 14px;background:rgba(196,168,124,0.04);border-left:3px solid rgba(196,168,124,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--accent);letter-spacing:0.06em;margin-bottom:4px">LETTER OPENING</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${p._batchDeepSignal.mail_script}"</div></div>` : ''}
+                            ${p._batchDeepSignal.door_script ? `<div style="padding:10px 14px;background:rgba(147,197,253,0.04);border-left:3px solid rgba(147,197,253,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:#93c5fd;letter-spacing:0.06em;margin-bottom:4px">DOOR KNOCK</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${p._batchDeepSignal.door_script}"</div></div>` : ''}
+                        </div>` : ''}
+                        ${p._batchDeepSignal.what_not_to_say ? `<div style="padding:10px 14px;background:rgba(248,113,113,0.04);border-left:3px solid rgba(248,113,113,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;margin-bottom:4px">WHAT NOT TO SAY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${p._batchDeepSignal.what_not_to_say}</div></div>` : ''}
                     </div>
                     ` : `
                     <div style="padding:16px;margin:12px 0;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center">
