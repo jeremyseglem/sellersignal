@@ -249,6 +249,17 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='33462';startBriefing()">33462 · Lantana</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='33434';startBriefing()">33434 · W Boca</button>
         </div>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px;margin-top:12px">MIAMI-DADE COUNTY, FL</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33139';startBriefing()">33139 · Miami Beach</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33140';startBriefing()">33140 · N Miami Beach</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33131';startBriefing()">33131 · Brickell</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33133';startBriefing()">33133 · Coconut Grove</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33134';startBriefing()">33134 · Coral Gables</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33149';startBriefing()">33149 · Key Biscayne</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33156';startBriefing()">33156 · Pinecrest</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33143';startBriefing()">33143 · South Miami</button>
+        </div>
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px;margin-top:12px">CHARLOTTE, NC</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='28202';startBriefing()">28202 · Uptown</button>
@@ -907,6 +918,53 @@ SOURCES.FL_PALM_BEACH = {
     parse(f) {
         const p = parseParcel(f, this);
         if (!p.id) p.id = `PB-${(p.address||'').replace(/\s/g,'')}-${(p.ownerName||'').substring(0,10)}`;
+        return p;
+    }
+};
+
+SOURCES.FL_MIAMI_DADE = {
+    key: 'FL_MD', name: 'Miami-Dade County, FL', homeState: 'FL',
+    marketProfile: 'International luxury market with massive foreign ownership. South Beach, Brickell, and Coconut Grove attract Latin American and European buyers who hold properties seasonally or as investment vehicles. Out-of-country mailing addresses are extremely common and indicate international investors who may be motivated by currency fluctuations, political changes in home countries, or portfolio rebalancing. Trust and LLC ownership here often means asset protection structures — many properties are held through complex entity chains. C/O (care-of) in owner name indicates property management, which suggests absentee investment. Strongest signals: long-tenure trust with out-of-state mailing (estate transition), individual owner with 10+ year tenure in appreciating neighborhoods like Coral Gables or Pinecrest (equity harvest candidates), condo units with aging owners. Key Biscayne is ultra-wealthy enclave. Coconut Grove is old-money Miami. Brickell is condo investor territory. Pinecrest/Palmetto Bay are family suburbs. Each sub-market has very different seller psychology.',
+    url: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/PaParcelView_gdb/FeatureServer/0/query',
+    fields: 'TRUE_OWNER1,TRUE_OWNER2,TRUE_OWNER3,TRUE_SITE_ADDR,TRUE_SITE_CITY,TRUE_SITE_ZIP_CODE,TRUE_MAILING_ADDR1,TRUE_MAILING_ADDR2,TRUE_MAILING_ADDR3,TRUE_MAILING_CITY,TRUE_MAILING_STATE,TRUE_MAILING_ZIP_CODE,TRUE_MAILING_COUNTRY,ASSESSED_VAL_CUR,YEAR_BUILT,BEDROOM_COUNT,BATHROOM_COUNT,BUILDING_HEATED_AREA,SUBDIVISION,DOS_1,PRICE_1,DOR_CODE_CUR,DOR_DESC,LOT_SIZE,CONDO_FLAG,FOLIO',
+    max: 2000, bounds: { south: 25.2, north: 26.0, west: -80.9, east: -80.1 },
+    zipWhere: (zip) => `TRUE_SITE_ZIP_CODE LIKE '${zip}%'`,
+    fieldMap: {
+        id: 'FOLIO', ownerName: ['TRUE_OWNER1', 'TRUE_OWNER2', 'TRUE_OWNER3'], address: 'TRUE_SITE_ADDR',
+        situsCity: 'TRUE_SITE_CITY', situsZip: 'TRUE_SITE_ZIP_CODE',
+        totalValue: 'ASSESSED_VAL_CUR', buildingValue: null, landValue: null,
+        yearBuilt: 'YEAR_BUILT', subdivision: 'SUBDIVISION',
+        saleDate: 'DOS_1', salePrice: 'PRICE_1',
+        mailAddress: 'TRUE_MAILING_ADDR1', mailCity: 'TRUE_MAILING_CITY', mailState: 'TRUE_MAILING_STATE', mailZip: 'TRUE_MAILING_ZIP_CODE'
+    },
+    propTypeRules: {
+        style: 'regex', field: 'DOR_DESC',
+        exemptRx: /GOVERNMENT|COUNTY|STATE|FEDERAL|CHURCH|RELIGIOUS|SCHOOL|HOSPITAL|CEMETERY|MUNICIPAL|CITY|MILITARY|PARKS/i,
+        commercialRx: /STORE|OFFICE|WAREHOUSE|RESTAURANT|AUTO|HOTEL|MOTEL|SHOPPING|BANK|THEATER|PROFESSIONAL|COMMERCIAL|INDUSTRIAL/i,
+        vacantRx: /^VACANT/i
+    },
+    parse(f) {
+        const p = parseParcel(f, this);
+        const a = f.attributes || {};
+        if (!p.id) p.id = `MD-${(p.address||'').replace(/\s/g,'')}-${(p.ownerName||'').substring(0,10)}`;
+        // Parse DOS_1 date format (YYYYMMDD string) into year
+        if (a.DOS_1 && !p.lastTransferYear) {
+            const dos = String(a.DOS_1);
+            if (dos.length >= 4) {
+                const yr = parseInt(dos.substring(0, 4));
+                if (yr > 1900 && yr <= new Date().getFullYear()) {
+                    p.lastTransferYear = yr;
+                    p.lastTransferDate = dos.substring(0,4) + '-' + (dos.substring(4,6)||'01') + '-' + (dos.substring(6,8)||'01');
+                }
+            }
+        }
+        // Sale price
+        if (a.PRICE_1 && a.PRICE_1 > 0) p.salePrice = a.PRICE_1;
+        // Clean ZIP suffix
+        if (a.TRUE_SITE_ZIP_CODE) {
+            const zip = String(a.TRUE_SITE_ZIP_CODE).split('-')[0];
+            p.cityStateZip = (a.TRUE_SITE_CITY || 'Miami') + ', FL ' + zip;
+        }
         return p;
     }
 };
