@@ -1089,7 +1089,48 @@ function precomputeStats(parcels) {
     return { p75Value, ownerCounts };
 }
 
-function scoreParcel(p, stats) {
+// ========================
+// BACKTEST CALIBRATION — adjust heuristic weights from observed conversion rates
+// ========================
+function loadCalibration(zipCode) {
+    try {
+        const stored = localStorage.getItem('ss_backtest_' + zipCode);
+        if (!stored) return null;
+        const cal = JSON.parse(stored);
+        if (!cal || !cal.featureRates || !cal.featureRates['All Properties']) return null;
+        
+        // Pre-compute lift multipliers
+        const baseRate = parseFloat(cal.featureRates['All Properties']);
+        if (!baseRate || baseRate <= 0) return null;
+        
+        const lifts = {};
+        for (const [key, rateStr] of Object.entries(cal.featureRates)) {
+            const rate = parseFloat(rateStr);
+            if (!isNaN(rate) && key !== 'All Properties') {
+                lifts[key] = rate / baseRate;
+            }
+        }
+        
+        console.log(`Calibration loaded for ${zipCode}: base=${baseRate}%, lifts=`, lifts);
+        return { baseRate, lifts, raw: cal };
+    } catch(e) { return null; }
+}
+
+function calibrate(defaultBonus, featureKey, cal) {
+    if (!cal || !cal.lifts || !(featureKey in cal.lifts)) return defaultBonus;
+    const lift = cal.lifts[featureKey];
+    
+    if (lift >= 1) {
+        // Above base rate: feature predicts sales — scale bonus up, cap at 3x
+        return Math.round(defaultBonus * Math.min(lift, 3));
+    } else {
+        // Below base rate: feature predicts NON-sales — flip bonus negative
+        // lift=0.5 → -defaultBonus*0.5, lift=0 → -defaultBonus
+        return Math.round(-defaultBonus * (1 - lift));
+    }
+}
+
+function scoreParcel(p, stats, cal) {
     const { p75Value, ownerCounts } = stats;
     const signals = [];
     
@@ -1158,39 +1199,39 @@ function scoreParcel(p, stats) {
     // === OWNERSHIP TRANSITION SIGNALS (strongest) ===
     if (isHeirs) {
         signals.push({text:'Heir/deceased/survivor — likely transition',type:'positive'});
-        sellerLikelihood += 22;
+        sellerLikelihood += calibrate(22, 'Estates / Heirs', cal);
     }
     if (isEstate && !isHeirs) {
         signals.push({text:'Estate ownership — may be in settlement',type:'positive'});
-        sellerLikelihood += 18;
+        sellerLikelihood += calibrate(18, 'Estates / Heirs', cal);
     }
     if (isTrust && isAbsentee) {
         signals.push({text:'Trust + absentee — succession or remote management',type:'positive'});
-        sellerLikelihood += 16;
+        sellerLikelihood += calibrate(16, 'Trusts', cal);
     } else if (isTrust && !isHeirs && !isEstate) {
         signals.push({text:'Trust ownership — possible succession planning',type:'neutral'});
-        sellerLikelihood += 8; // trust alone is moderate, not strong
+        sellerLikelihood += calibrate(8, 'Trusts', cal); // trust alone is moderate, not strong
     }
     
     // === ABSENTEE + DISTANCE (moderate-strong when combined) ===
     if (isAbsentee && isOutOfState) {
         signals.push({text:`Out-of-state absentee (${p.ownerState}) — distance creates friction`,type:'positive'});
-        sellerLikelihood += 14;
+        sellerLikelihood += calibrate(14, 'Out-of-State', cal);
     } else if (isOutOfState) {
         signals.push({text:`Out-of-state owner (${p.ownerState})`,type:'positive'});
-        sellerLikelihood += 8;
+        sellerLikelihood += calibrate(8, 'Out-of-State', cal);
     } else if (isAbsentee) {
         signals.push({text:'Absentee owner — not occupying property',type:'neutral'});
-        sellerLikelihood += 6;
+        sellerLikelihood += calibrate(6, 'Absentee Owners', cal);
     }
     
     // === UTILIZATION / BURDEN SIGNALS ===
     if (isVacant && isAbsentee) {
         signals.push({text:'Vacant land + absentee — carrying cost with no use',type:'positive'});
-        sellerLikelihood += 12;
+        sellerLikelihood += calibrate(12, 'Vacant Land', cal);
     } else if (isVacant) {
         signals.push({text:'Vacant land — carrying costs with no income',type:'neutral'});
-        sellerLikelihood += 6;
+        sellerLikelihood += calibrate(6, 'Vacant Land', cal);
     }
     if (landHeavy && !isVacant) {
         signals.push({text:'Land value exceeds building — possible teardown/redevelopment candidate',type:'neutral'});
@@ -1225,6 +1266,20 @@ function scoreParcel(p, stats) {
     }
     // If no tenure data (Montana), reduce confidence slightly later
     
+    // === CALIBRATED TENURE BONUSES — from backtest data ===
+    if (cal && p.tenureYears !== undefined && p.tenureYears !== null && p.tenureYears > 3) {
+        let tenureBucket = null;
+        if (p.tenureYears <= 10) tenureBucket = 'Tenure 3-10yr';
+        else if (p.tenureYears <= 20) tenureBucket = 'Tenure 10-20yr';
+        else tenureBucket = 'Tenure 20yr+';
+        
+        const bonus = calibrate(10, tenureBucket, cal);
+        if (bonus !== 10) { // only apply if calibration actually changed it
+            sellerLikelihood += bonus;
+            if (bonus > 5) signals.push({text:`${tenureBucket.replace('Tenure ','')} tenure — above-average seller rate in this market`,type:'positive'});
+        }
+    }
+    
     // === DAMPENERS (critical — these prevent false positives) ===
     if (isOperational) {
         signals.push({text:'Active agricultural operation — lower sell probability',type:'negative'});
@@ -1239,14 +1294,16 @@ function scoreParcel(p, stats) {
     }
     // LLC alone without other signals — weak
     if (isLLC && !isTrust && !isEstate && !isHeirs && !isAbsentee && !isOutOfState && multiCount <= 1) {
-        sellerLikelihood -= 5; // just an LLC, no disposition signal
+        // If LLCs sell above base rate in this market, reduce penalty
+        const llcLift = cal?.lifts?.['LLCs / Corps'] || 1;
+        sellerLikelihood -= llcLift >= 1.2 ? 0 : llcLift >= 0.8 ? 3 : 5;
     }
     
     // === HOMEOWNER BALANCING (temporary — until tenure data available) ===
     // Named individual with usable contact path gets a small boost
     const isNamedIndividual = hasCleanOwnerName && !isLLC && !isTrust && !isEstate && !isHeirs && !isRanch;
     if (isNamedIndividual && hasMailingAddr) {
-        sellerLikelihood += 4;
+        sellerLikelihood += calibrate(4, 'Named Individuals', cal);
     }
     // Anonymous entity with no human path gets additional penalty
     if (isCorporateOpaque && !hasMailingAddr) {
@@ -2861,8 +2918,10 @@ async function startBriefingFromBounds(south, west, north, east, label) {
         
         setStatus(`Filtering ${parcels.length.toLocaleString()} properties...`);
         const stats = precomputeStats(parcels);
+        const cal = loadCalibration((document.getElementById('farmInput')?.value || '').trim());
+        if (cal) console.log(`Using calibrated weights for this ZIP (base rate: ${cal.baseRate}%)`);
         const prefiltered = parcels.map(p => {
-            const result = scoreParcel(p, stats);
+            const result = scoreParcel(p, stats, cal);
             return { ...p, ...result, signals: [...result.signals] };
         }).filter(p => p.briefingRank >= 15 && p.address && p.address.length > 3)
           .sort((a,b) => b.briefingRank - a.briefingRank); // SORT before slicing — best heuristic candidates first
@@ -3100,10 +3159,12 @@ async function startBriefing() {
         // STAGE 2: Heuristic PREFILTER (instant) — cheap filter to narrow field, NOT the judge
         setStatus(`Filtering ${parcels.length.toLocaleString()} properties...`);
         const stats = precomputeStats(parcels);
+        const cal = loadCalibration((document.getElementById('farmInput')?.value || '').trim());
+        if (cal) console.log(`Using calibrated weights for this ZIP (base rate: ${cal.baseRate}%)`);
         
         // Score ALL parcels (used for backtest analysis)
         const allScored = parcels.map(p => {
-            const result = scoreParcel(p, stats);
+            const result = scoreParcel(p, stats, cal);
             return { ...p, ...result, signals: [...result.signals] };
         });
         window._allScoredParcels = allScored; // Save for backtest
