@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "batch": "node batch/worker.js --all",
+    "batch:zip": "node batch/worker.js --zip",
+    "batch:market": "node batch/worker.js --market",
+    "batch:dry": "node batch/worker.js --all --dry-run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

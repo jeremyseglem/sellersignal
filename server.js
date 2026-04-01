@@ -3505,6 +3505,120 @@ app.get('/api/health', (req, res) => {
 });
 
 // ===================
+// BATCH PIPELINE API — serves pre-computed briefings from Supabase
+// ===================
+
+// GET /api/briefing/:zip — pre-computed briefing for a ZIP
+app.get('/api/briefing/:zip', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+  
+  const { zip } = req.params;
+  
+  // Get briefing summary
+  const { data: briefing, error: bErr } = await supabase
+    .from('zip_briefings')
+    .select('*')
+    .eq('zip_code', zip)
+    .single();
+  
+  if (bErr || !briefing) return res.status(404).json({ error: 'No briefing found for this ZIP. It may not have been processed yet.' });
+  
+  // Get top scored parcels with their scores
+  const { data: topParcels, error: pErr } = await supabase
+    .from('parcel_scores')
+    .select('*, parcels(*)')
+    .eq('zip_code', zip)
+    .order('briefing_rank', { ascending: false })
+    .limit(100);
+  
+  // Get deep signals for act-today parcels
+  const { data: deepSignals } = await supabase
+    .from('deep_signals')
+    .select('*')
+    .eq('zip_code', zip);
+  
+  res.json({
+    briefing,
+    parcels: topParcels || [],
+    deepSignals: deepSignals || [],
+    cached: true,
+    computedAt: briefing.computed_at,
+  });
+});
+
+// GET /api/parcels/:zip — all parcels for a ZIP with scores
+app.get('/api/parcels/:zip', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+  
+  const { zip } = req.params;
+  const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
+  const offset = parseInt(req.query.offset) || 0;
+  const minScore = parseInt(req.query.minScore) || 0;
+  
+  const { data, error, count } = await supabase
+    .from('parcel_scores')
+    .select('*, parcels(*)', { count: 'exact' })
+    .eq('zip_code', zip)
+    .gte('briefing_rank', minScore)
+    .order('briefing_rank', { ascending: false })
+    .range(offset, offset + limit - 1);
+  
+  if (error) return res.status(500).json({ error: error.message });
+  
+  res.json({ parcels: data || [], total: count, limit, offset });
+});
+
+// GET /api/deep-signal/:parcelId — pre-computed deep signal report
+app.get('/api/deep-signal/:parcelId', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+  
+  const { data, error } = await supabase
+    .from('deep_signals')
+    .select('*')
+    .eq('parcel_id', req.params.parcelId)
+    .single();
+  
+  if (error || !data) return res.status(404).json({ error: 'No deep signal found for this parcel' });
+  res.json(data);
+});
+
+// GET /api/markets — list all available markets and ZIP codes
+app.get('/api/markets', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+  
+  // Get all briefings to show which ZIPs are processed
+  const { data: briefings } = await supabase
+    .from('zip_briefings')
+    .select('zip_code, market_key, market_name, total_parcels, act_today_count, computed_at');
+  
+  // Get all territory claims
+  const { data: claims } = await supabase
+    .from('territory_claims')
+    .select('zip_code, status');
+  
+  const claimedZips = new Set((claims || []).filter(c => c.status === 'active').map(c => c.zip_code));
+  
+  res.json({
+    briefings: (briefings || []).map(b => ({
+      ...b,
+      claimed: claimedZips.has(b.zip_code),
+    })),
+  });
+});
+
+// POST /api/batch/trigger — trigger batch processing for a ZIP (admin/internal)
+app.post('/api/batch/trigger', async (req, res) => {
+  const { zip, market } = req.body;
+  
+  // In production this would spawn the batch worker as a background job
+  // For now, return instructions
+  res.json({ 
+    message: `To process ${zip || market || 'all'}, run: node batch/worker.js ${zip ? '--zip ' + zip : market ? '--market ' + market : '--all'}`,
+    note: 'Batch processing runs as a separate worker process, not in the web server.'
+  });
+});
+
+// ===================
 // STATIC FILES
 // ===================
 app.get('/', (req, res) => res.sendFile('index.html', { root: './public' }));
