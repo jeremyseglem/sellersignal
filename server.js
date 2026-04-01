@@ -3609,13 +3609,345 @@ app.get('/api/markets', async (req, res) => {
 // POST /api/batch/trigger — trigger batch processing for a ZIP (admin/internal)
 app.post('/api/batch/trigger', async (req, res) => {
   const { zip, market } = req.body;
-  
-  // In production this would spawn the batch worker as a background job
-  // For now, return instructions
   res.json({ 
     message: `To process ${zip || market || 'all'}, run: node batch/worker.js ${zip ? '--zip ' + zip : market ? '--market ' + market : '--all'}`,
-    note: 'Batch processing runs as a separate worker process, not in the web server.'
   });
+});
+
+// GET /api/batch/run — run batch inline via browser URL
+// Usage: sellersignal.co/api/batch/run?zip=28207&key=ss_batch_2026
+app.get('/api/batch/run', async (req, res) => {
+  const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
+  if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid batch key' });
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  
+  const targetZip = req.query.zip;
+  const targetMarket = req.query.market;
+  
+  // Set long timeout for streaming response
+  req.setTimeout(300000);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  
+  function send(msg) { res.write(msg + '\n'); }
+  
+  try {
+    const { MARKETS, getAllZips, getMarketForZip } = require('./batch/markets');
+    
+    // Determine ZIPs to process
+    let zips = [];
+    if (targetZip) {
+      const m = getMarketForZip(targetZip);
+      if (!m) { send('ERROR: Unknown ZIP ' + targetZip); return res.end(); }
+      zips = [{ zip: targetZip, market: m }];
+    } else if (targetMarket) {
+      const m = MARKETS[targetMarket];
+      if (!m) { send('ERROR: Unknown market ' + targetMarket); return res.end(); }
+      zips = m.zips.map(z => ({ zip: z, market: m }));
+    } else {
+      zips = getAllZips().map(z => ({ zip: z.zip, market: MARKETS[z.marketKey] }));
+    }
+    
+    send(`SellerSignal Batch — processing ${zips.length} ZIP(s)\n`);
+    
+    // Create batch run record
+    const { data: batchRun } = await supabase.from('batch_runs').insert({
+      started_at: new Date().toISOString(), status: 'running'
+    }).select('id').single();
+    
+    let totalParcels = 0, errors = [];
+    
+    for (const { zip, market } of zips) {
+      try {
+        send(`--- ${zip} (${market.name}) ---`);
+        
+        // Build WHERE clause
+        let where;
+        if (market.key === 'FL_MD') where = `TRUE_SITE_ZIP_CODE LIKE '${zip}%'`;
+        else if (market.key === 'FL_PB') where = `ZIP1='${zip}'`;
+        else if (market.key === 'NC') where = `szip='${zip}'`;
+        else if (market.key === 'WA_KING') where = `ZIPCODE='${zip}'`;
+        else if (market.key === 'OR_DESCHUTES') where = `SitusZip='${zip}'`;
+        else if (market.key === 'AZ_MARICOPA') where = `ZIP_CODE='${zip}'`;
+        else if (market.key === 'TX_SA') where = `situs_zip='${zip}'`;
+        else where = `1=1`;
+        
+        const params = new URLSearchParams({
+          where, outFields: market.fields, returnGeometry: 'true', outSR: '4326',
+          f: 'json', resultRecordCount: String(market.max || 2000),
+        });
+        
+        send(`  Fetching from GIS...`);
+        const resp = await fetch(`${market.url}?${params}`, { signal: AbortSignal.timeout(45000) });
+        const data = await resp.json();
+        const features = data.features || [];
+        send(`  Got ${features.length} features`);
+        
+        if (features.length === 0) { send('  SKIP: no parcels'); continue; }
+        
+        // Parse parcels (simplified inline parser)
+        const parcels = [];
+        for (const f of features) {
+          const a = f.attributes || {};
+          const fm = market.fieldMap;
+          
+          function getVal(fd) {
+            if (!fd) return null;
+            if (Array.isArray(fd)) { for (const ff of fd) { const v = a[ff]; if (v) return v; } return null; }
+            return a[fd] ?? null;
+          }
+          function getStr(fd) { const v = getVal(fd); return v ? String(v).trim() : ''; }
+          function getNum(fd) { const v = getVal(fd); return v ? parseFloat(v) || 0 : 0; }
+          
+          let ownerName = Array.isArray(fm.ownerName)
+            ? fm.ownerName.map(ff => (a[ff]||'').toString().trim()).filter(Boolean).join(' ')
+            : getStr(fm.ownerName);
+          
+          if (!ownerName || ownerName.length < 3) continue;
+          const address = getStr(fm.address);
+          if (!address || address.length < 3) continue;
+          
+          const on = ownerName.toUpperCase();
+          const govRx = /\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bSCHOOL DIST|\bCHURCH\b|\bHOA\b|\bCONDO\s*ASSOC/i;
+          if (govRx.test(on)) continue;
+          
+          let ownerType = 'individual';
+          if (/\bTRUST\b|\bTRSTEE?\b/.test(on)) ownerType = 'trust';
+          else if (/\bESTATE\b|\bHEIRS?\b|\bDECEASED\b/.test(on)) ownerType = 'estate';
+          else if (/\bLLC\b|\bCORP\b|\bINC\b|\bLTD\b|\bLP\b|\bPARTNERSHIP\b|\bHOLDINGS?\b|\bGROUP\b|\bPROPERTIES\b|\bINVESTMENTS?\b|\bMANAGEMENT\b|\bREALTY\b/.test(on)) ownerType = 'llc_corp';
+          
+          const totalValue = getNum(fm.totalValue) || (getNum(fm.landValue) + getNum(fm.buildingValue));
+          let buildingValue = getNum(fm.buildingValue);
+          const landValue = getNum(fm.landValue);
+          const yearBuilt = parseInt(getVal(fm.yearBuilt)) || 0;
+          const sqft = parseInt(getVal(fm.livingSpace)) || 0;
+          
+          // Estimate building value if missing but building indicators exist
+          if (!buildingValue && totalValue > 0 && (yearBuilt > 1800 || sqft > 0)) {
+            buildingValue = Math.round(totalValue * 0.7);
+          }
+          
+          const hasBuilding = buildingValue > 0 || yearBuilt > 1800 || sqft > 0;
+          const isVacantLand = !hasBuilding && totalValue > 0;
+          
+          const mailAddr = getStr(fm.mailAddress);
+          const mailState = getStr(fm.mailState);
+          const situsNorm = address.toLowerCase().replace(/\s+/g,'');
+          const mailNorm = mailAddr.toLowerCase().replace(/\s+/g,'');
+          const isAbsentee = !!(mailAddr && address && situsNorm.length > 5 && !mailNorm.includes(situsNorm.substring(0, Math.min(10, situsNorm.length))));
+          const isOutOfState = !!(mailState && mailState.toUpperCase() !== market.homeState);
+          
+          // Tenure
+          let lastTransferYear = null, lastTransferDate = null, salePrice = 0;
+          const rawDate = getVal(fm.saleDate);
+          if (rawDate) {
+            const sd = String(rawDate);
+            if (/^\d{8}$/.test(sd)) { lastTransferYear = parseInt(sd.substring(0,4)); lastTransferDate = sd.substring(0,4)+'-'+sd.substring(4,6)+'-'+sd.substring(6,8); }
+            else if (/^\d{10,13}$/.test(sd)) { const d = new Date(parseInt(sd.length>10?sd:sd+'000')); if(d.getFullYear()>1900){lastTransferYear=d.getFullYear();lastTransferDate=d.toISOString().substring(0,10);} }
+            else { const d = new Date(sd); if(!isNaN(d)&&d.getFullYear()>1900){lastTransferYear=d.getFullYear();lastTransferDate=d.toISOString().substring(0,10);} }
+          }
+          salePrice = getNum(fm.salePrice);
+          const tenureYears = lastTransferYear ? new Date().getFullYear() - lastTransferYear : null;
+          
+          let lat = 0, lng = 0;
+          if (f.geometry) {
+            if (f.geometry.x) { lng = f.geometry.x; lat = f.geometry.y; }
+            else if (f.geometry.rings && f.geometry.rings[0]) {
+              const ring = f.geometry.rings[0];
+              lat = ring.reduce((s,p)=>s+p[1],0)/ring.length;
+              lng = ring.reduce((s,p)=>s+p[0],0)/ring.length;
+            }
+          }
+          
+          const id = `${market.key}-${getStr(fm.id) || address.replace(/\s/g,'')}`;
+          
+          parcels.push({
+            id, zip_code: zip, market_key: market.key,
+            owner_name: ownerName, owner_type: ownerType,
+            address, city: getStr(fm.situsCity), state: market.homeState,
+            lat, lng,
+            assessed_value: Math.round(totalValue), building_value: Math.round(buildingValue), land_value: Math.round(landValue),
+            year_built: yearBuilt || null, sqft: sqft || null, acres: null,
+            subdivision: getStr(fm.subdivision),
+            prop_type: isVacantLand ? 'Vacant Land' : 'Residential',
+            is_vacant_land: isVacantLand, is_absentee: isAbsentee, is_out_of_state: isOutOfState,
+            owner_state: mailState || null,
+            mailing_address: mailAddr || null, mailing_city: getStr(fm.mailCity), mailing_state: mailState || null, mailing_zip: getStr(fm.mailZip),
+            multi_count: 1,
+            last_transfer_year: lastTransferYear, last_transfer_date: lastTransferDate,
+            sale_price: salePrice || null, tenure_years: tenureYears,
+          });
+        }
+        
+        send(`  Parsed ${parcels.length} valid parcels`);
+        
+        // Multi-property counts
+        const ownerCounts = {};
+        for (const p of parcels) { const k = p.owner_name.toUpperCase().trim(); ownerCounts[k] = (ownerCounts[k]||0)+1; }
+        for (const p of parcels) { p.multi_count = ownerCounts[p.owner_name.toUpperCase().trim()] || 1; }
+        
+        // Score all parcels
+        function cal(defaultBonus, featureKey, calibration) {
+          if (!calibration || !calibration.lifts || !(featureKey in calibration.lifts)) return defaultBonus;
+          const lift = calibration.lifts[featureKey];
+          return lift >= 1 ? Math.round(defaultBonus * Math.min(lift, 3)) : Math.round(-defaultBonus * (1 - lift));
+        }
+        
+        function scoreP(p, calibration) {
+          let sl = 20;
+          if (p.owner_type==='estate') sl += cal(20,'Estates / Heirs',calibration);
+          if (p.owner_type==='trust' && p.is_absentee) sl += cal(16,'Trusts',calibration);
+          else if (p.owner_type==='trust') sl += cal(8,'Trusts',calibration);
+          if (p.is_absentee && p.is_out_of_state) sl += cal(14,'Out-of-State',calibration);
+          else if (p.is_out_of_state) sl += cal(8,'Out-of-State',calibration);
+          else if (p.is_absentee) sl += cal(6,'Absentee Owners',calibration);
+          if (p.is_vacant_land) sl += cal(6,'Vacant Land',calibration);
+          if (p.owner_type==='individual' && p.mailing_address) sl += cal(4,'Named Individuals',calibration);
+          if (p.tenure_years !== null) {
+            if (p.tenure_years <= 1) sl -= 15;
+            else if (p.tenure_years <= 2) sl -= 10;
+            else if (p.tenure_years <= 3) sl -= 5;
+            else if (p.tenure_years <= 10) sl += cal(10,'Tenure 3-10yr',calibration);
+            else if (p.tenure_years <= 20) sl += cal(8,'Tenure 10-20yr',calibration);
+            else sl += cal(6,'Tenure 20yr+',calibration);
+          }
+          if (p.owner_type==='llc_corp' && !p.is_absentee) sl -= 5;
+          if (p.is_vacant_land && !p.tenure_years) sl -= 6;
+          sl = Math.max(0, Math.min(100, sl));
+          
+          let act = 25, omr = 20, conf = 30;
+          const hasName = (p.owner_name||'').length > 3, hasMail = (p.mailing_address||'').length > 5;
+          if (hasName && hasMail) act += 15; else if (hasName) act += 8;
+          if (p.owner_type==='individual' && hasName) act += 12;
+          if (p.owner_type==='trust'||p.owner_type==='estate') omr += 12;
+          if (p.is_absentee) omr += 10;
+          if (p.assessed_value > 750000) omr += 10;
+          if (hasName) conf += 10; if (hasMail) conf += 8; if (p.assessed_value>0) conf += 6; if (p.tenure_years!==null) conf += 10;
+          act = Math.max(0,Math.min(100,act)); omr = Math.max(0,Math.min(100,omr)); conf = Math.max(0,Math.min(100,conf));
+          
+          const briefing_rank = Math.round(sl*0.50 + act*0.30 + omr*0.15 + conf*0.05);
+          let cohort = 'residential';
+          if (p.owner_type==='estate') cohort='estate'; else if (p.owner_type==='trust') cohort='trust';
+          else if (p.owner_type==='llc_corp') cohort='investor'; else if (p.is_absentee) cohort='absentee';
+          
+          return { seller_likelihood:sl, off_market_receptivity:omr, actionability:act, confidence:conf,
+            briefing_rank, score_class: briefing_rank>=55?'high':briefing_rank>=35?'medium':'low', cohort };
+        }
+        
+        // First pass: generic weights
+        let scores = parcels.map(p => scoreP(p, null));
+        
+        // Backtest calibration
+        const cutoff24 = new Date(); cutoff24.setFullYear(cutoff24.getFullYear()-2);
+        const scored = parcels.map((p,i) => ({...p, ...scores[i]}));
+        const sold24 = scored.filter(p => p.last_transfer_date && new Date(p.last_transfer_date) >= cutoff24 && (p.sale_price > 10000 || !p.sale_price));
+        
+        let calibration = null;
+        if (sold24.length >= 10) {
+          const baseRate = sold24.length / scored.length;
+          function fRate(fn) { const pool = scored.filter(fn); const s = sold24.filter(fn); return pool.length>0 ? s.length/pool.length : 0; }
+          const rates = {
+            'All Properties': baseRate,
+            'Trusts': fRate(p=>p.owner_type==='trust'), 'Estates / Heirs': fRate(p=>p.owner_type==='estate'),
+            'LLCs / Corps': fRate(p=>p.owner_type==='llc_corp'), 'Absentee Owners': fRate(p=>p.is_absentee),
+            'Out-of-State': fRate(p=>p.is_out_of_state), 'Vacant Land': fRate(p=>p.is_vacant_land),
+            'Named Individuals': fRate(p=>p.owner_type==='individual'),
+          };
+          const withTenure = scored.filter(p=>p.tenure_years!==null);
+          if (withTenure.length > scored.length*0.3) {
+            rates['Tenure 0-3yr'] = fRate(p=>p.tenure_years!==null&&p.tenure_years<=3);
+            rates['Tenure 3-10yr'] = fRate(p=>p.tenure_years!==null&&p.tenure_years>3&&p.tenure_years<=10);
+            rates['Tenure 10-20yr'] = fRate(p=>p.tenure_years!==null&&p.tenure_years>10&&p.tenure_years<=20);
+            rates['Tenure 20yr+'] = fRate(p=>p.tenure_years!==null&&p.tenure_years>20);
+          }
+          const lifts = {};
+          for (const [k,r] of Object.entries(rates)) { if (k!=='All Properties' && baseRate>0) lifts[k] = r/baseRate; }
+          calibration = { baseRate, lifts, rates, sold24: sold24.length, total: scored.length };
+          
+          const gap1 = Math.round(sold24.reduce((s,p)=>s+p.briefing_rank,0)/sold24.length - scored.filter(p=>!sold24.includes(p)).reduce((s,p)=>s+p.briefing_rank,0)/(scored.length-sold24.length));
+          send(`  Calibration: base=${(baseRate*100).toFixed(1)}%, ${sold24.length} sold, gap=${gap1>0?'+':''}${gap1}`);
+          
+          // Second pass with calibration
+          scores = parcels.map(p => scoreP(p, calibration));
+          const scored2 = parcels.map((p,i) => ({...p, ...scores[i]}));
+          const gap2 = Math.round(sold24.reduce((s,p)=>s+(scored2.find(s2=>s2.id===p.id)?.briefing_rank||0),0)/sold24.length - scored2.filter(p=>!sold24.find(s=>s.id===p.id)).reduce((s,p)=>s+p.briefing_rank,0)/(scored2.length-sold24.length));
+          send(`  After calibration: gap=${gap2>0?'+':''}${gap2}`);
+        } else {
+          send(`  No calibration (${sold24.length} sales < 10 minimum)`);
+        }
+        
+        // Rank
+        const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
+        
+        // Store parcels
+        send(`  Storing ${parcels.length} parcels...`);
+        for (let i = 0; i < parcels.length; i += 500) {
+          const batch = parcels.slice(i, i+500).map(p => ({...p, raw_attributes: undefined, fetched_at: new Date().toISOString(), updated_at: new Date().toISOString()}));
+          const { error } = await supabase.from('parcels').upsert(batch, { onConflict: 'id' });
+          if (error) send(`  ERROR storing parcels: ${error.message}`);
+        }
+        
+        // Store scores
+        send(`  Storing scores...`);
+        for (let i = 0; i < ranked.length; i += 500) {
+          const batch = ranked.slice(i, i+500).map(r => ({
+            parcel_id: r.p.id, zip_code: zip, market_key: market.key,
+            ...r.s, calibrated_rank: r.s.briefing_rank, scored_at: new Date().toISOString(),
+          }));
+          const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
+          if (error) send(`  ERROR storing scores: ${error.message}`);
+        }
+        
+        // Store briefing
+        const actTodayCount = ranked.filter(r=>r.s.briefing_rank>=55).length;
+        const { error: bErr } = await supabase.from('zip_briefings').upsert({
+          zip_code: zip, market_key: market.key, market_name: market.name,
+          total_parcels: parcels.length,
+          unique_owners: new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,
+          act_today_count: actTodayCount,
+          outreach_queue_count: ranked.filter(r=>r.s.briefing_rank>=35).length,
+          act_today_ids: ranked.filter(r=>r.s.briefing_rank>=55).slice(0,15).map(r=>r.p.id),
+          outreach_queue_ids: ranked.filter(r=>r.s.briefing_rank>=35).slice(0,50).map(r=>r.p.id),
+          calibration: calibration || null,
+          computed_at: new Date().toISOString(),
+          computation_time_ms: Date.now() - Date.now(),
+        }, { onConflict: 'zip_code' });
+        if (bErr) send(`  ERROR storing briefing: ${bErr.message}`);
+        
+        totalParcels += parcels.length;
+        send(`  DONE: ${parcels.length} parcels, top=${ranked[0]?.s.briefing_rank}, act_today=${actTodayCount}\n`);
+        
+        // Be polite
+        await new Promise(r => setTimeout(r, 1500));
+        
+      } catch (err) {
+        send(`  ERROR: ${zip} — ${err.message}`);
+        errors.push({ zip, error: err.message });
+      }
+    }
+    
+    // Update batch run
+    if (batchRun?.id) {
+      await supabase.from('batch_runs').update({
+        completed_at: new Date().toISOString(),
+        status: errors.length > 0 ? 'completed_with_errors' : 'completed',
+        zips_processed: zips.length - errors.length,
+        parcels_processed: totalParcels,
+        errors: errors.length > 0 ? errors : null,
+      }).eq('id', batchRun.id);
+    }
+    
+    send(`\n=== BATCH COMPLETE ===`);
+    send(`ZIPs: ${zips.length - errors.length}/${zips.length}`);
+    send(`Parcels: ${totalParcels.toLocaleString()}`);
+    if (errors.length) send(`Errors: ${errors.length}`);
+    send(`\nView results: sellersignal.co/api/briefing/${targetZip || zips[0]?.zip}`);
+    
+  } catch (err) {
+    send(`FATAL: ${err.message}`);
+  }
+  
+  res.end();
 });
 
 // ===================
