@@ -3642,9 +3642,10 @@ app.get('/api/batch/run', async (req, res) => {
   
   const targetZip = req.query.zip;
   const targetMarket = req.query.market;
+  const skipAI = req.query.noai === '1' || req.query.noai === 'true';
   
   // Set long timeout for streaming response
-  req.setTimeout(300000);
+  req.setTimeout(600000); // 10 minutes
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Transfer-Encoding', 'chunked');
   
@@ -3667,7 +3668,7 @@ app.get('/api/batch/run', async (req, res) => {
       zips = getAllZips().map(z => ({ zip: z.zip, market: MARKETS[z.marketKey] }));
     }
     
-    send(`SellerSignal Batch — processing ${zips.length} ZIP(s)\n`);
+    send(`SellerSignal Batch — processing ${zips.length} ZIP(s)${skipAI ? ' (NO AI — fast mode)' : ' (with AI scoring + Deep Signal)'}\n`);
     
     // Create batch run record
     const { data: batchRun } = await supabase.from('batch_runs').insert({
@@ -3918,9 +3919,9 @@ app.get('/api/batch/run', async (req, res) => {
         // Rank
         const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
         
-        // === AI LITE SCORING — one API call for top 50 candidates ===
+        // === AI LITE SCORING ===
         const topForAI = ranked.slice(0, 25);
-        if (topForAI.length > 0 && anthropic) {
+        if (topForAI.length > 0 && anthropic && !skipAI) {
           try {
             send(`  AI scoring top ${topForAI.length} candidates...`);
             const candidateDescs = topForAI.map((r, i) => {
@@ -3984,7 +3985,7 @@ Respond with ONLY the JSON array.` }],
         
         // === DEEP SIGNAL — full intelligence on top 10 prospects ===
         const topForDeep = ranked.slice(0, 10);
-        if (topForDeep.length > 0 && anthropic) {
+        if (topForDeep.length > 0 && anthropic && !skipAI) {
           try {
             send(`  Generating Deep Signals for top ${topForDeep.length}...`);
             const deepDescs = topForDeep.map((r, i) => {
