@@ -11,11 +11,12 @@ const { MARKETS, getAllZips, getMarketForZip } = require('./markets');
 // =============================================
 // CLIENTS
 // =============================================
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY  // service key for full write access
-);
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+  : null;
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
 
 // =============================================
 // CONFIG
@@ -39,6 +40,7 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === '--all') runAll = true;
   if (args[i] === '--dry-run') CONFIG.dryRun = true;
 }
+if (!supabase) { CONFIG.dryRun = true; log('No Supabase connection — forcing dry-run mode', 'warn'); }
 
 // =============================================
 // LOGGING
@@ -80,8 +82,13 @@ async function fetchParcels(market, zip) {
   const fullUrl = `${market.url}?${params}`;
   log(`Fetching ${zip} from ${market.name}...`);
   
-  const resp = await fetch(fullUrl);
-  if (!resp.ok) throw new Error(`GIS fetch failed: ${resp.status}`);
+  let resp;
+  try {
+    resp = await fetch(fullUrl, { signal: AbortSignal.timeout(30000) });
+  } catch(fetchErr) {
+    throw new Error(`GIS fetch failed for ${zip}: ${fetchErr.message}`);
+  }
+  if (!resp.ok) throw new Error(`GIS HTTP ${resp.status} for ${zip}`);
   
   const data = await resp.json();
   if (data.error) throw new Error(`GIS error: ${data.error.message}`);
