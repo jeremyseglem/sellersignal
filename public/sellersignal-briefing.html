@@ -4449,6 +4449,10 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                             ${p._batchDeepSignal.door_script ? `<div style="padding:12px 14px;background:rgba(147,197,253,0.04);border-left:3px solid rgba(147,197,253,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:#93c5fd;letter-spacing:0.06em;margin-bottom:6px">DOOR KNOCK</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.6;font-style:italic">"${p._batchDeepSignal.door_script}"</div></div>` : ''}
                         </div>` : ''}
                         ${p._batchDeepSignal.what_not_to_say ? `<div style="padding:10px 14px;background:rgba(248,113,113,0.04);border-left:3px solid rgba(248,113,113,0.3);border-radius:4px"><div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;margin-bottom:4px">WHAT NOT TO SAY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${p._batchDeepSignal.what_not_to_say}</div></div>` : ''}
+                        <div style="padding:14px;margin-top:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center">
+                            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Get the full analysis — signals, seller psychology, market value, confirmed facts, and detailed scripts</div>
+                            <button class="detail-btn deep" style="margin:0 auto" onclick="event.stopPropagation();runDeepSignalForCard('${id}')">Run Full Deep Signal</button>
+                        </div>
                     </div>
                     ` : tier === 'call' ? `
                     <div style="padding:14px;margin:12px 0;background:var(--bg);border-radius:8px;border-left:3px solid var(--green)">
@@ -4482,6 +4486,10 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                             ${p._batchDeepSignal.door_script ? `<div style="padding:10px 14px;background:rgba(147,197,253,0.04);border-left:3px solid rgba(147,197,253,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:#93c5fd;letter-spacing:0.06em;margin-bottom:4px">DOOR KNOCK</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${p._batchDeepSignal.door_script}"</div></div>` : ''}
                         </div>` : ''}
                         ${p._batchDeepSignal.what_not_to_say ? `<div style="padding:10px 14px;background:rgba(248,113,113,0.04);border-left:3px solid rgba(248,113,113,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;margin-bottom:4px">WHAT NOT TO SAY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${p._batchDeepSignal.what_not_to_say}</div></div>` : ''}
+                        <div style="padding:14px;margin-top:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center">
+                            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Get the full analysis — signals, seller psychology, market value, confirmed facts, and detailed scripts</div>
+                            <button class="detail-btn deep" style="margin:0 auto" onclick="event.stopPropagation();runDeepSignalForCard('${id}')">Run Full Deep Signal</button>
+                        </div>
                     </div>
                     ` : `
                     <div style="padding:16px;margin:12px 0;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center">
