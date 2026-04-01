@@ -3898,23 +3898,50 @@ app.get('/api/batch/run', async (req, res) => {
         // Rank
         const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
         
-        // Store parcels
+        // Store parcels — explicitly pick only DB columns
         send(`  Storing ${parcels.length} parcels...`);
         for (let i = 0; i < parcels.length; i += 500) {
-          const batch = parcels.slice(i, i+500).map(p => ({...p, raw_attributes: undefined, fetched_at: new Date().toISOString(), updated_at: new Date().toISOString()}));
+          const batch = parcels.slice(i, i+500).map(p => ({
+            id: p.id, zip_code: p.zip_code, market_key: p.market_key,
+            owner_name: p.owner_name, owner_type: p.owner_type,
+            address: p.address, city: p.city, state: p.state,
+            lat: p.lat || null, lng: p.lng || null,
+            assessed_value: p.assessed_value || null, building_value: p.building_value || null, land_value: p.land_value || null,
+            year_built: p.year_built || null, sqft: p.sqft || null, bedrooms: p.bedrooms || null,
+            acres: p.acres || null, subdivision: p.subdivision || null,
+            prop_type: p.prop_type || 'Residential', is_vacant_land: !!p.is_vacant_land,
+            is_absentee: !!p.is_absentee, is_out_of_state: !!p.is_out_of_state,
+            owner_state: p.owner_state || null,
+            mailing_address: p.mailing_address || null, mailing_city: p.mailing_city || null,
+            mailing_state: p.mailing_state || null, mailing_zip: p.mailing_zip || null,
+            multi_count: p.multi_count || 1,
+            last_transfer_year: p.last_transfer_year || null, last_transfer_date: p.last_transfer_date || null,
+            sale_price: p.sale_price || null, tenure_years: p.tenure_years,
+            fetched_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          }));
           const { error } = await supabase.from('parcels').upsert(batch, { onConflict: 'id' });
-          if (error) send(`  ERROR storing parcels: ${error.message}`);
+          if (error) send(`  ERROR parcels batch ${i}: ${error.message} | ${error.details || ''} | ${error.hint || ''}`);
+          else send(`  Stored parcels ${i+1}-${Math.min(i+500, parcels.length)}`);
         }
         
-        // Store scores
+        // Store scores — explicitly pick only DB columns
         send(`  Storing scores...`);
         for (let i = 0; i < ranked.length; i += 500) {
           const batch = ranked.slice(i, i+500).map(r => ({
             parcel_id: r.p.id, zip_code: zip, market_key: market.key,
-            ...r.s, calibrated_rank: r.s.briefing_rank, scored_at: new Date().toISOString(),
+            seller_likelihood: r.s.seller_likelihood,
+            off_market_receptivity: r.s.off_market_receptivity,
+            actionability: r.s.actionability,
+            confidence: r.s.confidence,
+            briefing_rank: r.s.briefing_rank,
+            score_class: r.s.score_class,
+            cohort: r.s.cohort,
+            calibrated_rank: r.s.briefing_rank,
+            scored_at: new Date().toISOString(),
           }));
           const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
-          if (error) send(`  ERROR storing scores: ${error.message}`);
+          if (error) send(`  ERROR scores batch ${i}: ${error.message} | ${error.details || ''} | ${error.hint || ''}`);
+          else send(`  Stored scores ${i+1}-${Math.min(i+500, ranked.length)}`);
         }
         
         // Store briefing
