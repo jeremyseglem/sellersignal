@@ -2975,6 +2975,7 @@ async function startBriefing() {
     
     // Save to localStorage for resume and CRM bridge
     try { localStorage.setItem('ss_farm', cleanQuery); } catch(e) {}
+    window._precomputedBriefing = null; // clear precomputed metadata
     
     const startTime = Date.now();
     
@@ -3073,6 +3074,9 @@ async function startBriefing() {
                     // Show stats and map
                     document.getElementById('briefStats').style.display = '';
                     document.getElementById('briefMap').style.display = '';
+                    
+                    // Store briefing metadata for stats display
+                    window._precomputedBriefing = preData.briefing;
                     
                     // Store for backtest / CRM
                     allProspects = prospects;
@@ -4170,9 +4174,9 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     
     document.getElementById('briefStats').innerHTML = `
         <div class="bstat" style="cursor:pointer" onclick="window.open('sellersignal-map.html','_blank')" title="Open map"><div class="bstat-val">${totalAnalyzed.toLocaleString()}</div><div class="bstat-label">Parcels ↗</div></div>
-        <div class="bstat"><div class="bstat-val">${collapsed.length.toLocaleString()}</div><div class="bstat-label">Prospects Scored</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})" title="Jump to Act Today"><div class="bstat-val green">${investigationDone ? high : '<div style="display:flex;align-items:center;gap:6px"><span class="mini-spinner" style="width:14px;height:14px;border-width:2px"></span><span style="font-size:13px;color:var(--text-dim);font-weight:500">analyzing</span></div>'}</div><div class="bstat-label">Act Today</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})" title="Jump to Outreach Queue"><div class="bstat-val gold">${med}</div><div class="bstat-label">Outreach Queue</div></div>
+        <div class="bstat"><div class="bstat-val">${(window._precomputedBriefing?.unique_owners || collapsed.length).toLocaleString()}</div><div class="bstat-label">Prospects Scored</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})" title="Jump to Act Today"><div class="bstat-val green">${investigationDone ? (window._precomputedBriefing?.act_today_count || high) : '<div style="display:flex;align-items:center;gap:6px"><span class="mini-spinner" style="width:14px;height:14px;border-width:2px"></span><span style="font-size:13px;color:var(--text-dim);font-weight:500">analyzing</span></div>'}</div><div class="bstat-label">Act Today</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})" title="Jump to Outreach Queue"><div class="bstat-val gold">${window._precomputedBriefing?.outreach_queue_count || med}</div><div class="bstat-label">Outreach Queue</div></div>
         <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-watch')?.scrollIntoView({behavior:'smooth'})" title="Jump to Watch List"><div class="bstat-val">${watchList.length}</div><div class="bstat-label">Watch List</div></div>
     `;
     
