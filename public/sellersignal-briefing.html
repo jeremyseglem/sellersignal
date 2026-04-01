@@ -3013,6 +3013,91 @@ async function startBriefing() {
     
     if (isZip) {
         // ========================================
+        // FAST PATH — try pre-computed briefing from batch pipeline
+        // ========================================
+        setStatus(`Loading briefing for ${cleanQuery}...`);
+        try {
+            const preResp = await fetch(`/api/briefing/${cleanQuery}`);
+            if (preResp.ok) {
+                const preData = await preResp.json();
+                if (preData.parcels && preData.parcels.length > 0) {
+                    console.log(`Pre-computed briefing found: ${preData.parcels.length} scored parcels, ${preData.briefing?.act_today_count || 0} act today`);
+                    
+                    // Transform snake_case API data → camelCase for renderer
+                    const prospects = preData.parcels.map(s => {
+                        const p = s.parcel || {};
+                        return {
+                            id: p.id || s.parcel_id,
+                            ownerName: p.owner_name || '',
+                            address: p.address || '',
+                            cityStateZip: [p.city, p.state, p.zip_code].filter(Boolean).join(', '),
+                            lat: p.lat || 0, lng: p.lng || 0,
+                            totalValue: p.assessed_value || 0,
+                            buildingValue: p.building_value || 0,
+                            landValue: p.land_value || 0,
+                            yearBuilt: p.year_built || null,
+                            sqft: p.sqft || null,
+                            acres: p.acres || null,
+                            subdivision: p.subdivision || '',
+                            propType: p.prop_type || 'Residential',
+                            isVacantLand: p.is_vacant_land || false,
+                            isAbsentee: p.is_absentee || false,
+                            isOutOfState: p.is_out_of_state || false,
+                            ownerState: p.mailing_state || p.owner_state || '',
+                            ownerAddress: p.mailing_address || '',
+                            multiCount: p.multi_count || 1,
+                            lastTransferYear: p.last_transfer_year || null,
+                            lastTransferDate: p.last_transfer_date || null,
+                            tenureYears: p.tenure_years,
+                            salePrice: p.sale_price || null,
+                            // Scores from pre-computed data
+                            sellerLikelihood: s.lite_score || s.seller_likelihood || 0,
+                            offMarketReceptivity: s.off_market_receptivity || 0,
+                            actionability: s.actionability || 0,
+                            confidence: s.confidence || 0,
+                            briefingRank: s.lite_score || s.briefing_rank || 0,
+                            scoreClass: s.score_class || 'low',
+                            cohort: s.cohort || 'residential',
+                            cohortLabel: (s.cohort||'').charAt(0).toUpperCase() + (s.cohort||'').slice(1),
+                            // AI intelligence
+                            liteScore: s.lite_score || null,
+                            liteHeadline: s.lite_headline || null,
+                            signals: (s.signals || []).map(sig => typeof sig === 'string' ? {text:sig,type:'neutral'} : sig),
+                            _sourceKey: preData.briefing?.market_key || '',
+                            _precomputed: true,
+                        };
+                    });
+                    
+                    const totalParcels = preData.briefing?.total_parcels || prospects.length;
+                    
+                    // Show stats and map
+                    document.getElementById('briefStats').style.display = '';
+                    document.getElementById('briefMap').style.display = '';
+                    
+                    // Store for backtest / CRM
+                    allProspects = prospects;
+                    window._allScoredParcels = prospects;
+                    window._investigationComplete = true;
+                    window._backtestCalibration = preData.briefing?.calibration || null;
+                    
+                    // Render immediately
+                    renderBriefing(prospects, totalParcels, 0, 0);
+                    document.getElementById('briefingContent').classList.add('briefing-reveal');
+                    
+                    // Hide loading
+                    const pipeEl = document.getElementById('pipelineLoading');
+                    if (pipeEl) pipeEl.style.display = 'none';
+                    
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    console.log(`Pre-computed briefing rendered in ${elapsed}s`);
+                    return; // DONE — skip live pipeline entirely
+                }
+            }
+        } catch(preErr) {
+            console.log('Pre-computed not available, falling back to live pipeline:', preErr.message);
+        }
+        
+        // ========================================
         // ZIP MODE — skip geocoding, find source by trying each one
         // ========================================
         setStatus(`Looking up ZIP ${cleanQuery}...`);
