@@ -21,7 +21,11 @@
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 ::selection{background:var(--gold);color:var(--bg)}
 .header{padding:20px 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
-.logo{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text)}.logo span{color:var(--gold)}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:20px}
 .header-nav{display:flex;gap:20px;align-items:center}
 .header-nav a{font-size:12px;color:var(--text-dim);text-decoration:none;font-weight:500;letter-spacing:0.03em;transition:color 0.2s}
 .header-nav a:hover{color:var(--gold)}.header-nav a.active{color:var(--gold)}
@@ -76,7 +80,10 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 </head>
 <body>
 <div class="header">
-    <div class="logo">Seller<span>Signal</span></div>
+    <a href="index.html" class="logo">
+        <div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <div class="logo-text">SellerSignal</div>
+    </a>
     <div class="header-nav">
         <a href="sellersignal-markets.html" class="active">Markets</a>
         <a href="sellersignal-briefing.html">Briefing</a>
