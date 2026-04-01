@@ -3521,15 +3521,32 @@ app.get('/api/briefing/:zip', async (req, res) => {
     .eq('zip_code', zip)
     .single();
   
-  if (bErr || !briefing) return res.status(404).json({ error: 'No briefing found for this ZIP. It may not have been processed yet.' });
+  if (bErr || !briefing) return res.status(404).json({ error: 'No briefing found for this ZIP.', detail: bErr?.message });
   
-  // Get top scored parcels with their scores
-  const { data: topParcels, error: pErr } = await supabase
+  // Get top scored parcels — query scores and parcels separately to avoid join issues
+  const { data: scores, error: sErr } = await supabase
     .from('parcel_scores')
-    .select('*, parcels(*)')
+    .select('*')
     .eq('zip_code', zip)
     .order('briefing_rank', { ascending: false })
     .limit(100);
+  
+  // Get the parcel details for those scores
+  let parcels = [];
+  if (scores && scores.length > 0) {
+    const ids = scores.map(s => s.parcel_id);
+    const { data: parcelData } = await supabase
+      .from('parcels')
+      .select('*')
+      .in('id', ids);
+    
+    // Merge scores with parcel data
+    const parcelMap = new Map((parcelData || []).map(p => [p.id, p]));
+    parcels = scores.map(s => ({
+      ...s,
+      parcel: parcelMap.get(s.parcel_id) || null,
+    }));
+  }
   
   // Get deep signals for act-today parcels
   const { data: deepSignals } = await supabase
@@ -3539,8 +3556,10 @@ app.get('/api/briefing/:zip', async (req, res) => {
   
   res.json({
     briefing,
-    parcels: topParcels || [],
+    parcels: parcels,
     deepSignals: deepSignals || [],
+    scoresCount: scores?.length || 0,
+    scoresError: sErr?.message || null,
     cached: true,
     computedAt: briefing.computed_at,
   });
