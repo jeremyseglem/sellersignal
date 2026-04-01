@@ -3086,7 +3086,6 @@ async function startBriefing() {
                         const ds = dsMap.get(p.id);
                         if (ds) {
                             p._batchDeepSignal = ds;
-                            p._deepSignalVerified = true;
                             p._dsWhyNow = ds.motivation || '';
                             p._dsTimeframe = ds.timeline || '';
                             p._dsNextMove = ds.best_channel ? (ds.best_channel === 'call' ? 'Phone call' : ds.best_channel === 'mail' ? 'Letter' : 'Door knock') : '';
@@ -3097,21 +3096,6 @@ async function startBriefing() {
                                 email: ''
                             };
                             p._dsAvoid = ds.what_not_to_say || '';
-                            p._deepSignal = {
-                                scoreBasis: ds.motivation || '',
-                                sellerLikelihoodBasis: ds.motivation || '',
-                                timeframe: ds.timeline || '',
-                                bestNextMove: ds.best_channel || '',
-                                scripts: {
-                                    letter: ds.mail_script || '',
-                                    phone: ds.call_script || '',
-                                    door: ds.door_script || '',
-                                    avoid: ds.what_not_to_say || ''
-                                },
-                                signals: [],
-                                redFlags: [],
-                                metrics: {},
-                            };
                         }
                     }
                     
@@ -3134,6 +3118,10 @@ async function startBriefing() {
                     
                     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                     console.log(`Pre-computed briefing rendered in ${elapsed}s`);
+                    
+                    // Run historical backtest
+                    try { await runBacktest(); } catch(e) { console.log('Backtest skipped:', e.message); }
+                    
                     return; // DONE — skip live pipeline entirely
                 }
             }
@@ -4306,12 +4294,12 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                 <div class="prospect-score ${p.scoreClass}">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:2px;color:var(--accent)">✓ DS</div>' : tier === 'call' && p._tier === 'act_today' ? '<div style="font-size:7px;margin-top:2px;color:var(--green)">✓ V2A</div>' : ''}</div>
                 <div class="prospect-info">
                     <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:rgba(196,168,124,0.15);border-radius:3px">NEW</span>' : ''}${name || p.address}${name ? ` <span style="color:var(--text-dim);font-weight:400">— ${p.address}</span>` : ''}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
-                    <div class="prospect-why">↗ ${p._deepSignalVerified && p._dsWhyNow ? p._dsWhyNow : p._liteReason ? p._liteReason : why}</div>
+                    <div class="prospect-why">↗ ${p._batchDeepSignal && p._dsWhyNow ? p._dsWhyNow : p._deepSignalVerified && p._dsWhyNow ? p._dsWhyNow : p._liteReason ? p._liteReason : why}</div>
                     <div class="prospect-meta">
-                        ${p._deepSignalVerified ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal verified</span>` : p._liteScored ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">Ranked by AI</span>` : ''}
+                        ${p._deepSignalVerified ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal verified</span>` : p._batchDeepSignal ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal</span>` : p._liteScored ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">Ranked by AI</span>` : ''}
                         <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
-                        ${p._liteNextMove && !p._deepSignalVerified ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--text-secondary);border:1px solid rgba(196,168,124,0.12)">${p._liteNextMove}</span>` : ''}
-                        ${p._deepSignalVerified && p._dsTimeframe ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">${p._dsTimeframe}</span>` : ''}
+                        ${p._liteNextMove && !p._deepSignalVerified && !p._batchDeepSignal ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--text-secondary);border:1px solid rgba(196,168,124,0.12)">${p._liteNextMove}</span>` : ''}
+                        ${(p._deepSignalVerified || p._batchDeepSignal) && p._dsTimeframe ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">${p._dsTimeframe}</span>` : ''}
                         ${tier === 'call' && p._freshness !== undefined && p._freshness < 50 ? '<span class="chip" style="background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.2)">Previously contacted</span>' : ''}
                         ${risk && tier !== 'call' ? '<span class="chip chip-risk">⚠ Risk flag</span>' : ''}
                     </div>

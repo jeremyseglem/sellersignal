@@ -178,7 +178,13 @@ async function processZip(zip, market) {
     try{
       log(`  Deep Signal ${top.length}...`);
       const d=top.map((r,i)=>`[${i+1}] ${r.p.owner_name} — ${r.p.address}, ${r.p.city||''} ${r.p.state||''}\n  ${r.p.owner_type} | $${(r.p.assessed_value||0).toLocaleString()} | Mail: ${r.p.mailing_address||'?'} ${r.p.mailing_state||''}\n  Tenure: ${r.p.tenure_years!=null?r.p.tenure_years+'yr':'?'} | AI: ${r.s.lite_score||'?'} ${r.s.lite_headline||''}`).join('\n\n');
-      const p=anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:4000,messages:[{role:'user',content:`Seller intelligence brief per prospect. ONLY JSON: [{"idx":1,"motivation":"...","timeline":"...","best_channel":"call|mail|door","call_script":"...","mail_script":"...","door_script":"...","what_not_to_say":"..."}]\n\n${d}`}]});
+      const p=anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:8000,messages:[{role:'user',content:`You are SellerSignal's Deep Signal engine. For each prospect, produce a DETAILED intelligence report. Scripts should be FULL PARAGRAPHS (4-6 sentences) that an agent can use verbatim.
+
+Respond with ONLY a JSON array. Each entry:
+{"idx":1,"motivation":"3-4 sentence analysis referencing specific data: tenure, mailing state, trust structure, portfolio.","timeline":"3-6 months","best_channel":"call|mail|door","call_script":"Full 4-6 sentence phone script. Reference property, owner situation, position yourself as problem solver, soft close.","mail_script":"Full 4-6 sentence letter. Professional, specific to their property and situation.","door_script":"Full 4-6 sentence door knock. Warm, specific, leave-behind offer.","what_not_to_say":"2-3 specific things to avoid and WHY for this owner type."}
+
+PROSPECTS:
+${d}`}]});
       const r=await Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),60000))]);
       const arr=JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
       if(Array.isArray(arr)){const rows=[];for(const ds of arr){const i=(ds.idx||ds.index)-1;if(i>=0&&i<top.length)rows.push({parcel_id:top[i].p.id,zip_code:zip,report:ds,motivation:ds.motivation||null,timeline:ds.timeline||null,best_channel:ds.best_channel||null,call_script:ds.call_script||null,mail_script:ds.mail_script||null,door_script:ds.door_script||null,what_not_to_say:ds.what_not_to_say||null,generated_at:new Date().toISOString()});}

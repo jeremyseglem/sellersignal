@@ -4034,29 +4034,31 @@ Respond with ONLY the JSON array.` }],
             
             const deepPromise = anthropic.messages.create({
               model: 'claude-sonnet-4-20250514',
-              max_tokens: 4000,
-              messages: [{ role: 'user', content: `You are SellerSignal's Deep Signal engine. For each prospect below, generate a detailed seller intelligence brief.
+              max_tokens: 8000,
+              messages: [{ role: 'user', content: `You are SellerSignal's Deep Signal engine — an expert real estate analyst generating actionable seller intelligence briefs for real estate agents.
+
+For each prospect, produce a DETAILED intelligence report. Scripts should be FULL PARAGRAPHS (4-6 sentences each) that an agent can use verbatim. Be psychologically sophisticated — reference the owner's specific situation, property details, and likely motivations.
 
 Respond with ONLY a JSON array. Each entry:
 {
   "idx": 1,
-  "motivation": "Why this owner might sell — infer from data patterns",
-  "timeline": "Estimated timeline (e.g. '3-6 months', '6-12 months', 'uncertain')",
-  "best_channel": "call, mail, or door",
-  "call_script": "2-sentence opening for a phone call",
-  "mail_script": "2-sentence letter opening",
-  "door_script": "2-sentence door knock opening",
-  "what_not_to_say": "One thing to avoid mentioning"
+  "motivation": "3-4 sentence analysis of why this owner is likely to sell. Reference specific data points: tenure length, out-of-state management burden, trust structure, portfolio patterns. Explain the psychological and financial forces at play.",
+  "timeline": "e.g. '3-6 months' or '6-12 months' or '12-18 months'",
+  "best_channel": "call or mail or door",
+  "call_script": "Full 4-6 sentence phone script. Open with a warm, specific reference to their property. Acknowledge their situation without being presumptuous. Position yourself as someone who solves their specific problem. Include a soft close asking for a conversation.",
+  "mail_script": "Full 4-6 sentence letter opening. Professional but personal tone. Reference the property by address and the owner by name. Demonstrate that you understand their situation. Offer specific value — not generic 'thinking of selling' language.",
+  "door_script": "Full 4-6 sentence door knock script. Warm, neighborly opening. Reference the property specifically. Explain why you're reaching out to THEM specifically (not a mass mailer). Include a leave-behind offer if they're not home.",
+  "what_not_to_say": "2-3 specific things to avoid. Be tactical — explain WHY each thing should be avoided for this particular owner type."
 }
 
-Be specific to each owner's situation. A trust with out-of-state heirs needs different messaging than a long-tenure homeowner. Reference their actual data.
+Be specific to each owner's situation. A trust with out-of-state heirs needs different messaging than a long-tenure homeowner or an LLC investor. Reference their actual data — address, owner name, tenure, value, mailing state.
 
 PROSPECTS:
 ${deepDescs}
 
 Respond with ONLY the JSON array.` }],
             });
-            const deepTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Deep Signal timeout')), 60000));
+            const deepTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Deep Signal timeout')), 90000));
             const deepResp = await Promise.race([deepPromise, deepTimeout]);
             
             const deepText = deepResp.content?.[0]?.text || '';
