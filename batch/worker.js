@@ -111,6 +111,7 @@ function scoreParcel(p, cal) {
 
 async function processZip(zip, market) {
   const t0=Date.now();
+  let pendingDS = [];
   log(`=== ${zip} — ${market.name} ===`);
   if(!market.zipWhere){log('  SKIP: needs spatial query');return null;}
 
@@ -181,7 +182,7 @@ async function processZip(zip, market) {
       const r=await Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),60000))]);
       const arr=JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
       if(Array.isArray(arr)){const rows=[];for(const ds of arr){const i=(ds.idx||ds.index)-1;if(i>=0&&i<top.length)rows.push({parcel_id:top[i].p.id,zip_code:zip,report:ds,motivation:ds.motivation||null,timeline:ds.timeline||null,best_channel:ds.best_channel||null,call_script:ds.call_script||null,mail_script:ds.mail_script||null,door_script:ds.door_script||null,what_not_to_say:ds.what_not_to_say||null,generated_at:new Date().toISOString()});}
-        if(rows.length){const{error}=await supabase.from('deep_signals').upsert(rows,{onConflict:'parcel_id'});if(error)log(`  DS err: ${error.message}`);else log(`  DS: ${rows.length} stored`);}}
+        if(rows.length){pendingDS=rows;log(`  DS: ${rows.length} generated (storing after parcels)`);}}
     }catch(e){log(`  DS failed: ${e.message}`);}
   }
 
@@ -192,6 +193,9 @@ async function processZip(zip, market) {
 
   for(let i=0;i<uP.length;i+=500){const b=uP.slice(i,i+500).map(p=>({id:p.id,zip_code:p.zip_code,market_key:p.market_key,owner_name:p.owner_name,owner_type:p.owner_type,address:p.address,city:p.city,state:p.state,lat:p.lat||null,lng:p.lng||null,assessed_value:p.assessed_value||null,building_value:p.building_value||null,land_value:p.land_value||null,year_built:p.year_built||null,sqft:p.sqft||null,bedrooms:p.bedrooms||null,acres:p.acres||null,subdivision:p.subdivision||null,prop_type:p.prop_type||'Residential',is_vacant_land:!!p.is_vacant_land,is_absentee:!!p.is_absentee,is_out_of_state:!!p.is_out_of_state,owner_state:p.owner_state||null,mailing_address:p.mailing_address||null,mailing_city:p.mailing_city||null,mailing_state:p.mailing_state||null,mailing_zip:p.mailing_zip||null,multi_count:p.multi_count||1,last_transfer_year:p.last_transfer_year||null,last_transfer_date:p.last_transfer_date||null,sale_price:p.sale_price||null,tenure_years:p.tenure_years,fetched_at:new Date().toISOString(),updated_at:new Date().toISOString()}));const{error}=await supabase.from('parcels').upsert(b,{onConflict:'id'});if(error)log(`  Parcel err: ${error.message}`);}
   for(let i=0;i<uR.length;i+=500){const b=uR.slice(i,i+500).map(r=>({parcel_id:r.p.id,zip_code:zip,market_key:market.key,seller_likelihood:r.s.seller_likelihood,off_market_receptivity:r.s.off_market_receptivity,actionability:r.s.actionability,confidence:r.s.confidence,briefing_rank:r.s.briefing_rank,score_class:r.s.score_class,cohort:r.s.cohort,calibrated_rank:r.s.briefing_rank,lite_score:r.s.lite_score||null,lite_headline:r.s.lite_headline||null,scored_at:new Date().toISOString()}));const{error}=await supabase.from('parcel_scores').upsert(b,{onConflict:'parcel_id'});if(error)log(`  Score err: ${error.message}`);}
+
+  // Store deep signals AFTER parcels exist (foreign key)
+  if(pendingDS.length>0){const{error}=await supabase.from('deep_signals').upsert(pendingDS,{onConflict:'parcel_id'});if(error)log(`  DS store err: ${error.message}`);else log(`  DS stored: ${pendingDS.length}`);}
 
   const ac=uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).length;
   await supabase.from('zip_briefings').upsert({zip_code:zip,market_key:market.key,market_name:market.name,total_parcels:parcels.length,unique_owners:new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,act_today_count:ac,outreach_queue_count:uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).length,act_today_ids:uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).slice(0,15).map(r=>r.p.id),outreach_queue_ids:uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).slice(0,50).map(r=>r.p.id),calibration:calibration||null,computed_at:new Date().toISOString(),computation_time_ms:Date.now()-t0},{onConflict:'zip_code'});

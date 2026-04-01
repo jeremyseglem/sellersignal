@@ -3952,6 +3952,7 @@ app.get('/api/batch/run', async (req, res) => {
         const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
         
         // === AI LITE SCORING ===
+        let pendingDeepRows = [];
         const topForAI = ranked.slice(0, 25);
         if (topForAI.length > 0 && anthropic && !skipAI) {
           try {
@@ -4082,9 +4083,9 @@ Respond with ONLY the JSON array.` }],
                   }
                 }
                 if (deepRows.length > 0) {
-                  const { error: dsErr } = await supabase.from('deep_signals').upsert(deepRows, { onConflict: 'parcel_id' });
-                  if (dsErr) send(`  Deep Signal store error: ${dsErr.message}`);
-                  else send(`  Deep Signals stored for ${deepRows.length} prospects`);
+                  // Store AFTER parcels (foreign key constraint)
+                  pendingDeepRows = deepRows;
+                  send(`  Deep Signals generated for ${deepRows.length} prospects (storing after parcels)`);
                 }
               }
             } catch(dpErr) {
@@ -4154,6 +4155,13 @@ Respond with ONLY the JSON array.` }],
           const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
           if (error) send(`  ERROR scores batch ${i}: ${error.message} | ${error.details || ''} | ${error.hint || ''}`);
           else send(`  Stored scores ${i+1}-${Math.min(i+500, uniqueRanked.length)}`);
+        }
+        
+        // Store deep signals (deferred — parcels must exist first for foreign key)
+        if (pendingDeepRows.length > 0) {
+          const { error: dsErr } = await supabase.from('deep_signals').upsert(pendingDeepRows, { onConflict: 'parcel_id' });
+          if (dsErr) send(`  ERROR deep signals: ${dsErr.message}`);
+          else send(`  Deep Signals stored: ${pendingDeepRows.length} prospects`);
         }
         
         // Store briefing
