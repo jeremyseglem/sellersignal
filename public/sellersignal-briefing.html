@@ -3119,8 +3119,11 @@ async function startBriefing() {
                     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                     console.log(`Pre-computed briefing rendered in ${elapsed}s`);
                     
-                    // Run historical backtest
-                    try { await runBacktest(); } catch(e) { console.log('Backtest skipped:', e.message); }
+                    // Render historical accuracy from precomputed calibration (uses ALL parcels, not just top 100)
+                    const cal = preData.briefing?.calibration;
+                    if (cal && cal.sold24 >= 10) {
+                        try { renderPrecomputedBacktest(cal, preData.briefing.total_parcels); } catch(e) { console.log('Backtest render failed:', e.message); }
+                    }
                     
                     return; // DONE — skip live pipeline entirely
                 }
@@ -4891,6 +4894,69 @@ function copyScript(id) {
 // ========================
 // HISTORICAL BACKTEST — analyze past sales to validate scoring accuracy
 // ========================
+function renderPrecomputedBacktest(cal, totalParcels) {
+    const sold24 = cal.sold24 || 0;
+    const total = cal.total || totalParcels || 0;
+    const baseRate = ((cal.baseRate || 0) * 100).toFixed(1);
+    const rates = cal.rates || {};
+    const lifts = cal.lifts || {};
+    
+    const gap = (cal.avgScoreSold || 0) - (cal.avgScoreNotSold || 0);
+    const avgScoreSold = cal.avgScoreSold || 'N/A';
+    const avgScoreNotSold = cal.avgScoreNotSold || 'N/A';
+    
+    let powerLabel, powerColor, powerNote;
+    const absGap = Math.abs(gap);
+    if (absGap >= 10) { powerLabel = 'Strong'; powerColor = 'var(--green)'; powerNote = 'The model shows meaningful separation between sellers and non-sellers in this market.'; }
+    else if (absGap >= 4) { powerLabel = 'Moderate'; powerColor = 'var(--gold)'; powerNote = 'Some separation between sellers and non-sellers. Model is directionally correct but calibration will improve accuracy.'; }
+    else { powerLabel = 'Low'; powerColor = '#f87171'; powerNote = 'Sold and not-sold properties score similarly. The heuristic features alone do not differentiate sellers in this market — AI scoring and life-event signals carry the weight here.'; }
+    
+    const panel = document.createElement('div');
+    panel.id = 'backtestPanel';
+    panel.style.cssText = 'margin-top:32px;animation:fadeUp 0.4s ease';
+    
+    const featureHtml = Object.entries(rates).filter(([k]) => k !== 'All Properties').map(([name, rate]) => {
+        const pct = (rate * 100).toFixed(1);
+        const lift = lifts[name];
+        const liftStr = lift !== undefined ? ` ${lift.toFixed(1)}x` : '';
+        const color = lift > 1.2 ? 'var(--green)' : lift < 0.8 ? 'var(--red)' : 'var(--text-secondary)';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bg-elevated);border-radius:4px;font-size:11px">
+            <span style="color:var(--text-secondary)">${name}</span>
+            <span style="font-weight:600;color:${color}">${pct}%${liftStr}</span>
+        </div>`;
+    }).join('');
+    
+    panel.innerHTML = `
+    <div class="section">
+        <div class="section-header">
+            <div class="section-icon" style="background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2)">📊</div>
+            <div class="section-title">Historical Accuracy — Last 24 Months</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+            <div style="display:flex;gap:32px;flex-wrap:wrap;margin-bottom:20px">
+                <div><div style="font-size:28px;font-weight:700;color:var(--text)">${sold24.toLocaleString()}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">PROPERTIES SOLD</div></div>
+                <div><div style="font-size:28px;font-weight:700;color:var(--text)">${total.toLocaleString()}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">TOTAL IN ZIP</div></div>
+                <div><div style="font-size:28px;font-weight:700;color:var(--text)">${baseRate}%</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">BASE TURNOVER RATE</div></div>
+                ${avgScoreSold !== 'N/A' ? `<div><div style="font-size:28px;font-weight:700;color:var(--gold)">${avgScoreSold}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">AVG SCORE (SOLD)</div></div>` : ''}
+                ${avgScoreNotSold !== 'N/A' ? `<div><div style="font-size:28px;font-weight:700;color:var(--text-dim)">${avgScoreNotSold}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">AVG SCORE (NOT SOLD)</div></div>` : ''}
+            </div>
+            ${gap !== 0 ? `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+                <div style="text-align:center;min-width:60px"><div style="font-size:24px;font-weight:800;color:${powerColor}">${gap > 0 ? '+' : ''}${gap}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.05em">SCORE GAP</div></div>
+                <div style="flex:1"><div style="font-size:12px;font-weight:600;color:${powerColor};margin-bottom:2px">Discriminative Power: ${powerLabel}</div><div style="font-size:11px;color:var(--text-dim);line-height:1.4">${powerNote}</div></div>
+            </div>` : ''}
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px">
+                Of ${total.toLocaleString()} properties in this ZIP, ${sold24.toLocaleString()} sold in the past 24 months (${baseRate}% turnover). Feature analysis below shows which owner characteristics predict sales above or below the base rate.
+            </div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:10px">CONVERSION RATES BY FEATURE</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                ${featureHtml}
+            </div>
+        </div>
+    </div>`;
+    
+    document.getElementById('briefingContent')?.appendChild(panel);
+}
+
 async function runBacktest() {
     const allScored = window._allScoredParcels;
     if (!allScored || allScored.length < 100) return; // not enough data
