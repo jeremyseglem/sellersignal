@@ -3680,16 +3680,9 @@ app.get('/api/batch/run', async (req, res) => {
       try {
         send(`--- ${zip} (${market.name}) ---`);
         
-        // Build WHERE clause
-        let where;
-        if (market.key === 'FL_MD') where = `TRUE_SITE_ZIP_CODE LIKE '${zip}%'`;
-        else if (market.key === 'FL_PB') where = `ZIP1='${zip}'`;
-        else if (market.key === 'NC') where = `szip='${zip}'`;
-        else if (market.key === 'WA_KING') where = `ZIPCODE='${zip}'`;
-        else if (market.key === 'OR_DESCHUTES') where = `SitusZip='${zip}'`;
-        else if (market.key === 'AZ_MARICOPA') where = `ZIP_CODE='${zip}'`;
-        else if (market.key === 'TX_SA') where = `situs_zip='${zip}'`;
-        else where = `1=1`;
+        // Build WHERE clause from market config
+        if (!market.zipWhere) { send(`  SKIP: ${market.name} needs spatial query (not yet supported in batch)`); continue; }
+        const where = market.zipWhere(zip);
         
         const params = new URLSearchParams({
           where, outFields: market.fields, returnGeometry: 'true', outSR: '4326',
@@ -3697,7 +3690,7 @@ app.get('/api/batch/run', async (req, res) => {
         });
         
         send(`  Fetching from GIS...`);
-        const resp = await fetch(`${market.url}?${params}`, { signal: AbortSignal.timeout(45000) });
+        const resp = await fetch(`${market.url}?${params}`, { signal: AbortSignal.timeout(90000) });
         const data = await resp.json();
         const features = data.features || [];
         send(`  Got ${features.length} features`);
@@ -3898,6 +3891,67 @@ app.get('/api/batch/run', async (req, res) => {
         // Rank
         const ranked = parcels.map((p,i) => ({p, s:scores[i]})).sort((a,b) => b.s.briefing_rank - a.s.briefing_rank);
         
+        // === AI LITE SCORING — one API call for top 50 candidates ===
+        const topForAI = ranked.slice(0, 50);
+        if (topForAI.length > 0 && anthropic) {
+          try {
+            send(`  AI scoring top ${topForAI.length} candidates...`);
+            const candidateDescs = topForAI.map((r, i) => {
+              const p = r.p;
+              return `[${i+1}] ${p.owner_name} — ${p.address}, ${p.city || ''} ${p.state || ''}
+  Type: ${p.owner_type} | Value: $${(p.assessed_value||0).toLocaleString()} | Bldg: $${(p.building_value||0).toLocaleString()}
+  Absentee: ${p.is_absentee?'Yes':'No'} | Out-of-state: ${p.is_out_of_state?'Yes':'No'}${p.mailing_state?' ('+p.mailing_state+')':''}
+  Tenure: ${p.tenure_years!=null?p.tenure_years+'yr':'unknown'} | Multi: ${p.multi_count} properties
+  Heuristic: SL=${r.s.seller_likelihood} Rank=${r.s.briefing_rank}`;
+            }).join('\n\n');
+            
+            const calContext = calibration ? `\nMarket calibration: base rate ${(calibration.baseRate*100).toFixed(1)}%. Trust lift: ${(calibration.lifts['Trusts']||1).toFixed(2)}x. Individual lift: ${(calibration.lifts['Named Individuals']||1).toFixed(2)}x. Absentee lift: ${(calibration.lifts['Absentee Owners']||1).toFixed(2)}x.` : '';
+            
+            const aiResp = await anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 4000,
+              messages: [{ role: 'user', content: `You are a real estate seller intelligence analyst. Score these ${topForAI.length} property owners by TRUE seller likelihood (0-100).${calContext}
+
+For each candidate, respond with ONLY a JSON array — no other text. Each entry: {"idx": 1, "score": 72, "headline": "Estate trust with out-of-state heir — probable transition"}
+
+Focus on: Who is MOST likely to actually sell in the next 6-24 months? Consider owner psychology, not just data patterns. A trust with out-of-state mailing might be an heir managing a deceased parent's estate, or it might be a 30-year estate planning vehicle. Use your judgment.
+
+CANDIDATES:
+${candidateDescs}
+
+Respond with ONLY the JSON array. No markdown, no explanation.` }],
+            });
+            
+            const aiText = aiResp.content?.[0]?.text || '';
+            try {
+              const aiScores = JSON.parse(aiText.replace(/```json|```/g, '').trim());
+              if (Array.isArray(aiScores)) {
+                let updated = 0;
+                for (const as of aiScores) {
+                  const idx = (as.idx || as.index) - 1;
+                  if (idx >= 0 && idx < topForAI.length && as.score) {
+                    topForAI[idx].s.lite_score = as.score;
+                    topForAI[idx].s.lite_headline = as.headline || '';
+                    updated++;
+                  }
+                }
+                send(`  AI scored ${updated}/${topForAI.length} candidates`, 'ok');
+              }
+            } catch(parseErr) {
+              send(`  AI response parse error: ${parseErr.message}`);
+            }
+          } catch(aiErr) {
+            send(`  AI scoring failed: ${aiErr.message}`);
+          }
+        }
+        
+        // Re-sort by AI score where available, fall back to heuristic
+        ranked.sort((a, b) => {
+          const aScore = a.s.lite_score || a.s.briefing_rank;
+          const bScore = b.s.lite_score || b.s.briefing_rank;
+          return bScore - aScore;
+        });
+        
         // Deduplicate parcels by ID (condos/units can share parcel numbers)
         const seenIds = new Set();
         const uniqueParcels = [];
@@ -3950,6 +4004,8 @@ app.get('/api/batch/run', async (req, res) => {
             score_class: r.s.score_class,
             cohort: r.s.cohort,
             calibrated_rank: r.s.briefing_rank,
+            lite_score: r.s.lite_score || null,
+            lite_headline: r.s.lite_headline || null,
             scored_at: new Date().toISOString(),
           }));
           const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
@@ -3958,15 +4014,15 @@ app.get('/api/batch/run', async (req, res) => {
         }
         
         // Store briefing
-        const actTodayCount = ranked.filter(r=>r.s.briefing_rank>=55).length;
+        const actTodayCount = uniqueRanked.filter(r => (r.s.lite_score || r.s.briefing_rank) >= 55).length;
         const { error: bErr } = await supabase.from('zip_briefings').upsert({
           zip_code: zip, market_key: market.key, market_name: market.name,
           total_parcels: parcels.length,
           unique_owners: new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,
           act_today_count: actTodayCount,
-          outreach_queue_count: ranked.filter(r=>r.s.briefing_rank>=35).length,
-          act_today_ids: ranked.filter(r=>r.s.briefing_rank>=55).slice(0,15).map(r=>r.p.id),
-          outreach_queue_ids: ranked.filter(r=>r.s.briefing_rank>=35).slice(0,50).map(r=>r.p.id),
+          outreach_queue_count: uniqueRanked.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).length,
+          act_today_ids: uniqueRanked.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).slice(0,15).map(r=>r.p.id),
+          outreach_queue_ids: uniqueRanked.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).slice(0,50).map(r=>r.p.id),
           calibration: calibration || null,
           computed_at: new Date().toISOString(),
           computation_time_ms: Date.now() - Date.now(),
