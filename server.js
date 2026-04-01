@@ -4159,9 +4159,13 @@ Respond with ONLY the JSON array.` }],
         
         // Store deep signals (deferred — parcels must exist first for foreign key)
         if (pendingDeepRows.length > 0) {
-          const { error: dsErr } = await supabase.from('deep_signals').upsert(pendingDeepRows, { onConflict: 'parcel_id' });
+          // Deduplicate by parcel_id
+          const dsMap = new Map();
+          for (const r of pendingDeepRows) dsMap.set(r.parcel_id, r);
+          const dedupedDS = [...dsMap.values()];
+          const { error: dsErr } = await supabase.from('deep_signals').upsert(dedupedDS, { onConflict: 'parcel_id' });
           if (dsErr) send(`  ERROR deep signals: ${dsErr.message}`);
-          else send(`  Deep Signals stored: ${pendingDeepRows.length} prospects`);
+          else send(`  Deep Signals stored: ${dedupedDS.length} prospects`);
         }
         
         // Store briefing
