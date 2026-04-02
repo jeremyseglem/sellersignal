@@ -1031,6 +1031,36 @@ app.post('/api/webhook', async (req, res) => {
         break;
       }
       
+      // Handle mail credit purchases
+      if (session.metadata?.type === 'mail_credits') {
+        const credits = parseInt(session.metadata.credits) || 0;
+        const agentEmail = session.metadata.agentEmail;
+        if (credits > 0 && agentEmail) {
+          // Upsert credits
+          const { data: existing } = await supabase.from('mail_credits')
+            .select('credits_remaining, credits_purchased').eq('user_id', agentEmail).single();
+          
+          if (existing) {
+            await supabase.from('mail_credits').update({
+              credits_remaining: existing.credits_remaining + credits,
+              credits_purchased: existing.credits_purchased + credits,
+              last_purchase_at: new Date().toISOString(),
+              stripe_customer_id: session.customer,
+            }).eq('user_id', agentEmail);
+          } else {
+            await supabase.from('mail_credits').insert({
+              user_id: agentEmail,
+              credits_remaining: credits,
+              credits_purchased: credits,
+              last_purchase_at: new Date().toISOString(),
+              stripe_customer_id: session.customer,
+            });
+          }
+          console.log(`Mail credits added: ${credits} for ${agentEmail}`);
+        }
+        break;
+      }
+      
       if (userId) {
         await supabase
           .from('profiles')
@@ -1400,6 +1430,215 @@ app.post('/api/territories/waitlist', async (req, res) => {
     console.error('Waitlist error:', e);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ===================
+// DIRECT MAIL SYSTEM
+// ===================
+const { generateLetterSequence, letterToHtml, processMailQueue } = require('./batch/mail');
+
+// Credit pack pricing (cents)
+const MAIL_PACKS = {
+  starter: { credits: 25, price: 9900, label: 'Starter — 25 Letters' },
+  growth: { credits: 50, price: 17900, label: 'Growth — 50 Letters' },
+  scale: { credits: 100, price: 29900, label: 'Scale — 100 Letters' },
+};
+
+// POST /api/mail/enroll — enroll sellers in mail campaign + generate letter sequences
+app.post('/api/mail/enroll', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase || !anthropic) return res.status(503).json({ error: 'Not configured' });
+  
+  const { parcelIds, agentId, agentName, agentBrokerage, agentPhone, agentEmail } = req.body;
+  if (!parcelIds?.length || !agentId) return res.status(400).json({ error: 'Parcel IDs and agent ID required' });
+  
+  // Check credits
+  const { data: credits } = await supabase.from('mail_credits')
+    .select('credits_remaining').eq('user_id', agentId).single();
+  
+  if (!credits || credits.credits_remaining < parcelIds.length * 6) {
+    return res.json({ error: 'Not enough credits', creditsNeeded: parcelIds.length * 6, creditsAvailable: credits?.credits_remaining || 0 });
+  }
+  
+  const agent = { name: agentName, brokerage: agentBrokerage, phone: agentPhone, email: agentEmail };
+  const results = [];
+  
+  for (const parcelId of parcelIds) {
+    try {
+      // Get parcel data
+      const { data: parcel } = await supabase.from('parcels')
+        .select('*').eq('id', parcelId).single();
+      const { data: score } = await supabase.from('parcel_scores')
+        .select('*').eq('parcel_id', parcelId).single();
+      const { data: ds } = await supabase.from('deep_signals')
+        .select('*').eq('parcel_id', parcelId).single();
+      
+      if (!parcel) { results.push({ parcelId, error: 'Not found' }); continue; }
+      
+      // Check not already enrolled
+      const { data: existing } = await supabase.from('mail_enrollments')
+        .select('id').eq('parcel_id', parcelId).eq('agent_id', agentId).eq('status', 'active').single();
+      if (existing) { results.push({ parcelId, error: 'Already enrolled' }); continue; }
+      
+      // Build seller context for letter generation
+      const seller = {
+        ownerName: parcel.owner_name,
+        address: parcel.address,
+        cityStateZip: `${parcel.city || ''}, ${parcel.state || ''} ${parcel.zip_code}`,
+        cohort: score?.cohort || parcel.owner_type || 'residential',
+        cohortLabel: score?.cohort === 'trust' ? 'Trust' : score?.cohort === 'estate' ? 'Estate' : score?.cohort === 'investor' ? 'LLC/Corp' : score?.cohort === 'absentee' ? 'Absentee' : 'Individual',
+        totalValue: parcel.assessed_value || 0,
+        mailingAddress: parcel.mailing_address || parcel.address,
+        isOutOfState: parcel.is_out_of_state,
+        isAbsentee: parcel.is_absentee,
+        ownerState: parcel.mailing_state || parcel.state,
+        tenureYears: parcel.tenure_years,
+        deepSignalMotivation: ds?.motivation || '',
+        deepSignalPsychology: ds?.report?.sellerPsychology || '',
+      };
+      
+      // Generate 6 personalized letters
+      const letters = await generateLetterSequence(anthropic, agent, seller);
+      
+      // Create enrollment
+      const nextSend = new Date();
+      nextSend.setDate(nextSend.getDate() + 3); // first letter sends in 3 days
+      
+      const { data: enrollment, error: enrollErr } = await supabase.from('mail_enrollments').insert({
+        parcel_id: parcelId,
+        zip_code: parcel.zip_code,
+        agent_id: agentId,
+        owner_name: parcel.owner_name,
+        property_address: parcel.address,
+        mailing_address: parcel.mailing_address || parcel.address,
+        mailing_city: parcel.mailing_city || parcel.city,
+        mailing_state: parcel.mailing_state || parcel.state,
+        mailing_zip: parcel.mailing_zip || parcel.zip_code,
+        cohort: seller.cohort,
+        current_position: 0,
+        total_letters: 6,
+        status: 'active',
+        next_send_at: nextSend.toISOString(),
+      }).select('id').single();
+      
+      if (enrollErr) { results.push({ parcelId, error: enrollErr.message }); continue; }
+      
+      // Store all 6 letters
+      const letterRows = letters.map(l => ({
+        enrollment_id: enrollment.id,
+        position: l.position,
+        subject: l.subject,
+        body_html: letterToHtml(l.body, agent),
+        body_text: l.body,
+      }));
+      
+      await supabase.from('mail_letters').insert(letterRows);
+      
+      results.push({ parcelId, enrollmentId: enrollment.id, letters: letters.length, status: 'enrolled' });
+    } catch(e) {
+      results.push({ parcelId, error: e.message });
+    }
+  }
+  
+  res.json({ results, enrolled: results.filter(r => r.status === 'enrolled').length });
+});
+
+// GET /api/mail/enrollments — get enrolled sellers for an agent
+app.get('/api/mail/enrollments', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const agentId = req.query.agent;
+  const zip = req.query.zip;
+  if (!agentId) return res.status(400).json({ error: 'Agent ID required' });
+  
+  let query = supabase.from('mail_enrollments')
+    .select('*, mail_sends(position, status, sent_at, lob_url)')
+    .eq('agent_id', agentId)
+    .order('enrolled_at', { ascending: false });
+  
+  if (zip) query = query.eq('zip_code', zip);
+  
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  
+  res.json({ enrollments: data || [] });
+});
+
+// GET /api/mail/preview/:enrollmentId — preview letters for an enrollment
+app.get('/api/mail/preview/:enrollmentId', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const { data: letters } = await supabase.from('mail_letters')
+    .select('position, subject, body_text')
+    .eq('enrollment_id', req.params.enrollmentId)
+    .order('position');
+  
+  res.json({ letters: letters || [] });
+});
+
+// GET /api/mail/credits — check credit balance
+app.get('/api/mail/credits', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const agentId = req.query.agent;
+  if (!agentId) return res.status(400).json({ error: 'Agent ID required' });
+  
+  const { data } = await supabase.from('mail_credits')
+    .select('*').eq('user_id', agentId).single();
+  
+  res.json({ credits: data || { credits_remaining: 0, credits_purchased: 0, credits_used: 0 } });
+});
+
+// POST /api/mail/credits/purchase — buy credit pack via Stripe
+app.post('/api/mail/credits/purchase', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!stripe) return res.status(500).json({ error: 'Payments not configured' });
+  
+  const { pack, agentEmail, agentName } = req.body;
+  const packInfo = MAIL_PACKS[pack];
+  if (!packInfo) return res.status(400).json({ error: 'Invalid pack. Options: starter, growth, scale' });
+  
+  try {
+    const customers = await stripe.customers.list({ email: agentEmail, limit: 1 });
+    let customer = customers.data[0];
+    if (!customer) customer = await stripe.customers.create({ email: agentEmail, name: agentName });
+    
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          unit_amount: packInfo.price,
+          product_data: { name: `SellerSignal Mail Credits — ${packInfo.label}` },
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${process.env.APP_URL || 'https://sellersignal.co'}/sellersignal-briefing.html?mail_credits=true&pack=${pack}`,
+      cancel_url: `${process.env.APP_URL || 'https://sellersignal.co'}/sellersignal-briefing.html?mail_canceled=true`,
+      metadata: { type: 'mail_credits', pack, credits: String(packInfo.credits), agentEmail },
+    });
+    
+    res.json({ url: session.url });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/mail/send-due — process mail queue (called by cron)
+app.post('/api/mail/send-due', async (req, res) => {
+  const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
+  if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid key' });
+  
+  const lobKey = process.env.LOB_API_KEY;
+  if (!lobKey) return res.status(503).json({ error: 'Lob not configured' });
+  
+  const result = await processMailQueue(supabase, anthropic, lobKey);
+  res.json(result);
 });
 
 // ===================
