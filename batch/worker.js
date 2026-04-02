@@ -108,8 +108,17 @@ async function processZip(zip, market) {
     const avgSold = sold24.reduce((s,p) => s + p.briefingRank, 0) / sold24.length;
     const avgNotSold = scored.filter(p => !sold24.includes(p)).reduce((s,p) => s + p.briefingRank, 0) / (scored.length - sold24.length);
     
+    // Recall at each threshold — what % of sold properties scored >= threshold
+    const thresholds = [25, 35, 45, 55];
+    const recall = {};
+    for (const t of thresholds) {
+      const flagged = sold24.filter(p => p.briefingRank >= t).length;
+      recall[t] = Math.round(flagged / sold24.length * 100);
+    }
+    
     calibration = { baseRate, lifts, rates, sold24: sold24.length, total: scored.length,
-      avgScoreSold: Math.round(avgSold), avgScoreNotSold: Math.round(avgNotSold), scoreGap: Math.round(avgSold - avgNotSold) };
+      avgScoreSold: Math.round(avgSold), avgScoreNotSold: Math.round(avgNotSold), scoreGap: Math.round(avgSold - avgNotSold),
+      recall, wouldHaveFlagged: recall[35] };
     log(`  Cal: base=${(baseRate*100).toFixed(1)}%, ${sold24.length} sold, gap=${calibration.scoreGap > 0 ? '+' : ''}${calibration.scoreGap}`);
     
     // Second pass with calibration
