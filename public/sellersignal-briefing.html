@@ -4598,8 +4598,9 @@ function openMailModal(id) {
             <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
                 <button class="modal-btn primary" onclick="revealFullLetter('${id}')">View Full Letter</button>
                 <button class="modal-btn secondary" onclick="copyFullLetter('${id}')">Copy Letter</button>
-                <button class="modal-btn" style="background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)" onclick="alert('Mail-for-me coming soon — $10 per letter, printed and mailed on your behalf')">Mail for Me — $10</button>
+                <button class="modal-btn" style="background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)" onclick="enrollInMailCampaign('${id}')">✉ Enroll in 6-Letter Campaign</button>
             </div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:8px;text-align:center">Uses 6 mail credits · AI writes 6 personalized letters · Mailed monthly via USPS</div>
         `}
     `;
     
@@ -4621,7 +4622,7 @@ function revealFullLetter(id) {
         <div style="white-space:pre-wrap;font-size:13px;line-height:1.7;color:var(--text-secondary)">${window._tempFullLetter.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
         <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
             <button class="modal-btn secondary" onclick="copyFullLetter('${id}')">Copy Letter</button>
-            <button class="modal-btn" style="background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)" onclick="alert('Mail-for-me coming soon — $10 per letter, printed and mailed on your behalf')">Mail for Me — $10</button>
+            <button class="modal-btn" style="background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)" onclick="enrollInMailCampaign('${id}')">✉ Enroll in 6-Letter Campaign</button>
         </div>
     `;
 }
@@ -4632,6 +4633,67 @@ function copyFullLetter(id) {
         const btns = document.querySelectorAll('.modal-btn.secondary');
         btns.forEach(b => { if (b.textContent.includes('Copy')) { const orig = b.textContent; b.textContent = '✓ Copied'; setTimeout(() => b.textContent = orig, 1500); }});
     });
+}
+
+// =========================
+// MAIL CAMPAIGN ENROLLMENT
+// =========================
+async function enrollInMailCampaign(id) {
+    const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
+    if (!p) return;
+    
+    const agentEmail = prompt('Your email (for mail credits and tracking):');
+    if (!agentEmail) return;
+    const agentName = prompt('Your name (appears on the letters):');
+    if (!agentName) return;
+    const agentBrokerage = prompt('Your brokerage:') || '';
+    const agentPhone = prompt('Your phone (included in letters):') || '';
+    
+    try {
+        const credResp = await fetch(`/api/mail/credits?agent=${encodeURIComponent(agentEmail)}`);
+        const credData = await credResp.json();
+        const remaining = credData.credits?.credits_remaining || 0;
+        
+        if (remaining < 6) {
+            const buyNow = confirm(`You need 6 credits but have ${remaining}.\n\nWould you like to purchase a credit pack?\n• Starter: 25 letters — $99\n• Growth: 50 letters — $179\n• Scale: 100 letters — $299`);
+            if (buyNow) {
+                const pack = prompt('Which pack? (starter / growth / scale):', 'growth');
+                if (['starter','growth','scale'].includes(pack)) {
+                    const resp = await fetch('/api/mail/credits/purchase', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ pack, agentEmail, agentName }),
+                    });
+                    const data = await resp.json();
+                    if (data.url) window.location.href = data.url;
+                }
+            }
+            return;
+        }
+        
+        const name = normalizeName(p.ownerName);
+        if (!confirm(`Enroll ${name} at ${p.address} in a 6-letter AI mail campaign?\n\nUses 6 credits (${remaining - 6} remaining after).\n\n• Letter 1 sends in 3 days\n• Letters 2-6 send monthly\n• Each letter uniquely written for this seller`)) return;
+        
+        // Show loading
+        const btn = document.querySelector('[onclick*="enrollInMailCampaign"]');
+        if (btn) { btn.textContent = 'Generating letters...'; btn.disabled = true; }
+        
+        const parcelId = p._parcelId || p.id || `${p.lat}-${p.lng}`;
+        const resp = await fetch('/api/mail/enroll', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ parcelIds: [parcelId], agentId: agentEmail, agentName, agentBrokerage, agentPhone, agentEmail }),
+        });
+        const data = await resp.json();
+        
+        if (data.enrolled > 0) {
+            alert(`✓ ${name} enrolled!\n\n6 personalized letters generated.\nLetter 1 mails in 3 days.\nCredits remaining: ${remaining - 6}`);
+            closeModal();
+        } else {
+            alert('Could not enroll: ' + (data.results?.[0]?.error || data.error || 'Unknown error'));
+            if (btn) { btn.textContent = '✉ Enroll in 6-Letter Campaign'; btn.disabled = false; }
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
 }
 
 function closeModal() {
