@@ -105,15 +105,24 @@ async function processZip(zip, market) {
     const lifts = {};
     for (const [k,r] of Object.entries(rates)) { if (k !== 'All Properties' && baseRate > 0) lifts[k] = r / baseRate; }
     
-    const avgSold = sold24.reduce((s,p) => s + p.briefingRank, 0) / sold24.length;
+    // For backtest: re-score sold parcels WITHOUT tenure penalty
+    // This simulates "would we have flagged them BEFORE they sold"
+    // (sold parcels have tenureYears <= 2 which penalizes them — that's post-sale data)
+    const sold24PreSale = sold24.map(p => {
+      const preSale = {...p, tenureYears: null, lastTransferDate: null, lastTransferYear: null, tenureSource: null, tenureConfidence: null, recentTransfer: false, tenureLongTerm: true};
+      const s = scoreParcel(preSale, stats, null);
+      return {...preSale, ...s};
+    });
+    
+    const avgSold = sold24PreSale.reduce((s,p) => s + p.briefingRank, 0) / sold24PreSale.length;
     const avgNotSold = scored.filter(p => !sold24.includes(p)).reduce((s,p) => s + p.briefingRank, 0) / (scored.length - sold24.length);
     
-    // Recall at each threshold — what % of sold properties scored >= threshold
+    // Recall at each threshold — what % of sold properties WOULD HAVE scored >= threshold before selling
     const thresholds = [25, 35, 45, 55];
     const recall = {};
     for (const t of thresholds) {
-      const flagged = sold24.filter(p => p.briefingRank >= t).length;
-      recall[t] = Math.round(flagged / sold24.length * 100);
+      const flagged = sold24PreSale.filter(p => p.briefingRank >= t).length;
+      recall[t] = Math.round(flagged / sold24PreSale.length * 100);
     }
     
     calibration = { baseRate, lifts, rates, sold24: sold24.length, total: scored.length,
