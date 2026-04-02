@@ -56,19 +56,6 @@ MARKETS.NY = {
   zips: ['10021','10024','10014','10013','11201','10583','10504','11937','11976','12866'],
 };
 
-MARKETS.TX_SA = {
-  key: 'TX_BEXAR', name: 'Bexar County, TX', homeState: 'TX',
-  url: 'https://maps.bexar.org/arcgis/rest/services/Parcels/MapServer/0/query',
-  fields: 'Owner,Situs,AddrLn2,AddrSt,Zip,LandVal,ImprVal,TotVal,PropUse,Acres,LglAcres,AcctNumb,YrBlt,Nbhd,DBA',
-  max: 1000,
-  zipWhere: null, // Bexar ZIP is mailing zip — needs spatial query
-  defaultCity: 'San Antonio',
-  fieldMap: { id:'AcctNumb', ownerName:'Owner', address:'Situs', totalValue:'TotVal', buildingValue:'ImprVal', landValue:'LandVal', acres:'Acres', yearBuilt:'YrBlt', mailAddress:'AddrLn2', mailState:'AddrSt', mailZip:'Zip' },
-  propTypeRules: { style: 'puc', field: 'PropUse', exempt: ['7','8'], commercial: ['5','6'], vacant: ['3'] },
-  parse(f) { return parseParcel(f, this); },
-  zips: ['78209','78255','78258','78230'],
-};
-
 MARKETS.AZ_MARICOPA = {
   key: 'AZ_MARICOPA', name: 'Maricopa County, AZ', homeState: 'AZ',
   url: 'https://gis.mcassessor.maricopa.gov/arcgis/rest/services/MaricopaDynamicQueryService/MapServer/3/query',

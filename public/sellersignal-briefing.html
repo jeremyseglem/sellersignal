@@ -224,7 +224,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='78209';startBriefing()">78209 · Alamo Heights</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='78255';startBriefing()">78255 · Stone Oak</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='78258';startBriefing()">78258 · N San Antonio</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33149';startBriefing()">33149 · Key Biscayne</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='78230';startBriefing()">78230 · Medical Center</button>
         </div>
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px">MARICOPA COUNTY, AZ</div>
@@ -841,24 +841,6 @@ SOURCES.NY = {
         p.county = (a.COUNTY_NAME || '').trim();
         return p;
     }
-};
-
-SOURCES.TX_BEXAR = {
-    key: 'TX_BEXAR', name: 'Bexar County, TX', homeState: 'TX',
-    marketProfile: 'Military-heavy market (Joint Base San Antonio). Sellers are often triggered by PCS orders (permanent change of station), retirement from military service, and VA loan assumptions. Large Hispanic population with multi-generational property transfers. Trust and estate ownership indicates wealth concentration in older neighborhoods (Alamo Heights, Terrell Hills, Olmos Park). LLC ownership is investor activity — San Antonio has been a major rental investment market since 2018. Out-of-state mailing to any state is a strong signal since military families relocate frequently. Vacant land in developing areas (Far West Side, Far North) may indicate builder speculation rather than individual seller intent.',
-    url: 'https://maps.bexar.org/arcgis/rest/services/Parcels/MapServer/0/query',
-    fields: 'Owner,Situs,AddrLn2,AddrSt,Zip,LandVal,ImprVal,TotVal,PropUse,Acres,LglAcres,AcctNumb,YrBlt,Nbhd,DBA',
-    max: 1000, bounds: { south: 29.15, north: 29.75, west: -98.85, east: -98.2 },
-    // NO zipWhere — Bexar Zip is MAILING zip
-    defaultCity: 'San Antonio',
-    fieldMap: {
-        id: 'AcctNumb', ownerName: 'Owner', address: 'Situs',
-        totalValue: 'TotVal', buildingValue: 'ImprVal', landValue: 'LandVal',
-        acres: 'Acres', yearBuilt: 'YrBlt',
-        mailAddress: 'AddrLn2', mailState: 'AddrSt', mailZip: 'Zip'
-    },
-    propTypeRules: { style: 'puc', field: 'PropUse', exempt: ['7', '8'], commercial: ['5', '6'], vacant: ['3'] },
-    parse(f) { return parseParcel(f, this); }
 };
 
 SOURCES.AZ_MARICOPA = {
