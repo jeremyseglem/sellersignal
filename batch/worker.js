@@ -203,9 +203,9 @@ ${d}`}]});
   // Store deep signals AFTER parcels exist (foreign key)
   if(pendingDS.length>0){const dsM=new Map();for(const r of pendingDS)dsM.set(r.parcel_id,r);const dd=[...dsM.values()];const{error}=await supabase.from('deep_signals').upsert(dd,{onConflict:'parcel_id'});if(error)log(`  DS store err: ${error.message}`);else log(`  DS stored: ${dd.length}`);}
 
-  const actCands=uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).slice(0,15);
-  const outCands=uR.filter(r=>!actCands.includes(r)&&(r.s.lite_score||r.s.briefing_rank)>=35).slice(0,50);
-  await supabase.from('zip_briefings').upsert({zip_code:zip,market_key:market.key,market_name:market.name,total_parcels:parcels.length,unique_owners:new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,act_today_count:actCands.length,outreach_queue_count:outCands.length,act_today_ids:actCands.map(r=>r.p.id),outreach_queue_ids:outCands.map(r=>r.p.id),calibration:calibration||null,computed_at:new Date().toISOString(),computation_time_ms:Date.now()-t0},{onConflict:'zip_code'});
+  const actCands=uR.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55);
+  const outCands=uR.filter(r=>{const s=r.s.lite_score||r.s.briefing_rank;return s>=35&&s<55;});
+  await supabase.from('zip_briefings').upsert({zip_code:zip,market_key:market.key,market_name:market.name,total_parcels:parcels.length,unique_owners:new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,act_today_count:actCands.length,outreach_queue_count:outCands.length,act_today_ids:actCands.slice(0,15).map(r=>r.p.id),outreach_queue_ids:outCands.slice(0,50).map(r=>r.p.id),calibration:calibration||null,computed_at:new Date().toISOString(),computation_time_ms:Date.now()-t0},{onConflict:'zip_code'});
 
   log(`  DONE: ${uP.length} parcels, ${actCands.length} act today, ${outCands.length} outreach, ${((Date.now()-t0)/1000).toFixed(1)}s\n`);
   return{zip,parcels:uP.length,actToday:actCands.length};
