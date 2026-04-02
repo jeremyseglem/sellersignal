@@ -57,8 +57,8 @@ async function processZip(zip, market) {
     try {
       const p = market.parse(f);
       if (!p) continue;
-      // For markets with salesUrl enrichment (King County), keep parcels even without owner names
-      if (!market.keepBlankOwners && (!p.ownerName || p.ownerName.length < 3) && (!p.address || p.address.length < 3)) continue;
+      // Keep all parcels that have an address — same as briefing HTML
+      // scoreParcel handles blank names (scores them lower, doesn't exclude them)
       if (p.address && p.address.length >= 3) parcels.push(p);
     } catch(e) { /* skip unparseable */ }
   }
@@ -70,10 +70,6 @@ async function processZip(zip, market) {
       log('  Enriching tenure from sales data...');
       const enriched = await enrichTenure(market, parcels);
       log(`  Enriched ${enriched || 0} parcels with tenure + owner data`);
-      // Now filter out parcels that still have no owner name after enrichment
-      const before = parcels.length;
-      parcels = parcels.filter(p => p.ownerName && p.ownerName.length >= 3);
-      if (parcels.length < before) log(`  Filtered ${before - parcels.length} parcels still without owner names`);
     } catch(e) { log(`  Tenure enrichment failed: ${e.message}`); }
   }
 
