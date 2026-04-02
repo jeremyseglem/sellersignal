@@ -155,9 +155,14 @@ ALTER TABLE mail_letters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mail_sends ENABLE ROW LEVEL SECURITY;
 
 -- Anon can read territory status (for the territories page)
-CREATE POLICY IF NOT EXISTS "Anon can read territory status" ON territory_claims
-  FOR SELECT TO anon
-  USING (true);
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Anon can read territory status" ON territory_claims;
+  CREATE POLICY "Anon can read territory status" ON territory_claims
+    FOR SELECT TO anon USING (true);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Policy creation: %', SQLERRM;
+END $$;
 
 -- Service role handles all writes (via SUPABASE_SERVICE_KEY in server.js)
 -- No additional policies needed for service role
