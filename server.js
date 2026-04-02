@@ -1251,15 +1251,16 @@ app.post('/api/billing-portal', async (req, res) => {
 // TERRITORY MANAGEMENT
 // ===================
 
-// GET /api/territories — all ZIPs with claim status
+// GET /api/territories — all ZIPs with claim status + dynamic pricing
+const { calculateTier } = require('./batch/pricing');
 app.get('/api/territories', async (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   if (!supabase) return res.status(503).json({ error: 'Not configured' });
   
   try {
-    // Get all briefings (available ZIPs)
+    // Get all briefings with calibration data
     const { data: briefings } = await supabase.from('zip_briefings')
-      .select('zip_code, market_key, market_name, total_parcels, act_today_count, outreach_queue_count');
+      .select('zip_code, market_key, market_name, total_parcels, act_today_count, outreach_queue_count, calibration');
     
     // Get active claims
     const { data: claims } = await supabase.from('territory_claims')
@@ -1276,19 +1277,34 @@ app.get('/api/territories', async (req, res) => {
       }
     }
     
-    const territories = (briefings || []).map(b => ({
-      zip: b.zip_code,
-      market: b.market_name,
-      marketKey: b.market_key,
-      parcels: b.total_parcels,
-      actToday: b.act_today_count,
-      outreach: b.outreach_queue_count,
-      status: claimMap[b.zip_code]?.status || 'available',
-      claimedBy: claimMap[b.zip_code]?.agent || null,
-      claimedBrokerage: claimMap[b.zip_code]?.brokerage || null,
-      waitlistCount: claimMap[b.zip_code]?.waitlistCount || 0,
-      price: 1000,
-    }));
+    // Markets with sales data in their GIS
+    const marketsWithSales = ['WA_KING', 'AZ_MARICOPA', 'FL_PB', 'FL_MD'];
+    // Markets with calibration sold24 > 0 also have sales data
+    
+    const territories = (briefings || []).map(b => {
+      const cal = b.calibration || {};
+      const sold24 = cal.sold24 || 0;
+      const hasSalesData = marketsWithSales.includes(b.market_key) || sold24 > 0;
+      const medianValue = cal.medianValue || 0; // from calibration if available
+      
+      const pricing = calculateTier(b.zip_code, medianValue, sold24, b.total_parcels, hasSalesData);
+      
+      return {
+        zip: b.zip_code,
+        market: b.market_name,
+        marketKey: b.market_key,
+        parcels: b.total_parcels,
+        actToday: b.act_today_count,
+        outreach: b.outreach_queue_count,
+        status: claimMap[b.zip_code]?.status || 'available',
+        claimedBy: claimMap[b.zip_code]?.agent || null,
+        claimedBrokerage: claimMap[b.zip_code]?.brokerage || null,
+        waitlistCount: claimMap[b.zip_code]?.waitlistCount || 0,
+        price: pricing.price,
+        tier: pricing.tier,
+        tierLabel: pricing.label,
+      };
+    });
     
     res.json({ territories });
   } catch(e) {
@@ -1305,13 +1321,15 @@ app.post('/api/territories/checkout', async (req, res) => {
   const { zipCodes, plan, agentName, agentEmail, agentPhone, agentBrokerage } = req.body;
   if (!zipCodes?.length || !agentEmail) return res.status(400).json({ error: 'ZIP codes and email required' });
   
-  // Pricing tiers
-  const TERRITORY_PRICES = {
-    monthly: { amount: 119700, interval: 'month', label: 'Monthly' },
-    '6month': { amount: 99700, interval: 'month', label: '6-Month Commitment' },
-    annual: { amount: 89700, interval: 'month', label: 'Annual Commitment' },
+  // Plan multipliers applied to the ZIP's base tier price
+  const PLAN_MULTIPLIERS = {
+    monthly: 1.20,   // 20% premium for flexibility
+    '6month': 1.00,  // base price (standard)
+    annual: 0.90,    // 10% discount for annual commit
   };
-  const pricing = TERRITORY_PRICES[plan] || TERRITORY_PRICES['6month'];
+  const planLabel = { monthly: 'Monthly', '6month': '6-Month Commitment', annual: 'Annual Commitment' };
+  const multiplier = PLAN_MULTIPLIERS[plan] || 1.00;
+  const commitLabel = planLabel[plan] || '6-Month Commitment';
   
   try {
     // Check availability
@@ -1323,6 +1341,13 @@ app.post('/api/territories/checkout', async (req, res) => {
     if (available.length === 0) {
       return res.json({ error: 'All selected ZIPs are already claimed', taken });
     }
+    
+    // Get calibration data for pricing
+    const { data: briefings } = await supabase.from('zip_briefings')
+      .select('zip_code, market_key, total_parcels, calibration')
+      .in('zip_code', available);
+    
+    const marketsWithSales = ['WA_KING', 'AZ_MARICOPA', 'FL_PB', 'FL_MD'];
     
     // Create or get Stripe customer
     const customers = await stripe.customers.list({ email: agentEmail, limit: 1 });
@@ -1336,19 +1361,28 @@ app.post('/api/territories/checkout', async (req, res) => {
       });
     }
     
-    // Create checkout session
-    const lineItems = available.map(zip => ({
-      price_data: {
-        currency: 'usd',
-        unit_amount: pricing.amount,
-        recurring: { interval: pricing.interval },
-        product_data: {
-          name: `SellerSignal Territory — ZIP ${zip}`,
-          description: `Exclusive seller intelligence for ZIP ${zip}. ${pricing.label}.`,
+    // Create checkout session with per-ZIP pricing
+    const lineItems = available.map(zip => {
+      const b = (briefings || []).find(x => x.zip_code === zip) || {};
+      const cal = b.calibration || {};
+      const sold24 = cal.sold24 || 0;
+      const hasSalesData = marketsWithSales.includes(b.market_key) || sold24 > 0;
+      const tier = calculateTier(zip, cal.medianValue || 0, sold24, b.total_parcels || 0, hasSalesData);
+      const amount = Math.round(tier.price * multiplier * 100); // cents
+      
+      return {
+        price_data: {
+          currency: 'usd',
+          unit_amount: amount,
+          recurring: { interval: 'month' },
+          product_data: {
+            name: `SellerSignal Territory — ZIP ${zip} (${tier.label})`,
+            description: `Exclusive seller intelligence for ZIP ${zip}. ${commitLabel}.`,
+          },
         },
-      },
-      quantity: 1,
-    }));
+        quantity: 1,
+      };
+    });
     
     const session = await stripe.checkout.sessions.create({
       customer: customer.id,
@@ -4016,140 +4050,6 @@ app.get('/api/health', (req, res) => {
 // ===================
 // TERRITORY MANAGEMENT API
 // ===================
-
-// GET /api/territories — all ZIPs with claim status
-app.get('/api/territories', async (req, res) => {
-  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
-  res.header('Access-Control-Allow-Origin', '*');
-  
-  try {
-    // Get all briefings (available ZIPs)
-    const { data: briefings } = await supabase
-      .from('zip_briefings')
-      .select('zip_code,market_key,market_name,total_parcels,act_today_count,outreach_queue_count');
-    
-    // Get all active claims
-    const { data: claims } = await supabase
-      .from('territory_claims')
-      .select('zip_code,user_id,status,claimed_at')
-      .in('status', ['active', 'waitlist']);
-    
-    const claimMap = {};
-    for (const c of (claims || [])) {
-      if (!claimMap[c.zip_code]) claimMap[c.zip_code] = [];
-      claimMap[c.zip_code].push(c);
-    }
-    
-    const territories = (briefings || []).map(b => {
-      const zipClaims = claimMap[b.zip_code] || [];
-      const activeClaim = zipClaims.find(c => c.status === 'active');
-      const waitlistCount = zipClaims.filter(c => c.status === 'waitlist').length;
-      
-      return {
-        zip_code: b.zip_code,
-        market_key: b.market_key,
-        market_name: b.market_name,
-        total_parcels: b.total_parcels,
-        act_today_count: b.act_today_count,
-        outreach_queue_count: b.outreach_queue_count,
-        status: activeClaim ? 'claimed' : 'available',
-        waitlist_count: waitlistCount,
-        price_monthly: 1000,
-      };
-    });
-    
-    res.json({ territories });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// POST /api/territories/claim — create Stripe checkout for a ZIP
-app.post('/api/territories/claim', async (req, res) => {
-  if (!stripe) return res.status(500).json({ error: 'Payments not configured' });
-  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
-  res.header('Access-Control-Allow-Origin', '*');
-  
-  const { zip_code, email, name } = req.body;
-  if (!zip_code || !email) return res.status(400).json({ error: 'zip_code and email required' });
-  
-  try {
-    // Check if ZIP is already claimed
-    const { data: existing } = await supabase
-      .from('territory_claims')
-      .select('id,status')
-      .eq('zip_code', zip_code)
-      .eq('status', 'active')
-      .single();
-    
-    const isWaitlist = !!existing;
-    
-    // Create or find Stripe customer
-    const customers = await stripe.customers.list({ email, limit: 1 });
-    let customer = customers.data[0];
-    if (!customer) {
-      customer = await stripe.customers.create({ email, name: name || email, metadata: { source: 'territory_claim' } });
-    }
-    
-    // Create checkout session
-    const territoryPrice = PRICES.territory;
-    
-    const sessionConfig = {
-      customer: customer.id,
-      payment_method_types: ['card'],
-      mode: 'subscription',
-      success_url: `${process.env.APP_URL || 'https://sellersignal.co'}/territories.html?success=true&zip=${zip_code}`,
-      cancel_url: `${process.env.APP_URL || 'https://sellersignal.co'}/territories.html?canceled=true`,
-      metadata: { zip_code, action: isWaitlist ? 'waitlist' : 'claim', email },
-      subscription_data: {
-        metadata: { zip_code, type: 'territory' }
-      }
-    };
-    
-    if (territoryPrice) {
-      sessionConfig.line_items = [{ price: territoryPrice, quantity: 1 }];
-    } else {
-      // No pre-created price — use inline pricing
-      sessionConfig.line_items = [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `SellerSignal Territory — ZIP ${zip_code}`,
-            description: `Exclusive seller intelligence for ZIP code ${zip_code}. Includes daily briefings, AI-scored prospects, and Deep Signal analysis.`
-          },
-          unit_amount: 100000, // $1,000.00
-          recurring: { interval: 'month' }
-        },
-        quantity: 1
-      }];
-    }
-    
-    const session = await stripe.checkout.sessions.create(sessionConfig);
-    
-    // Create pending claim record
-    await supabase.from('territory_claims').upsert({
-      zip_code,
-      user_id: customer.id,
-      email,
-      agent_name: name || null,
-      status: isWaitlist ? 'waitlist_pending' : 'pending',
-      stripe_checkout_session: session.id,
-      created_at: new Date().toISOString(),
-    }, { onConflict: 'zip_code,user_id' });
-    
-    res.json({ url: session.url, waitlist: isWaitlist });
-  } catch(e) {
-    console.error('Territory claim error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.options('/api/territories/claim', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.sendStatus(204);
-});
 
 // ===================
 // BATCH PIPELINE API — serves pre-computed briefings from Supabase
