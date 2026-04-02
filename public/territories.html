@@ -82,7 +82,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
     <div class="panel" id="panel"></div>
 </div>
 <script>
-let map,boundaryLayer,territories=[],cart=[],currentView='markets',boundaries=null;
+let map,boundaryLayer,territories=[],cart=[],currentView='markets',boundaries=null,selectedPlan='6month';
+const PLANS={monthly:{price:1197,label:'Monthly',period:'cancel anytime'},
+'6month':{price:997,label:'6-Month',period:'6-month commitment'},
+annual:{price:897,label:'Annual',period:'12-month commitment'}};
 
 const MARKETS={
     MT:{name:'Montana',center:[45.68,-111.05],zoom:9},
@@ -164,8 +167,25 @@ function showPanel(view,data){
             <div class="exclusive-badge" style="margin-bottom:16px">🔒 One agent per ZIP code</div>
             <h2>Claim Your Territory</h2>
             <p>Know who's going to sell before they list. Exclusive seller intelligence powered by AI — daily briefings, automated outreach, and direct contact scripts locked to your ZIP code alone.</p>
-            <div class="price-tag">$1,000<span>/mo per ZIP</span></div>
-            <div class="price-sub">CANCEL ANYTIME · EXCLUSIVE TERRITORY</div>
+            <div style="display:flex;gap:8px;margin-top:20px">
+                <div style="flex:1;padding:14px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;text-align:center">
+                    <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.05em;margin-bottom:6px">MONTHLY</div>
+                    <div style="font-size:22px;font-weight:700;color:var(--text-secondary)">$1,197</div>
+                    <div style="font-size:10px;color:var(--text-dim)">/mo per ZIP</div>
+                </div>
+                <div style="flex:1;padding:14px 10px;background:rgba(196,168,124,0.08);border:1px solid var(--accent);border-radius:8px;text-align:center;position:relative">
+                    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:var(--accent);color:#0a0f14;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.04em">STANDARD</div>
+                    <div style="font-size:10px;color:var(--accent);letter-spacing:0.05em;margin-bottom:6px">6 MONTHS</div>
+                    <div style="font-size:22px;font-weight:700;color:var(--accent)">$997</div>
+                    <div style="font-size:10px;color:var(--text-dim)">/mo per ZIP</div>
+                </div>
+                <div style="flex:1;padding:14px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;text-align:center">
+                    <div style="font-size:10px;color:var(--green);letter-spacing:0.05em;margin-bottom:6px">ANNUAL</div>
+                    <div style="font-size:22px;font-weight:700;color:var(--text-secondary)">$897</div>
+                    <div style="font-size:10px;color:var(--text-dim)">/mo per ZIP</div>
+                </div>
+            </div>
+            <div class="price-sub" style="margin-top:10px">6-MONTH MINIMUM RECOMMENDED · EXCLUSIVE TERRITORY</div>
         </div>
         <div style="padding:0 24px 24px" class="animate-in">
             ${Object.entries(MARKETS).map(([k,m])=>{
@@ -218,9 +238,23 @@ function showPanel(view,data){
                     <div>🔒 <strong style="color:var(--text)">Exclusive territory</strong> — no other agent receives this intelligence in your ZIP</div>
                 </div>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <div style="font-size:28px;font-weight:700;color:var(--accent)">$1,000<span style="font-size:14px;font-weight:400;color:var(--text-dim)">/mo</span></div>
-                <div class="exclusive-badge">🔒 Exclusive</div>
+            <div style="margin-bottom:16px">
+                <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.05em;margin-bottom:8px">SELECT YOUR PLAN</div>
+                <div style="display:flex;gap:6px">
+                    <div onclick="selectedPlan='monthly';showPanel('zip','${t.zip}')" style="flex:1;padding:10px 6px;background:${selectedPlan==='monthly'?'var(--bg-elevated)':'var(--bg)'};border:1px solid ${selectedPlan==='monthly'?'var(--text-secondary)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer">
+                        <div style="font-size:9px;color:var(--text-dim)">MONTHLY</div>
+                        <div style="font-size:18px;font-weight:700;color:var(--text-secondary)">$1,197</div>
+                    </div>
+                    <div onclick="selectedPlan='6month';showPanel('zip','${t.zip}')" style="flex:1;padding:10px 6px;background:${selectedPlan==='6month'?'rgba(196,168,124,0.08)':'var(--bg)'};border:1px solid ${selectedPlan==='6month'?'var(--accent)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer;position:relative">
+                        <div style="font-size:9px;color:var(--accent);font-weight:600">6 MONTHS</div>
+                        <div style="font-size:18px;font-weight:700;color:var(--accent)">$997</div>
+                    </div>
+                    <div onclick="selectedPlan='annual';showPanel('zip','${t.zip}')" style="flex:1;padding:10px 6px;background:${selectedPlan==='annual'?'var(--bg-elevated)':'var(--bg)'};border:1px solid ${selectedPlan==='annual'?'var(--green)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer">
+                        <div style="font-size:9px;color:var(--green)">ANNUAL</div>
+                        <div style="font-size:18px;font-weight:700;color:var(--text-secondary)">$897</div>
+                    </div>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:6px">${selectedPlan==='monthly'?'Cancel anytime':selectedPlan==='6month'?'6-month commitment · best value':'12-month commitment · lowest rate'} · per month per ZIP</div>
             </div>
             ${t.status==='claimed'?`<button class="btn btn-waitlist" onclick="joinWaitlist('${t.zip}')">Join Waitlist${t.waitlistCount>0?' (#'+(t.waitlistCount+1)+')':''}</button><p style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">We'll save your card and auto-activate when available</p>`
             :inC?`<button class="btn btn-primary" onclick="removeFromCart('${t.zip}');showPanel('zip','${t.zip}')">Remove from Cart</button>`
@@ -230,18 +264,26 @@ function showPanel(view,data){
     }
 
     if(view==='cart'){
-        const items=cart.map(z=>territories.find(t=>t.zip===z)).filter(Boolean),total=items.length*1000;
+        const pl=PLANS[selectedPlan],items=cart.map(z=>territories.find(t=>t.zip===z)).filter(Boolean),total=items.length*pl.price;
         p.innerHTML=tabsHtml('cart')+`<div style="padding:24px;flex:1;display:flex;flex-direction:column" class="animate-in">
             ${!items.length?`<div style="text-align:center;padding:40px 20px;color:var(--text-dim)"><div style="font-size:32px;margin-bottom:12px">🗺️</div>No territories selected<div style="margin-top:4px;font-size:11px">Click a market on the map to browse ZIP codes</div></div>`:`
-            ${items.map(t=>`<div class="cart-item"><div><div style="font-weight:600;font-size:14px">${t.zip}</div><div style="font-size:11px;color:var(--text-dim)">${t.market}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="font-weight:600;color:var(--accent);font-size:14px">$1,000/mo</div><button class="btn-remove" onclick="removeFromCart('${t.zip}');showPanel('cart')">✕</button></div></div>`).join('')}
-            <div style="display:flex;justify-content:space-between;padding:16px 0;border-top:1px solid var(--border);margin-top:auto"><div style="color:var(--text-secondary)">${items.length} territor${items.length>1?'ies':'y'}</div><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:var(--accent)">$${total.toLocaleString()}</div><div style="font-size:11px;color:var(--text-dim)">per month</div></div></div>
+            <div style="margin-bottom:16px">
+                <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.05em;margin-bottom:8px">COMMITMENT</div>
+                <div style="display:flex;gap:6px">
+                    <div onclick="selectedPlan='monthly';showPanel('cart')" style="flex:1;padding:8px 4px;border:1px solid ${selectedPlan==='monthly'?'var(--text-secondary)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer;font-size:11px;color:${selectedPlan==='monthly'?'var(--text)':'var(--text-dim)'}"><strong>$1,197</strong>/mo<br><span style="font-size:9px">Cancel anytime</span></div>
+                    <div onclick="selectedPlan='6month';showPanel('cart')" style="flex:1;padding:8px 4px;border:1px solid ${selectedPlan==='6month'?'var(--accent)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer;font-size:11px;color:${selectedPlan==='6month'?'var(--accent)':'var(--text-dim)'}"><strong>$997</strong>/mo<br><span style="font-size:9px">6-month commit</span></div>
+                    <div onclick="selectedPlan='annual';showPanel('cart')" style="flex:1;padding:8px 4px;border:1px solid ${selectedPlan==='annual'?'var(--green)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer;font-size:11px;color:${selectedPlan==='annual'?'var(--green)':'var(--text-dim)'}"><strong>$897</strong>/mo<br><span style="font-size:9px">Annual commit</span></div>
+                </div>
+            </div>
+            ${items.map(t=>`<div class="cart-item"><div><div style="font-weight:600;font-size:14px">${t.zip}</div><div style="font-size:11px;color:var(--text-dim)">${t.market}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="font-weight:600;color:var(--accent);font-size:14px">$${pl.price.toLocaleString()}/mo</div><button class="btn-remove" onclick="removeFromCart('${t.zip}');showPanel('cart')">✕</button></div></div>`).join('')}
+            <div style="display:flex;justify-content:space-between;padding:16px 0;border-top:1px solid var(--border);margin-top:auto"><div><div style="color:var(--text-secondary)">${items.length} territor${items.length>1?'ies':'y'}</div><div style="font-size:10px;color:var(--text-dim)">${pl.label} · ${pl.period}</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:var(--accent)">$${total.toLocaleString()}</div><div style="font-size:11px;color:var(--text-dim)">per month</div></div></div>
             <div style="margin-top:16px">
                 <div class="form-group"><label>FULL NAME</label><input type="text" id="agentName" placeholder="Your name"/></div>
                 <div class="form-group"><label>EMAIL</label><input type="email" id="agentEmail" placeholder="you@brokerage.com"/></div>
                 <div class="form-group"><label>PHONE</label><input type="tel" id="agentPhone" placeholder="(555) 000-0000"/></div>
                 <div class="form-group"><label>BROKERAGE</label><input type="text" id="agentBrokerage" placeholder="Your brokerage"/></div>
                 <button class="btn btn-checkout" onclick="checkout()">Claim ${items.length} Territor${items.length>1?'ies':'y'} — $${total.toLocaleString()}/mo</button>
-                <p style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">Powered by Stripe · Cancel anytime</p>
+                <p style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">Powered by Stripe · ${pl.period}</p>
             </div>`}
         </div>`;
         return;
@@ -258,7 +300,7 @@ async function checkout(){
     if(!name){alert('Please enter your name');return;}
     const btn=document.querySelector('.btn-checkout');btn.textContent='Redirecting to Stripe...';btn.disabled=true;
     try{
-        const r=await fetch('/api/territories/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zipCodes:cart,agentName:name,agentEmail:email,agentPhone:phone,agentBrokerage:brokerage})});
+        const r=await fetch('/api/territories/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zipCodes:cart,plan:selectedPlan,agentName:name,agentEmail:email,agentPhone:phone,agentBrokerage:brokerage})});
         const d=await r.json();
         if(d.url)window.location.href=d.url;
         else if(d.taken?.length){alert('These ZIPs were claimed: '+d.taken.join(', '));cart=cart.filter(z=>!d.taken.includes(z));showPanel('cart');}

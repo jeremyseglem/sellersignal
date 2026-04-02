@@ -1272,8 +1272,16 @@ app.post('/api/territories/checkout', async (req, res) => {
   if (!stripe) return res.status(500).json({ error: 'Payments not configured' });
   if (!supabase) return res.status(503).json({ error: 'Not configured' });
   
-  const { zipCodes, agentName, agentEmail, agentPhone, agentBrokerage } = req.body;
+  const { zipCodes, plan, agentName, agentEmail, agentPhone, agentBrokerage } = req.body;
   if (!zipCodes?.length || !agentEmail) return res.status(400).json({ error: 'ZIP codes and email required' });
+  
+  // Pricing tiers
+  const TERRITORY_PRICES = {
+    monthly: { amount: 119700, interval: 'month', label: 'Monthly' },
+    '6month': { amount: 99700, interval: 'month', label: '6-Month Commitment' },
+    annual: { amount: 89700, interval: 'month', label: 'Annual Commitment' },
+  };
+  const pricing = TERRITORY_PRICES[plan] || TERRITORY_PRICES['6month'];
   
   try {
     // Check availability
@@ -1298,15 +1306,15 @@ app.post('/api/territories/checkout', async (req, res) => {
       });
     }
     
-    // Create checkout session — $1000/mo per ZIP
+    // Create checkout session
     const lineItems = available.map(zip => ({
       price_data: {
         currency: 'usd',
-        unit_amount: 100000, // $1000 in cents
-        recurring: { interval: 'month' },
+        unit_amount: pricing.amount,
+        recurring: { interval: pricing.interval },
         product_data: {
           name: `SellerSignal Territory — ZIP ${zip}`,
-          description: `Exclusive seller intelligence for ZIP code ${zip}. Daily briefings, AI scoring, and Deep Signal analysis.`,
+          description: `Exclusive seller intelligence for ZIP ${zip}. ${pricing.label}.`,
         },
       },
       quantity: 1,
@@ -1321,6 +1329,7 @@ app.post('/api/territories/checkout', async (req, res) => {
       cancel_url: `${process.env.APP_URL || 'https://sellersignal.co'}/territories.html?canceled=true`,
       metadata: {
         zipCodes: available.join(','),
+        plan: plan || '6month',
         agentName: agentName || '',
         agentEmail,
         agentPhone: agentPhone || '',
