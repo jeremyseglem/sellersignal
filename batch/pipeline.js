@@ -258,7 +258,7 @@ function scoreParcel(p, stats, cal) {
     
     if (p.exempt) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
     
-    const govRx = /\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSITY\b|\bCOLLEGE\b|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
+    const govRx = /\bCITY OF\b|\bTOWN OF\b|\bVILLAGE OF\b|\bBOROUGH OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSITY\b|\bCOLLEGE\b|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
     if (p.ownerName && govRx.test(p.ownerName)) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional'};
     
     const on = (p.ownerName || '').toUpperCase();

@@ -220,13 +220,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59801';startBriefing()">59801 · Missoula</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59711';startBriefing()">59711 · Anaconda</button>
         </div>
-        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px">SAN ANTONIO, TX</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='78209';startBriefing()">78209 · Alamo Heights</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='78255';startBriefing()">78255 · Stone Oak</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='33149';startBriefing()">33149 · Key Biscayne</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='78230';startBriefing()">78230 · Medical Center</button>
-        </div>
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px">MARICOPA COUNTY, AZ</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='85253';startBriefing()">85253 · Paradise Valley</button>
@@ -303,10 +296,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='10013';startBriefing()">10013 · Tribeca</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='11201';startBriefing()">11201 · Brooklyn Hts</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='10583';startBriefing()">10583 · Scarsdale</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='10504';startBriefing()">10504 · Armonk</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='11937';startBriefing()">11937 · E Hampton</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='11976';startBriefing()">11976 · Water Mill</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='12866';startBriefing()">12866 · Saratoga</button>
         </div>
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px">SCOTTSDALE / TEMPE / MESA, AZ</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
@@ -1136,7 +1125,7 @@ function scoreParcel(p, stats, cal) {
     if (p.exempt) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
     
     // Institutional filter
-    const govRx = /\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSITY\b|\bCOLLEGE\b|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
+    const govRx = /\bCITY OF\b|\bTOWN OF\b|\bVILLAGE OF\b|\bBOROUGH OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSITY\b|\bCOLLEGE\b|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
     if (p.ownerName && govRx.test(p.ownerName)) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional'};
     
     // No-address filter
