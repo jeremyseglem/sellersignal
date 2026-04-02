@@ -405,13 +405,21 @@ function scoreParcel(p, stats, cal) {
     else if (p.tenureLongTerm) confidence += 1;
     else if (!p.tenureSource) confidence -= 3;
     
-    // DATA-QUALITY PENALTY — when both values AND tenure are absent, model is guessing
-    // Prevents data-poor markets (Deschutes, Montana) from flagging 90% of parcels
-    const dataPoor = (!p.totalValue || p.totalValue === 0) && !p.tenureSource && !p.salePrice;
-    if (dataPoor) {
+    // DATA-QUALITY PENALTY — model confidence scales with available evidence
+    // No values AND no tenure (Deschutes): heavy penalty, model is blind
+    // No tenure only (Montana non-disclosure): moderate penalty, missing key predictor
+    const noValues = !p.totalValue || p.totalValue === 0;
+    const noTenure = !p.tenureSource && !p.salePrice;
+    if (noValues && noTenure) {
         sellerLikelihood -= 5;
         actionability -= 8;
         confidence -= 8;
+    } else if (noTenure && !isEntity) {
+        // Named individuals without tenure: reduce scores — can't estimate sell timing
+        // Entities (trusts, LLCs, estates) keep their scores because entity type IS the signal
+        sellerLikelihood -= 3;
+        actionability -= 4;
+        confidence -= 4;
     }
     
     confidence = clamp(confidence, 0, 100);
