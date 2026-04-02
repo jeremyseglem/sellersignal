@@ -2008,8 +2008,8 @@ app.post('/api/beta-research', async (req, res) => {
     betaDailyLimit.count = 0;
     betaDailyLimit.resetTime = Date.now() + 86400000;
   }
-  if (betaDailyLimit.count >= 100) {
-    return res.status(429).json({ error: 'Daily beta limit reached (100 searches). Resets at midnight.' });
+  if (betaDailyLimit.count >= 250) {
+    return res.status(429).json({ error: 'Daily limit reached (250 searches). Resets at midnight.' });
   }
 
   try {
