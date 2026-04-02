@@ -404,6 +404,16 @@ function scoreParcel(p, stats, cal) {
     if (p.tenureConfidence === 'high') confidence += 6;
     else if (p.tenureLongTerm) confidence += 1;
     else if (!p.tenureSource) confidence -= 3;
+    
+    // DATA-QUALITY PENALTY — when both values AND tenure are absent, model is guessing
+    // Prevents data-poor markets (Deschutes, Montana) from flagging 90% of parcels
+    const dataPoor = (!p.totalValue || p.totalValue === 0) && !p.tenureSource && !p.salePrice;
+    if (dataPoor) {
+        sellerLikelihood -= 5;
+        actionability -= 8;
+        confidence -= 8;
+    }
+    
     confidence = clamp(confidence, 0, 100);
     
     const briefingRank = Math.round(

@@ -1386,6 +1386,14 @@ function scoreParcel(p, stats, cal) {
     else if (p.tenureLongTerm) confidence += 1; // 3yr absence = weak signal only
     else if (!p.tenureSource) confidence -= 3; // no tenure data at all (Montana)
     
+    // DATA-QUALITY PENALTY — when both values AND tenure are absent, model is guessing
+    const dataPoor = (!p.totalValue || p.totalValue === 0) && !p.tenureSource && !p.salePrice;
+    if (dataPoor) {
+        sellerLikelihood -= 5;
+        actionability -= 8;
+        confidence -= 8;
+    }
+    
     confidence = clamp(confidence, 0, 100);
     
     // -----------------------------------------------
