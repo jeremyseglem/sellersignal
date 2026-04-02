@@ -5,538 +5,279 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SellerSignal — Claim Your Territory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-:root {
-    --bg: #0a0f14;
-    --bg-card: #111921;
-    --bg-elevated: #162430;
-    --bg-input: #1a2a3a;
-    --text: #FDFCFA;
-    --text-secondary: #8a9aa8;
-    --text-dim: #5a6a78;
-    --accent: #c4a87c;
-    --accent-hover: #d4b88c;
-    --green: #4ade80;
-    --green-dim: rgba(74,222,128,0.08);
-    --red: #f87171;
-    --border: #1e2a36;
-    --gold: #c4a87c;
-    --gold-dim: rgba(196,168,124,0.06);
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; }
-
-/* Header */
-.header { height:60px; padding:0 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:var(--bg); z-index:1000; }
-.logo { display:flex; align-items:center; gap:10px; color:var(--text); text-decoration:none; }
-.logo-mark { width:28px; height:28px; border:2px solid var(--text); border-radius:50%; display:flex; align-items:flex-end; justify-content:center; gap:2px; padding-bottom:6px; }
-.logo-mark .bar { width:2.5px; background:var(--text); border-radius:1px; }
-.logo-mark .bar:nth-child(1){height:4px} .logo-mark .bar:nth-child(2){height:7px} .logo-mark .bar:nth-child(3){height:11px}
-.logo-text { font-family:'DM Serif Display',serif; font-size:18px; }
-.header-right { display:flex; align-items:center; gap:12px; }
-.header-link { color:var(--text-secondary); text-decoration:none; font-size:13px; font-weight:500; padding:6px 14px; border-radius:6px; transition:all 0.2s; }
-.header-link:hover { color:var(--text); background:var(--bg-elevated); }
-
-/* Layout */
-.layout { display:flex; height:calc(100vh - 60px); }
-#map { flex:1; z-index:1; }
-.leaflet-container { background:var(--bg) !important; }
-
-/* Side Panel */
-.panel { width:0; overflow:hidden; background:var(--bg-card); border-left:1px solid var(--border); transition:width 0.3s ease; z-index:500; display:flex; flex-direction:column; }
-.panel.open { width:420px; }
-.panel-header { padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; flex-shrink:0; }
-.panel-close { background:none; border:none; color:var(--text-dim); font-size:20px; cursor:pointer; padding:4px; line-height:1; }
-.panel-close:hover { color:var(--text); }
-.panel-body { flex:1; overflow-y:auto; padding:20px 24px; }
-.panel-footer { padding:16px 24px; border-top:1px solid var(--border); flex-shrink:0; }
-
-/* ZIP Info Panel */
-.zip-title { font-family:'DM Serif Display',serif; font-size:26px; margin-bottom:4px; }
-.zip-market { font-size:12px; color:var(--accent); font-weight:600; letter-spacing:0.04em; text-transform:uppercase; }
-.zip-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin:20px 0; }
-.zip-stat { text-align:center; padding:14px 8px; background:var(--bg-elevated); border-radius:8px; border:1px solid var(--border); }
-.zip-stat-val { font-size:22px; font-weight:700; color:var(--text); }
-.zip-stat-label { font-size:9px; color:var(--text-dim); letter-spacing:0.06em; text-transform:uppercase; margin-top:4px; }
-.zip-status { padding:16px; border-radius:10px; margin:16px 0; text-align:center; }
-.zip-status.available { background:var(--green-dim); border:1px solid rgba(74,222,128,0.2); }
-.zip-status.claimed { background:rgba(248,113,113,0.06); border:1px solid rgba(248,113,113,0.2); }
-.zip-status-text { font-size:14px; font-weight:600; }
-.zip-status.available .zip-status-text { color:var(--green); }
-.zip-status.claimed .zip-status-text { color:var(--red); }
-.zip-status-sub { font-size:11px; color:var(--text-dim); margin-top:4px; }
-.zip-price { font-family:'DM Serif Display',serif; font-size:36px; color:var(--text); margin:20px 0 4px; text-align:center; }
-.zip-price-sub { font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:20px; }
-
-/* Buttons */
-.btn { display:block; width:100%; padding:14px; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; text-align:center; }
-.btn-primary { background:var(--accent); color:#0a0f14; }
-.btn-primary:hover { background:var(--accent-hover); transform:translateY(-1px); }
-.btn-secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-.btn-secondary:hover { background:var(--gold-dim); }
-.btn-waitlist { background:rgba(196,168,124,0.1); color:var(--accent); border:1px solid rgba(196,168,124,0.3); }
-.btn-waitlist:hover { background:rgba(196,168,124,0.15); }
-.btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
-
-/* Cart Bar */
-.cart-bar { position:fixed; bottom:0; left:0; right:0; height:0; background:var(--bg-card); border-top:1px solid var(--border); z-index:2000; transition:height 0.3s ease; overflow:hidden; display:flex; align-items:center; padding:0 24px; }
-.cart-bar.open { height:72px; }
-.cart-items { flex:1; display:flex; gap:8px; align-items:center; overflow-x:auto; }
-.cart-chip { padding:6px 14px; background:var(--bg-elevated); border:1px solid var(--accent); border-radius:20px; font-size:12px; font-weight:600; color:var(--accent); white-space:nowrap; display:flex; align-items:center; gap:8px; }
-.cart-chip-remove { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; }
-.cart-chip-remove:hover { color:var(--red); }
-.cart-total { font-family:'DM Serif Display',serif; font-size:20px; color:var(--text); margin:0 20px; white-space:nowrap; }
-.cart-checkout { padding:12px 28px; background:var(--accent); color:#0a0f14; border:none; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer; white-space:nowrap; }
-.cart-checkout:hover { background:var(--accent-hover); }
-
-/* Market Labels on Map */
-.market-label { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'Inter',sans-serif; font-size:12px; font-weight:600; color:var(--accent); white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.4); }
-.market-label .count { color:var(--text-dim); font-weight:400; font-size:11px; }
-
-/* Checkout Form */
-.form-group { margin-bottom:16px; }
-.form-label { font-size:11px; font-weight:600; color:var(--text-dim); letter-spacing:0.04em; text-transform:uppercase; margin-bottom:6px; display:block; }
-.form-input { width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:14px; font-family:'Inter',sans-serif; }
-.form-input:focus { outline:none; border-color:var(--accent); }
-
-/* Loading overlay */
-.loading-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:var(--bg); z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; transition:opacity 0.5s; }
-.loading-overlay.hidden { opacity:0; pointer-events:none; }
-.loading-spinner { width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
-@keyframes spin { to { transform:rotate(360deg); } }
-
-/* Tooltip */
-.zip-tooltip { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-family:'Inter',sans-serif; box-shadow:0 4px 16px rgba(0,0,0,0.5); }
-.zip-tooltip .zip-tt-title { font-size:14px; font-weight:700; color:var(--text); }
-.zip-tooltip .zip-tt-market { font-size:10px; color:var(--accent); margin-bottom:6px; }
-.zip-tooltip .zip-tt-stat { font-size:11px; color:var(--text-secondary); }
-.zip-tooltip .zip-tt-status { font-size:11px; font-weight:600; margin-top:4px; }
-
-.leaflet-tooltip { background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; }
-.leaflet-tooltip::before { display:none !important; }
-
-/* Checkout modal */
-.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:5000; display:none; align-items:center; justify-content:center; }
-.modal-overlay.open { display:flex; }
-.modal { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:32px; width:480px; max-width:90vw; max-height:90vh; overflow-y:auto; }
-.modal-title { font-family:'DM Serif Display',serif; font-size:24px; margin-bottom:4px; }
-.modal-sub { color:var(--text-dim); font-size:13px; margin-bottom:24px; }
+:root{--bg:#0a0f14;--bg-card:#111921;--bg-elevated:#162430;--bg-input:#1a2a3a;--text:#FDFCFA;--text-secondary:#8a9aa8;--text-dim:#5a6a78;--accent:#c4a87c;--accent-hover:#d4b88c;--green:#4ade80;--green-dim:rgba(74,222,128,0.08);--red:#f87171;--border:#1e2a36;--gold-dim:rgba(196,168,124,0.08);--gold-border:rgba(196,168,124,0.2)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.header{padding:14px 28px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg);z-index:1000;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.header-nav{display:flex;gap:8px}
+.header-nav a{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);transition:all 0.2s}
+.header-nav a:hover{color:var(--text);border-color:var(--accent)}
+.header-nav a.active{background:var(--accent);color:#0a0f14;border-color:var(--accent);font-weight:600}
+.main{flex:1;display:flex;overflow:hidden}
+#map{flex:1;z-index:1}
+.panel{width:420px;background:var(--bg-card);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:2;flex-shrink:0;overflow-y:auto}
+.panel-hero{padding:40px 28px;text-align:center}
+.panel-hero h2{font-family:'DM Serif Display',serif;font-size:26px;margin-bottom:12px}
+.panel-hero p{font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px}
+.price-tag{font-size:42px;font-weight:700;color:var(--accent)}
+.price-tag span{font-size:16px;font-weight:400;color:var(--text-dim)}
+.price-sub{font-size:11px;color:var(--text-dim);margin-top:4px;letter-spacing:0.05em}
+.exclusive-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(196,168,124,0.1);border:1px solid var(--gold-border);border-radius:20px;font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.04em}
+.market-chip{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all 0.2s}
+.market-chip:hover{border-color:var(--accent);background:rgba(196,168,124,0.04)}
+.back-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer;margin-bottom:16px;transition:all 0.2s;font-family:'Inter',sans-serif}
+.back-btn:hover{color:var(--text);border-color:var(--accent)}
+.zip-stat{text-align:center;padding:12px;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border)}
+.zip-stat .val{font-size:20px;font-weight:700}
+.zip-stat .label{font-size:9px;color:var(--text-dim);letter-spacing:0.06em;margin-top:2px}
+.btn{padding:12px 24px;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;width:100%}
+.btn-primary{background:var(--accent);color:#0a0f14}
+.btn-primary:hover{background:var(--accent-hover);transform:translateY(-1px)}
+.btn-waitlist{background:transparent;border:1px solid var(--accent);color:var(--accent)}
+.btn-waitlist:hover{background:var(--gold-dim)}
+.btn-checkout{background:var(--green);color:#0a0f14;font-size:14px;padding:14px}
+.btn-checkout:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-remove{background:transparent;border:1px solid rgba(248,113,113,0.3);color:var(--red);padding:6px 12px;font-size:10px;border-radius:4px;cursor:pointer}
+.cart-item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:6px}
+.form-group input{width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none}
+.form-group input:focus{border-color:var(--accent)}
+.form-group input::placeholder{color:var(--text-dim)}
+.panel-tabs{display:flex;border-bottom:1px solid var(--border)}
+.panel-tab{flex:1;padding:12px;text-align:center;font-size:12px;font-weight:500;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+.panel-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:var(--accent);color:#0a0f14;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px}
+.leaflet-container{background:var(--bg)!important}
+.leaflet-control-zoom a{background:var(--bg-card)!important;color:var(--text)!important;border-color:var(--border)!important}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeIn 0.3s ease}
+.zip-tooltip{background:var(--bg-card)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:6px!important;padding:6px 10px!important;font-family:Inter,sans-serif!important;font-size:11px!important;box-shadow:0 4px 12px rgba(0,0,0,0.3)!important}
+.zip-tooltip::before{display:none!important}
 </style>
 </head>
 <body>
-
-<div class="loading-overlay" id="loadingOverlay">
-    <div class="loading-spinner"></div>
-    <div style="font-size:14px;color:var(--text-secondary)">Loading territories...</div>
-</div>
-
 <div class="header">
     <a href="/" class="logo">
         <div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
         <span class="logo-text">SellerSignal</span>
     </a>
-    <div class="header-right">
-        <a href="/sellersignal-briefing.html" class="header-link">Briefing</a>
-        <a href="/territories.html" class="header-link" style="color:var(--accent)">Territories</a>
+    <div class="header-nav">
+        <a href="/sellersignal-briefing.html">Briefing</a>
+        <a href="/territories.html" class="active">Territories</a>
     </div>
 </div>
-
-<div class="layout">
+<div class="main">
     <div id="map"></div>
-    <div class="panel" id="panel">
-        <div class="panel-header">
-            <div>
-                <div class="zip-market" id="panelMarket"></div>
-                <div class="zip-title" id="panelTitle"></div>
-            </div>
-            <button class="panel-close" onclick="closePanel()">×</button>
-        </div>
-        <div class="panel-body" id="panelBody"></div>
-        <div class="panel-footer" id="panelFooter"></div>
-    </div>
+    <div class="panel" id="panel"></div>
 </div>
-
-<div class="cart-bar" id="cartBar">
-    <div class="cart-items" id="cartItems"></div>
-    <div class="cart-total" id="cartTotal">$0</div>
-    <button class="cart-checkout" onclick="openCheckout()">Checkout</button>
-</div>
-
-<!-- Checkout Modal -->
-<div class="modal-overlay" id="checkoutModal">
-    <div class="modal">
-        <div class="modal-title">Claim Your Territories</div>
-        <div class="modal-sub" id="checkoutSummary"></div>
-        <div class="form-group">
-            <label class="form-label">Full Name</label>
-            <input class="form-input" id="agentName" placeholder="Jane Smith">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Email</label>
-            <input class="form-input" id="agentEmail" type="email" placeholder="jane@example.com">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Phone</label>
-            <input class="form-input" id="agentPhone" type="tel" placeholder="(555) 123-4567">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Brokerage</label>
-            <input class="form-input" id="agentBrokerage" placeholder="The Agency">
-        </div>
-        <div style="margin-top:24px;display:flex;gap:12px">
-            <button class="btn btn-secondary" style="flex:1" onclick="closeCheckout()">Cancel</button>
-            <button class="btn btn-primary" style="flex:1" id="checkoutBtn" onclick="submitCheckout()">Continue to Payment</button>
-        </div>
-    </div>
-</div>
-
 <script>
-// =========================
-// STATE
-// =========================
-let map, boundaryLayer, territories = [], cart = [];
-const API = 'https://sellersignal.co/api';
+let map,boundaryLayer,territories=[],cart=[],currentView='markets',boundaries=null;
 
-// Market centers for initial view
-const MARKET_CENTERS = {
-    'Montana': { lat: 45.68, lng: -111.05, zoom: 8, label: 'Bozeman, MT' },
-    'King County, WA': { lat: 47.6, lng: -122.2, zoom: 10, label: 'Seattle / Bellevue' },
-    'Maricopa County, AZ': { lat: 33.5, lng: -111.9, zoom: 10, label: 'Phoenix / Scottsdale' },
-    'Deschutes County, OR': { lat: 44.05, lng: -121.3, zoom: 10, label: 'Bend, OR' },
-    'North Carolina': { lat: 35.23, lng: -80.84, zoom: 10, label: 'Charlotte, NC' },
-    'Palm Beach County, FL': { lat: 26.65, lng: -80.1, zoom: 10, label: 'Palm Beach, FL' },
-    'Miami-Dade County, FL': { lat: 25.76, lng: -80.2, zoom: 11, label: 'Miami-Dade, FL' },
-    'New York State': { lat: 40.78, lng: -73.96, zoom: 12, label: 'New York City' },
+const MARKETS={
+    MT:{name:'Montana',center:[45.68,-111.05],zoom:9},
+    WA_KING:{name:'King County, WA',center:[47.55,-122.2],zoom:11},
+    AZ_MARICOPA:{name:'Phoenix / Scottsdale, AZ',center:[33.55,-111.9],zoom:10},
+    OR_DESCHUTES:{name:'Bend, OR',center:[44.06,-121.3],zoom:10},
+    NC:{name:'Charlotte, NC',center:[35.23,-80.84],zoom:10},
+    FL_PB:{name:'Palm Beach, FL',center:[26.55,-80.1],zoom:10},
+    FL_MD:{name:'Miami-Dade, FL',center:[25.75,-80.25],zoom:11},
+    NY:{name:'New York',center:[40.76,-73.97],zoom:12},
 };
 
-// =========================
-// INIT
-// =========================
-async function init() {
-    // Initialize map — lower 48 US
-    map = L.map('map', {
-        center: [39.5, -98.5],
-        zoom: 5,
-        minZoom: 4,
-        maxZoom: 16,
-        zoomControl: false,
-        maxBounds: [[24, -130], [50, -65]],
-    });
-    
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    
-    // Dark tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '',
-        subdomains: 'abcd',
-        maxZoom: 19,
-    }).addTo(map);
-    
-    // Load data
-    const [terrResp, geoResp] = await Promise.all([
-        fetch(API + '/territories').then(r => r.json()),
-        fetch('/zip-boundaries.json').then(r => r.json()),
+map=L.map('map',{center:[39.5,-98.5],zoom:5,minZoom:4,maxZoom:16,attributionControl:false,maxBounds:[[24,-130],[50,-65]]});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',{subdomains:'abcd'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',{subdomains:'abcd',pane:'overlayPane'}).addTo(map);
+
+async function init(){
+    showPanel('loading');
+    const[bResp,tResp]=await Promise.all([
+        fetch('/zip-boundaries.json').then(r=>r.json()),
+        fetch('/api/territories').then(r=>r.json()),
     ]);
-    
-    territories = terrResp.territories || [];
-    
-    // Build ZIP lookup
-    const terrByZip = {};
-    for (const t of territories) terrByZip[t.zip] = t;
-    
-    // Add boundary polygons
-    boundaryLayer = L.geoJSON(geoResp, {
-        style: (feature) => {
-            const t = terrByZip[feature.properties.zip];
-            if (!t) return { fillOpacity: 0, weight: 0 };
-            const claimed = t.status === 'claimed';
-            return {
-                fillColor: claimed ? '#f87171' : '#4ade80',
-                fillOpacity: claimed ? 0.12 : 0.15,
-                color: claimed ? '#f87171' : '#4ade80',
-                weight: 1.5,
-                opacity: 0.6,
-            };
-        },
-        onEachFeature: (feature, layer) => {
-            const t = terrByZip[feature.properties.zip];
-            if (!t) return;
-            
-            // Tooltip
-            const statusColor = t.status === 'claimed' ? '#f87171' : '#4ade80';
-            const statusText = t.status === 'claimed' ? 'CLAIMED' : 'AVAILABLE';
-            layer.bindTooltip(`
-                <div class="zip-tooltip">
-                    <div class="zip-tt-title">${t.zip}</div>
-                    <div class="zip-tt-market">${t.market}</div>
-                    <div class="zip-tt-stat">${t.parcels?.toLocaleString() || '?'} parcels · ${t.actToday || 0} hot leads</div>
-                    <div class="zip-tt-status" style="color:${statusColor}">${statusText}${t.status === 'claimed' ? ' · ' + (t.claimedBrokerage || 'Agent') : ''}</div>
-                </div>
-            `, { sticky: true, direction: 'top', offset: [0, -10] });
-            
-            layer.on('click', () => openPanel(t));
-            
-            layer.on('mouseover', () => {
-                layer.setStyle({ fillOpacity: t.status === 'claimed' ? 0.25 : 0.35, weight: 2.5, opacity: 0.9 });
-            });
-            layer.on('mouseout', () => {
-                layer.setStyle({
-                    fillOpacity: t.status === 'claimed' ? 0.12 : 0.15,
-                    weight: 1.5, opacity: 0.6,
-                });
-            });
-        },
-    }).addTo(map);
-    
-    // Add market labels
-    const marketGroups = {};
-    for (const t of territories) {
-        if (!marketGroups[t.market]) marketGroups[t.market] = [];
-        marketGroups[t.market].push(t);
+    boundaries=bResp;
+    territories=tResp.territories||[];
+    addMarketMarkers();
+    showPanel('markets');
+}
+
+function addMarketMarkers(){
+    for(const[key,m]of Object.entries(MARKETS)){
+        const mz=territories.filter(t=>t.marketKey===key);
+        const av=mz.filter(t=>t.status==='available').length;
+        if(!mz.length)continue;
+        const icon=L.divIcon({className:'',html:`<div style="background:${av>0?'var(--accent)':'var(--text-dim)'};color:#0a0f14;padding:6px 12px;border-radius:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;border:2px solid rgba(255,255,255,0.15)">${m.name} · ${av}/${mz.length}</div>`,iconSize:null,iconAnchor:[80,15]});
+        L.marker(m.center,{icon}).addTo(map).on('click',()=>zoomToMarket(key));
     }
-    
-    for (const [market, zips] of Object.entries(marketGroups)) {
-        const center = MARKET_CENTERS[market];
-        if (!center) continue;
-        
-        const available = zips.filter(z => z.status === 'available').length;
-        const total = zips.length;
-        
-        const icon = L.divIcon({
-            className: '',
-            html: `<div class="market-label">${center.label}<br><span class="count">${available}/${total} ZIPs available</span></div>`,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0],
-        });
-        
-        const marker = L.marker([center.lat, center.lng], { icon }).addTo(map);
-        marker.on('click', () => {
-            map.flyTo([center.lat, center.lng], center.zoom, { duration: 1.2 });
-        });
-    }
-    
-    // Hide loading
-    document.getElementById('loadingOverlay').classList.add('hidden');
-    
-    // Check URL params
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('success')) {
-        const zips = (params.get('zips') || '').split(',').filter(Boolean);
-        if (zips.length) {
-            setTimeout(() => alert(`Territories claimed! You now have exclusive access to ZIP${zips.length > 1 ? 's' : ''}: ${zips.join(', ')}. Open the Daily Briefing to start prospecting.`), 500);
+}
+
+function zoomToMarket(mk){
+    const m=MARKETS[mk];if(!m)return;
+    map.flyTo(m.center,m.zoom,{duration:1.0});
+    setTimeout(()=>showZipBoundaries(mk),400);
+    showPanel('market',mk);
+}
+
+function showZipBoundaries(mk){
+    if(boundaryLayer)map.removeLayer(boundaryLayer);
+    const mzips=territories.filter(t=>t.marketKey===mk).map(t=>t.zip);
+    const feats=boundaries.features.filter(f=>mzips.includes(f.properties.zip));
+    boundaryLayer=L.geoJSON({type:'FeatureCollection',features:feats},{
+        style:f=>{
+            const z=f.properties.zip,t=territories.find(t=>t.zip===z),inC=cart.includes(z),cl=t?.status==='claimed';
+            return{fillColor:inC?'#4ade80':cl?'#f87171':'#c4a87c',fillOpacity:inC?0.35:cl?0.15:0.2,color:inC?'#4ade80':cl?'#f87171':'#c4a87c',weight:inC?2:1.5,opacity:0.8};
+        },
+        onEachFeature:(f,layer)=>{
+            const z=f.properties.zip;
+            layer.on('click',()=>showPanel('zip',z));
+            layer.on('mouseover',e=>{
+                const t=territories.find(t=>t.zip===z);
+                layer.bindTooltip(`<strong>${z}</strong><br>${t?.parcels?.toLocaleString()||'?'} parcels · ${t?.status==='claimed'?'Claimed':'Available'}`,{sticky:true,className:'zip-tooltip'}).openTooltip();
+                e.target.setStyle({fillOpacity:0.4,weight:2.5});
+            });
+            layer.on('mouseout',e=>{layer.closeTooltip();boundaryLayer.resetStyle(e.target);});
         }
-    }
-    if (params.get('waitlist')) {
-        setTimeout(() => alert(`You're on the waitlist for ZIP ${params.get('zip')}. You'll be notified when it becomes available.`), 500);
-    }
+    }).addTo(map);
 }
 
-// =========================
-// PANEL
-// =========================
-function openPanel(territory) {
-    const panel = document.getElementById('panel');
-    const body = document.getElementById('panelBody');
-    const footer = document.getElementById('panelFooter');
-    
-    document.getElementById('panelTitle').textContent = territory.zip;
-    document.getElementById('panelMarket').textContent = territory.market;
-    
-    const claimed = territory.status === 'claimed';
-    const inCart = cart.includes(territory.zip);
-    
-    body.innerHTML = `
-        <div class="zip-stats">
-            <div class="zip-stat">
-                <div class="zip-stat-val">${(territory.parcels || 0).toLocaleString()}</div>
-                <div class="zip-stat-label">Properties</div>
-            </div>
-            <div class="zip-stat">
-                <div class="zip-stat-val" style="color:var(--green)">${territory.actToday || 0}</div>
-                <div class="zip-stat-label">Hot Leads</div>
-            </div>
-            <div class="zip-stat">
-                <div class="zip-stat-val" style="color:var(--accent)">${territory.outreach || 0}</div>
-                <div class="zip-stat-label">Outreach</div>
-            </div>
+function showPanel(view,data){
+    currentView=view;
+    const p=document.getElementById('panel');
+    const cc=cart.length;
+    const tabsHtml=(activeTab)=>`<div class="panel-tabs"><div class="panel-tab ${activeTab==='markets'?'active':''}" onclick="showPanel('markets')">Markets</div><div class="panel-tab ${activeTab==='cart'?'active':''}" onclick="showPanel('cart')">Cart${cc?`<span class="tab-badge">${cc}</span>`:''}</div></div>`;
+
+    if(view==='loading'){p.innerHTML='<div class="panel-hero"><p style="color:var(--text-dim)">Loading territories...</p></div>';return;}
+
+    if(view==='markets'){
+        p.innerHTML=tabsHtml('markets')+`
+        <div class="panel-hero animate-in">
+            <div class="exclusive-badge" style="margin-bottom:16px">🔒 One agent per ZIP code</div>
+            <h2>Claim Your Territory</h2>
+            <p>Exclusive seller intelligence for your farm area. Daily briefings, AI scoring, and Deep Signal analysis — locked to you alone.</p>
+            <div class="price-tag">$1,000<span>/mo per ZIP</span></div>
+            <div class="price-sub">CANCEL ANYTIME · EXCLUSIVE TERRITORY</div>
         </div>
-        
-        <div class="zip-status ${claimed ? 'claimed' : 'available'}">
-            <div class="zip-status-text">${claimed ? '🔒 Claimed' : '✓ Available'}</div>
-            <div class="zip-status-sub">${claimed ? `Held by ${territory.claimedBrokerage || 'an agent'}${territory.waitlistCount ? ' · ' + territory.waitlistCount + ' on waitlist' : ''}` : 'Be the exclusive agent for this ZIP code'}</div>
-        </div>
-        
-        <div class="zip-price">$${territory.price.toLocaleString()}</div>
-        <div class="zip-price-sub">per month · exclusive territory</div>
-        
-        <div style="margin-top:20px;padding:16px;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:10px">What you get</div>
-            <div style="font-size:13px;color:var(--text-secondary);line-height:1.8">
-                Daily briefing with AI-ranked seller prospects<br>
-                Deep Signal intelligence on your top leads<br>
-                Phone, letter, and door knock scripts<br>
-                Historical accuracy validation<br>
-                <strong style="color:var(--text)">Exclusive</strong> — no other agent gets this ZIP
-            </div>
-        </div>
-    `;
-    
-    if (claimed) {
-        footer.innerHTML = `
-            <button class="btn btn-waitlist" onclick="joinWaitlist('${territory.zip}')">
-                Join Waitlist${territory.waitlistCount ? ' · Position #' + (territory.waitlistCount + 1) : ''}
-            </button>
-            <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">Card on file required — you'll only be charged if the territory opens up</div>
-        `;
-    } else if (inCart) {
-        footer.innerHTML = `
-            <button class="btn btn-secondary" onclick="removeFromCart('${territory.zip}')">Remove from Cart</button>
-        `;
-    } else {
-        footer.innerHTML = `
-            <button class="btn btn-primary" onclick="addToCart('${territory.zip}')">Add to Cart</button>
-        `;
-    }
-    
-    panel.classList.add('open');
-}
-
-function closePanel() {
-    document.getElementById('panel').classList.remove('open');
-}
-
-// =========================
-// CART
-// =========================
-function addToCart(zip) {
-    if (!cart.includes(zip)) {
-        cart.push(zip);
-        updateCart();
-        // Refresh panel if open
-        const t = territories.find(t => t.zip === zip);
-        if (t) openPanel(t);
-    }
-}
-
-function removeFromCart(zip) {
-    cart = cart.filter(z => z !== zip);
-    updateCart();
-    const t = territories.find(t => t.zip === zip);
-    if (t) openPanel(t);
-}
-
-function updateCart() {
-    const bar = document.getElementById('cartBar');
-    const items = document.getElementById('cartItems');
-    const total = document.getElementById('cartTotal');
-    
-    if (cart.length === 0) {
-        bar.classList.remove('open');
+        <div style="padding:0 24px 24px" class="animate-in">
+            ${Object.entries(MARKETS).map(([k,m])=>{
+                const zs=territories.filter(t=>t.marketKey===k),av=zs.filter(t=>t.status==='available').length;
+                if(!zs.length)return'';
+                return`<div class="market-chip" onclick="zoomToMarket('${k}')"><div><div style="font-weight:500;font-size:13px">${m.name}</div><div style="font-size:11px;color:var(--text-dim)">${av} of ${zs.length} available</div></div><div style="color:var(--accent);font-size:16px">→</div></div>`;
+            }).join('')}
+        </div>`;
         return;
     }
-    
-    bar.classList.add('open');
-    items.innerHTML = cart.map(zip => `
-        <div class="cart-chip">
-            ${zip}
-            <button class="cart-chip-remove" onclick="removeFromCart('${zip}')">×</button>
-        </div>
-    `).join('');
-    
-    total.textContent = `$${(cart.length * 1000).toLocaleString()}/mo`;
-}
 
-// =========================
-// CHECKOUT
-// =========================
-function openCheckout() {
-    if (!cart.length) return;
-    document.getElementById('checkoutSummary').textContent = 
-        `${cart.length} territory${cart.length > 1 ? 'ies' : 'y'}: ${cart.join(', ')} — $${(cart.length * 1000).toLocaleString()}/month`;
-    document.getElementById('checkoutModal').classList.add('open');
-}
+    if(view==='market'){
+        const mk=data,m=MARKETS[mk],zs=territories.filter(t=>t.marketKey===mk);
+        p.innerHTML=tabsHtml('markets')+`<div style="padding:20px 24px" class="animate-in">
+            <button class="back-btn" onclick="resetToUS()">← All Markets</button>
+            <h3 style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:4px">${m.name}</h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">${zs.length} ZIP codes · Click a zone on the map</p>
+            ${zs.sort((a,b)=>a.zip.localeCompare(b.zip)).map(t=>{
+                const inC=cart.includes(t.zip);
+                return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-elevated);border:1px solid ${inC?'rgba(74,222,128,0.3)':t.status==='claimed'?'rgba(248,113,113,0.2)':'var(--border)'};border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="showPanel('zip','${t.zip}')"><div><span style="font-weight:600;font-size:13px">${t.zip}</span><span style="font-size:11px;color:var(--text-dim);margin-left:8px">${t.parcels?.toLocaleString()} parcels</span></div><div style="font-size:11px;font-weight:500;color:${inC?'var(--green)':t.status==='claimed'?'var(--red)':'var(--accent)'}">${inC?'✓ In Cart':t.status==='claimed'?'Claimed':'Available'}</div></div>`;
+            }).join('')}
+        </div>`;
+        return;
+    }
 
-function closeCheckout() {
-    document.getElementById('checkoutModal').classList.remove('open');
-}
+    if(view==='zip'){
+        const z=data,t=territories.find(t=>t.zip===z);if(!t)return;
+        const inC=cart.includes(z);
+        p.innerHTML=tabsHtml('')+`<div style="padding:24px" class="animate-in">
+            <button class="back-btn" onclick="showPanel('market','${t.marketKey}')">← ${MARKETS[t.marketKey]?.name||t.market}</button>
+            <div style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:4px">ZIP ${t.zip}</div>
+            <div style="font-size:12px;color:var(--accent);margin-bottom:16px">${t.market}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+                <div class="zip-stat"><div class="val">${(t.parcels||0).toLocaleString()}</div><div class="label">PARCELS</div></div>
+                <div class="zip-stat"><div class="val" style="color:var(--green)">${t.actToday||0}</div><div class="label">ACT TODAY</div></div>
+                <div class="zip-stat"><div class="val" style="color:var(--accent)">${(t.outreach||0).toLocaleString()}</div><div class="label">OUTREACH</div></div>
+            </div>
+            <div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:500;${t.status==='claimed'?'background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);color:var(--red)':'background:var(--green-dim);border:1px solid rgba(74,222,128,0.2);color:var(--green)'}">
+                ${t.status==='claimed'?`🔒 Claimed${t.waitlistCount>0?' · '+t.waitlistCount+' on waitlist':''}`:'✓ Available — exclusive to one agent'}
+            </div>
+            <div style="padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+                <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.05em;margin-bottom:8px">WHAT YOU GET</div>
+                <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+                    Daily briefing with AI-ranked seller prospects<br>
+                    Deep Signal analysis with scripts and psychology<br>
+                    Historical accuracy tracking and calibration<br>
+                    Exclusive territory — no other agents in this ZIP<br>
+                    Cancel anytime, no long-term commitment
+                </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div style="font-size:28px;font-weight:700;color:var(--accent)">$1,000<span style="font-size:14px;font-weight:400;color:var(--text-dim)">/mo</span></div>
+                <div class="exclusive-badge">🔒 Exclusive</div>
+            </div>
+            ${t.status==='claimed'?`<button class="btn btn-waitlist" onclick="joinWaitlist('${t.zip}')">Join Waitlist${t.waitlistCount>0?' (#'+(t.waitlistCount+1)+')':''}</button><p style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">We'll save your card and auto-activate when available</p>`
+            :inC?`<button class="btn btn-primary" onclick="removeFromCart('${t.zip}');showPanel('zip','${t.zip}')">Remove from Cart</button>`
+            :`<button class="btn btn-primary" onclick="addToCart('${t.zip}')">Add to Cart</button>`}
+        </div>`;
+        return;
+    }
 
-async function submitCheckout() {
-    const btn = document.getElementById('checkoutBtn');
-    btn.disabled = true;
-    btn.textContent = 'Processing...';
-    
-    try {
-        const resp = await fetch(API + '/territories/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                zipCodes: cart,
-                agentName: document.getElementById('agentName').value,
-                agentEmail: document.getElementById('agentEmail').value,
-                agentPhone: document.getElementById('agentPhone').value,
-                agentBrokerage: document.getElementById('agentBrokerage').value,
-            }),
-        });
-        
-        const data = await resp.json();
-        
-        if (data.error) {
-            alert(data.error);
-            btn.disabled = false;
-            btn.textContent = 'Continue to Payment';
-            return;
-        }
-        
-        if (data.taken?.length) {
-            alert(`These ZIPs were just claimed by someone else: ${data.taken.join(', ')}. Remaining ZIPs will proceed.`);
-        }
-        
-        if (data.url) {
-            window.location.href = data.url;
-        }
-    } catch(e) {
-        alert('Checkout failed: ' + e.message);
-        btn.disabled = false;
-        btn.textContent = 'Continue to Payment';
+    if(view==='cart'){
+        const items=cart.map(z=>territories.find(t=>t.zip===z)).filter(Boolean),total=items.length*1000;
+        p.innerHTML=tabsHtml('cart')+`<div style="padding:24px;flex:1;display:flex;flex-direction:column" class="animate-in">
+            ${!items.length?`<div style="text-align:center;padding:40px 20px;color:var(--text-dim)"><div style="font-size:32px;margin-bottom:12px">🗺️</div>No territories selected<div style="margin-top:4px;font-size:11px">Click a market on the map to browse ZIP codes</div></div>`:`
+            ${items.map(t=>`<div class="cart-item"><div><div style="font-weight:600;font-size:14px">${t.zip}</div><div style="font-size:11px;color:var(--text-dim)">${t.market}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="font-weight:600;color:var(--accent);font-size:14px">$1,000/mo</div><button class="btn-remove" onclick="removeFromCart('${t.zip}');showPanel('cart')">✕</button></div></div>`).join('')}
+            <div style="display:flex;justify-content:space-between;padding:16px 0;border-top:1px solid var(--border);margin-top:auto"><div style="color:var(--text-secondary)">${items.length} territor${items.length>1?'ies':'y'}</div><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:var(--accent)">$${total.toLocaleString()}</div><div style="font-size:11px;color:var(--text-dim)">per month</div></div></div>
+            <div style="margin-top:16px">
+                <div class="form-group"><label>FULL NAME</label><input type="text" id="agentName" placeholder="Your name"/></div>
+                <div class="form-group"><label>EMAIL</label><input type="email" id="agentEmail" placeholder="you@brokerage.com"/></div>
+                <div class="form-group"><label>PHONE</label><input type="tel" id="agentPhone" placeholder="(555) 000-0000"/></div>
+                <div class="form-group"><label>BROKERAGE</label><input type="text" id="agentBrokerage" placeholder="Your brokerage"/></div>
+                <button class="btn btn-checkout" onclick="checkout()">Claim ${items.length} Territor${items.length>1?'ies':'y'} — $${total.toLocaleString()}/mo</button>
+                <p style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">Powered by Stripe · Cancel anytime</p>
+            </div>`}
+        </div>`;
+        return;
     }
 }
 
-async function joinWaitlist(zip) {
-    const email = prompt('Enter your email to join the waitlist for ZIP ' + zip + ':');
-    if (!email) return;
-    const name = prompt('Your name:');
-    
-    try {
-        const resp = await fetch(API + '/territories/waitlist', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zipCode: zip, agentEmail: email, agentName: name }),
-        });
-        const data = await resp.json();
-        if (data.url) {
-            window.location.href = data.url;
-        } else if (data.error) {
-            alert(data.error);
-        }
-    } catch(e) {
-        alert('Waitlist error: ' + e.message);
-    }
+function addToCart(z){if(!cart.includes(z))cart.push(z);const t=territories.find(t=>t.zip===z);if(t&&boundaryLayer)showZipBoundaries(t.marketKey);showPanel('cart');}
+function removeFromCart(z){cart=cart.filter(x=>x!==z);const t=territories.find(t=>t.zip===z);if(t&&boundaryLayer)showZipBoundaries(t.marketKey);}
+function resetToUS(){if(boundaryLayer)map.removeLayer(boundaryLayer);map.flyTo([39.5,-98.5],5,{duration:0.8});showPanel('markets');}
+
+async function checkout(){
+    const name=document.getElementById('agentName')?.value,email=document.getElementById('agentEmail')?.value,phone=document.getElementById('agentPhone')?.value,brokerage=document.getElementById('agentBrokerage')?.value;
+    if(!email){alert('Please enter your email');return;}
+    if(!name){alert('Please enter your name');return;}
+    const btn=document.querySelector('.btn-checkout');btn.textContent='Redirecting to Stripe...';btn.disabled=true;
+    try{
+        const r=await fetch('/api/territories/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zipCodes:cart,agentName:name,agentEmail:email,agentPhone:phone,agentBrokerage:brokerage})});
+        const d=await r.json();
+        if(d.url)window.location.href=d.url;
+        else if(d.taken?.length){alert('These ZIPs were claimed: '+d.taken.join(', '));cart=cart.filter(z=>!d.taken.includes(z));showPanel('cart');}
+        else{alert(d.error||'Checkout failed');btn.textContent='Try Again';btn.disabled=false;}
+    }catch(e){alert('Connection error');btn.textContent='Try Again';btn.disabled=false;}
 }
 
-// =========================
-// BOOT
-// =========================
-init().catch(e => {
-    console.error('Init failed:', e);
-    document.getElementById('loadingOverlay').innerHTML = `
-        <div style="color:var(--red);font-size:14px">Failed to load territories: ${e.message}</div>
-        <button onclick="location.reload()" style="margin-top:12px;padding:8px 16px;background:var(--accent);border:none;border-radius:6px;color:#0a0f14;cursor:pointer">Retry</button>
-    `;
-});
+async function joinWaitlist(zip){
+    const email=prompt('Enter your email to join the waitlist:');if(!email)return;
+    const name=prompt('Your name:');
+    try{
+        const r=await fetch('/api/territories/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zipCode:zip,agentName:name,agentEmail:email})});
+        const d=await r.json();
+        if(d.url)window.location.href=d.url;else alert(d.error||'Could not join waitlist');
+    }catch(e){alert('Connection error');}
+}
+
+const params=new URLSearchParams(window.location.search);
+if(params.get('success'))setTimeout(()=>{alert('Territory claimed! Your exclusive briefings are now active.');window.location.href='/sellersignal-briefing.html';},500);
+if(params.get('waitlist'))setTimeout(()=>alert('Added to waitlist for ZIP '+params.get('zip')+'. We\'ll activate when available.'),500);
+
+init();
 </script>
 </body>
 </html>
