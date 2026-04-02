@@ -4248,11 +4248,7 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         const liteCount = callToday.filter(p => p._liteScored && !p._deepSignalVerified && p._tier !== 'act_today').length;
         const actLabel = dsCount > 0 
             ? `${dsCount} Deep Signal verified${v2aCount > 0 ? ` + ${v2aCount} investigation verified` : ''}${liteCount > 0 ? ` + ${liteCount} AI ranked` : ''}`
-            : v2aCount > 0 
-                ? `${v2aCount} investigation verified${liteCount > 0 ? ` + ${liteCount} AI ranked` : ''}`
-                : liteCount > 0 
-                    ? `${liteCount} AI-ranked prospects`
-                    : `Top ${callToday.length} prospects`;
+            : `Top ${callToday.length} prospects`;
         html += renderSection('🔥', 'fire', 'Act Today', actLabel, callToday, actions, 'call', newIds);
     }
     if (mailWeek.length > 0) {
@@ -4283,7 +4279,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         const contacted = act?.action === 'contacted';
         const skipped = act?.action === 'skipped';
         const name = normalizeName(p.ownerName);
-        const val = p.totalValue ? `$${(p.totalValue/1000).toFixed(0)}K assessed` : '';
+        const val = p.totalValue ? (p.totalValue >= 1000000 ? `$${(p.totalValue/1000000).toFixed(1)}M assessed` : p.totalValue >= 1000 ? `$${(p.totalValue/1000).toFixed(0)}K assessed` : `$${p.totalValue.toLocaleString()} assessed`) : '';
         const script = generateScript(p, p.cohort);
         const why = whyNow(p);
         const contact = contactConfidence(p);
