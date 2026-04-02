@@ -58,6 +58,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .panel-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:var(--accent);color:#0a0f14;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px}
 .leaflet-container{background:var(--bg)!important}
+.leaflet-zoom-box{display:none!important}
 .leaflet-control-zoom a{background:var(--bg-card)!important;color:var(--text)!important;border-color:var(--border)!important}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .animate-in{animation:fadeIn 0.3s ease}
@@ -94,7 +95,7 @@ const MARKETS={
     NY:{name:'New York',center:[40.76,-73.97],zoom:12},
 };
 
-map=L.map('map',{center:[39.5,-98.5],zoom:5,minZoom:4,maxZoom:16,attributionControl:false,maxBounds:[[24,-130],[50,-65]]});
+map=L.map('map',{center:[39.5,-98.5],zoom:5,minZoom:4,maxZoom:16,attributionControl:false,maxBounds:[[24,-130],[50,-65]],boxZoom:false});
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',{subdomains:'abcd'}).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',{subdomains:'abcd',pane:'overlayPane'}).addTo(map);
 
@@ -141,7 +142,7 @@ function showZipBoundaries(mk){
             layer.on('click',()=>showPanel('zip',z));
             layer.on('mouseover',e=>{
                 const t=territories.find(t=>t.zip===z);
-                layer.bindTooltip(`<strong>${z}</strong><br>${t?.parcels?.toLocaleString()||'?'} parcels · ${t?.status==='claimed'?'Claimed':'Available'}`,{sticky:true,className:'zip-tooltip'}).openTooltip();
+                layer.bindTooltip(`<strong>${z}</strong><br>${t?.parcels?.toLocaleString()||'?'} properties · ${t?.status==='claimed'?'Claimed':'Available'}`,{sticky:true,className:'zip-tooltip'}).openTooltip();
                 e.target.setStyle({fillOpacity:0.4,weight:2.5});
             });
             layer.on('mouseout',e=>{layer.closeTooltip();boundaryLayer.resetStyle(e.target);});
@@ -162,7 +163,7 @@ function showPanel(view,data){
         <div class="panel-hero animate-in">
             <div class="exclusive-badge" style="margin-bottom:16px">🔒 One agent per ZIP code</div>
             <h2>Claim Your Territory</h2>
-            <p>Exclusive seller intelligence for your farm area. Daily briefings, AI scoring, and Deep Signal analysis — locked to you alone.</p>
+            <p>Know who's going to sell before they list. Exclusive seller intelligence powered by AI — daily briefings, automated outreach, and direct contact scripts locked to your ZIP code alone.</p>
             <div class="price-tag">$1,000<span>/mo per ZIP</span></div>
             <div class="price-sub">CANCEL ANYTIME · EXCLUSIVE TERRITORY</div>
         </div>
@@ -184,7 +185,7 @@ function showPanel(view,data){
             <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">${zs.length} ZIP codes · Click a zone on the map</p>
             ${zs.sort((a,b)=>a.zip.localeCompare(b.zip)).map(t=>{
                 const inC=cart.includes(t.zip);
-                return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-elevated);border:1px solid ${inC?'rgba(74,222,128,0.3)':t.status==='claimed'?'rgba(248,113,113,0.2)':'var(--border)'};border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="showPanel('zip','${t.zip}')"><div><span style="font-weight:600;font-size:13px">${t.zip}</span><span style="font-size:11px;color:var(--text-dim);margin-left:8px">${t.parcels?.toLocaleString()} parcels</span></div><div style="font-size:11px;font-weight:500;color:${inC?'var(--green)':t.status==='claimed'?'var(--red)':'var(--accent)'}">${inC?'✓ In Cart':t.status==='claimed'?'Claimed':'Available'}</div></div>`;
+                return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-elevated);border:1px solid ${inC?'rgba(74,222,128,0.3)':t.status==='claimed'?'rgba(248,113,113,0.2)':'var(--border)'};border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="showPanel('zip','${t.zip}')"><div><span style="font-weight:600;font-size:13px">${t.zip}</span><span style="font-size:11px;color:var(--text-dim);margin-left:8px">${t.parcels?.toLocaleString()} properties</span></div><div style="font-size:11px;font-weight:500;color:${inC?'var(--green)':t.status==='claimed'?'var(--red)':'var(--accent)'}">${inC?'✓ In Cart':t.status==='claimed'?'Claimed':'Available'}</div></div>`;
             }).join('')}
         </div>`;
         return;
@@ -197,22 +198,24 @@ function showPanel(view,data){
             <button class="back-btn" onclick="showPanel('market','${t.marketKey}')">← ${MARKETS[t.marketKey]?.name||t.market}</button>
             <div style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:4px">ZIP ${t.zip}</div>
             <div style="font-size:12px;color:var(--accent);margin-bottom:16px">${t.market}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
-                <div class="zip-stat"><div class="val">${(t.parcels||0).toLocaleString()}</div><div class="label">PARCELS</div></div>
-                <div class="zip-stat"><div class="val" style="color:var(--green)">${t.actToday||0}</div><div class="label">ACT TODAY</div></div>
-                <div class="zip-stat"><div class="val" style="color:var(--accent)">${(t.outreach||0).toLocaleString()}</div><div class="label">OUTREACH</div></div>
+            <div style="display:grid;grid-template-columns:1fr;gap:0;margin-bottom:20px">
+                <div style="text-align:center;padding:16px;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border)">
+                    <div style="font-size:28px;font-weight:700">${(t.parcels||0).toLocaleString()}</div>
+                    <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-top:2px">PROPERTIES MONITORED DAILY</div>
+                </div>
             </div>
             <div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:500;${t.status==='claimed'?'background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);color:var(--red)':'background:var(--green-dim);border:1px solid rgba(74,222,128,0.2);color:var(--green)'}">
                 ${t.status==='claimed'?`🔒 Claimed${t.waitlistCount>0?' · '+t.waitlistCount+' on waitlist':''}`:'✓ Available — exclusive to one agent'}
             </div>
             <div style="padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
-                <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.05em;margin-bottom:8px">WHAT YOU GET</div>
-                <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
-                    Daily briefing with AI-ranked seller prospects<br>
-                    Deep Signal analysis with scripts and psychology<br>
-                    Historical accuracy tracking and calibration<br>
-                    Exclusive territory — no other agents in this ZIP<br>
-                    Cancel anytime, no long-term commitment
+                <div style="font-size:11px;color:var(--accent);letter-spacing:0.05em;margin-bottom:12px;font-weight:600">YOUR EXCLUSIVE TERRITORY INCLUDES</div>
+                <div style="font-size:12px;color:var(--text-secondary);line-height:2.1">
+                    <div style="margin-bottom:2px">🔍 <strong style="color:var(--text)">Daily seller intelligence briefing</strong> — AI identifies who's likely to sell before they list</div>
+                    <div style="margin-bottom:2px">📞 <strong style="color:var(--text)">Phone number integration</strong> — direct dial owners with personalized call scripts</div>
+                    <div style="margin-bottom:2px">✉️ <strong style="color:var(--text)">Automated direct mail campaigns</strong> — targeted letters to high-probability sellers</div>
+                    <div style="margin-bottom:2px">🧠 <strong style="color:var(--text)">Deep Signal seller psychology</strong> — who they are, how they think, what moves them</div>
+                    <div style="margin-bottom:2px">📊 <strong style="color:var(--text)">Historical accuracy tracking</strong> — proven model performance in your market</div>
+                    <div>🔒 <strong style="color:var(--text)">Exclusive territory</strong> — no other agent receives this intelligence in your ZIP</div>
                 </div>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
