@@ -29,6 +29,12 @@ const VALUE_OVERRIDES = {
   '98004': 2200000,  // Bellevue
   '98040': 2500000,  // Mercer Island
   '98112': 1800000,  // Capitol Hill / Madison Park
+  '98033': 1600000,  // Kirkland
+  '98074': 1600000,  // Sammamish / Woodinville
+  '98105': 1500000,  // University District / Laurelhurst
+  '98109': 1400000,  // Queen Anne / South Lake Union
+  '98199': 1200000,  // Magnolia
+  '98103': 850000,   // Fremont / Wallingford
   '59716': 1500000,  // Big Sky
   '59718': 900000,   // Bozeman
   '59730': 800000,   // Gallatin Gateway
