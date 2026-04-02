@@ -4841,14 +4841,44 @@ async function runDeepSignalForCard(id) {
         p._dsSignals = ds.signals || [];
         if (ds.segment) p.cohortLabel = ds.segment;
         
-        // Re-render the briefing to reflect updated data
-        renderBriefing(allProspects, allProspects.length, 0, 0);
-        
-        // Expand the card again after re-render
-        setTimeout(() => {
-            const newCard = document.getElementById(`card-${id}`);
-            if (newCard) newCard.classList.add('expanded');
-        }, 100);
+        // Update the card detail in place (don't re-render entire page — it loses expansion state)
+        const card = document.getElementById(`card-${id}`);
+        if (card) {
+            const detail = card.querySelector('.prospect-detail');
+            if (detail) {
+                const m = ds.metrics || {};
+                const who = ds.whoTheyAre || {};
+                const how = ds.howTheyThink || {};
+                const psych = ds.sellerPsychology || {};
+                const facts = ds.confirmedFacts || [];
+                const sigs = ds.signals || [];
+                const posSignals = sigs.filter(s => s.type === 'positive');
+                const negSignals = sigs.filter(s => s.type === 'negative' || s.type === 'risk');
+                
+                detail.innerHTML = `
+                    <div style="display:flex;gap:0;margin:14px 0;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+                        <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6)"><div style="font-size:22px;font-weight:700;color:${p.sellerLikelihood>=60?'var(--green)':p.sellerLikelihood>=40?'var(--accent)':'var(--text-dim)'}">${p.sellerLikelihood}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">SELL LIKELIHOOD</div></div>
+                        <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.offMarketReceptivity}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">OFF-MARKET FIT</div></div>
+                        <div style="flex:1;text-align:center;padding:14px 8px;background:rgba(17,25,33,0.6);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.confidence}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">CONFIDENCE</div></div>
+                    </div>
+                    ${posSignals.length > 0 ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--green);letter-spacing:0.05em;margin-bottom:6px">POSITIVE SIGNALS</div>${posSignals.map(s => `<div style="padding:6px 10px;margin-bottom:4px;background:rgba(74,222,128,0.05);border-left:2px solid var(--green);border-radius:2px;font-size:11px;color:var(--text-secondary)">${s.text}${s.confidence ? ` <span style="color:var(--text-dim)">(${s.confidence})</span>` : ''}</div>`).join('')}</div>` : ''}
+                    ${negSignals.length > 0 ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--red);letter-spacing:0.05em;margin-bottom:6px">RISK FLAGS</div>${negSignals.map(s => `<div style="padding:6px 10px;margin-bottom:4px;background:rgba(248,113,113,0.05);border-left:2px solid var(--red);border-radius:2px;font-size:11px;color:var(--text-secondary)">${s.text}</div>`).join('')}</div>` : ''}
+                    ${who.ownership || who.occupation || who.spouse ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.05em;margin-bottom:6px">WHO THEY ARE</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.6">${who.ownership ? who.ownership + '<br>' : ''}${who.occupation && who.occupation !== 'Not found' && who.occupation !== 'Unknown' ? 'Occupation: ' + who.occupation + '<br>' : ''}${who.spouse && who.spouse !== 'Not found' ? 'Spouse: ' + who.spouse : ''}</div></div>` : ''}
+                    ${psych.motivations || psych.hesitations ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.05em;margin-bottom:6px">SELLER PSYCHOLOGY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.6">${psych.motivations ? '<strong>Motivations:</strong> ' + psych.motivations + '<br>' : ''}${psych.hesitations ? '<strong>Hesitations:</strong> ' + psych.hesitations : ''}</div></div>` : ''}
+                    ${facts.length > 0 ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.05em;margin-bottom:6px">CONFIRMED FACTS</div>${facts.map(f => `<div style="padding:4px 10px;font-size:11px;color:var(--text-secondary)">• ${typeof f === 'string' ? f : f.text || f.fact || JSON.stringify(f)}</div>`).join('')}</div>` : ''}
+                    ${m.estimatedMarketValue ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.05em;margin-bottom:6px">MARKET VALUE</div><div style="font-size:12px;color:var(--text-secondary)">${m.estimatedMarketValue}${m.marketValueMethod ? ' <span style="color:var(--text-dim)">(' + m.marketValueMethod + ')</span>' : ''}</div></div>` : ''}
+                    ${ds.scripts ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.05em;margin-bottom:8px">SCRIPTS</div>
+                        ${ds.scripts.phone ? `<div style="padding:10px 14px;background:rgba(74,222,128,0.04);border-left:3px solid rgba(74,222,128,0.3);border-radius:4px;margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--green);letter-spacing:0.06em;margin-bottom:4px">PHONE</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${ds.scripts.phone}"</div></div>` : ''}
+                        ${ds.scripts.letter ? `<div style="padding:10px 14px;background:rgba(196,168,124,0.04);border-left:3px solid rgba(196,168,124,0.3);border-radius:4px;margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--accent);letter-spacing:0.06em;margin-bottom:4px">LETTER</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${ds.scripts.letter}"</div></div>` : ''}
+                        ${ds.scripts.door ? `<div style="padding:10px 14px;background:rgba(147,197,253,0.04);border-left:3px solid rgba(147,197,253,0.3);border-radius:4px;margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:#93c5fd;letter-spacing:0.06em;margin-bottom:4px">DOOR KNOCK</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${ds.scripts.door}"</div></div>` : ''}
+                        ${ds.scripts.avoid ? `<div style="padding:10px 14px;background:rgba(248,113,113,0.04);border-left:3px solid rgba(248,113,113,0.3);border-radius:4px"><div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;margin-bottom:4px">WHAT NOT TO SAY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${ds.scripts.avoid}</div></div>` : ''}
+                    </div>` : ''}
+                    <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">✓ Deep Signal verified · ${ds.dataQuality || 'Standard'} data quality</div>
+                `;
+            }
+            card.classList.add('expanded');
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     } catch(e) {
         console.error('Deep Signal failed:', e);
         const card = document.getElementById(`card-${id}`);
