@@ -237,8 +237,10 @@ PROSPECTS:\n${d}`}] });
   }
 
   // === STORE BRIEFING ===
-  const actCands = uR.filter(r => (r.s.lite_score||r.s.briefingRank) >= 55);
-  const outCands = uR.filter(r => { const s=r.s.lite_score||r.s.briefingRank; return s>=35&&s<55; });
+  // Tier assignment uses HEURISTIC briefingRank — the structural signal (trust + absentee + OOS)
+  // AI lite_score is used for RANKING within tiers, not for overriding tier placement
+  const actCands = uR.filter(r => r.s.briefingRank >= 55);
+  const outCands = uR.filter(r => r.s.briefingRank >= 35 && r.s.briefingRank < 55);
   await supabase.from('zip_briefings').upsert({
     zip_code:zip, market_key:market.key, market_name:market.name,
     total_parcels:parcels.length,
