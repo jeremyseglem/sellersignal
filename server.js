@@ -4170,15 +4170,21 @@ Respond with ONLY the JSON array.` }],
         }
         
         // Store briefing
-        const actTodayCount = uniqueRanked.filter(r => (r.s.lite_score || r.s.briefing_rank) >= 55).length;
+        // Determine act_today and outreach using top percentile, not fixed threshold
+        // Act Today = top 15 (or fewer if scores are low)
+        // Outreach Queue = next 50 after act today
+        const actTodayMax = 15, outreachMax = 50;
+        const actTodayCandidates = uniqueRanked.filter(r => (r.s.lite_score || r.s.briefing_rank) >= 55).slice(0, actTodayMax);
+        const outreachCandidates = uniqueRanked.filter(r => !actTodayCandidates.includes(r) && (r.s.lite_score || r.s.briefing_rank) >= 35).slice(0, outreachMax);
+        
         const { error: bErr } = await supabase.from('zip_briefings').upsert({
           zip_code: zip, market_key: market.key, market_name: market.name,
           total_parcels: parcels.length,
           unique_owners: new Set(parcels.map(p=>p.owner_name.toUpperCase())).size,
-          act_today_count: actTodayCount,
-          outreach_queue_count: uniqueRanked.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).length,
-          act_today_ids: uniqueRanked.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=55).slice(0,15).map(r=>r.p.id),
-          outreach_queue_ids: uniqueRanked.filter(r=>(r.s.lite_score||r.s.briefing_rank)>=35).slice(0,50).map(r=>r.p.id),
+          act_today_count: actTodayCandidates.length,
+          outreach_queue_count: outreachCandidates.length,
+          act_today_ids: actTodayCandidates.map(r=>r.p.id),
+          outreach_queue_ids: outreachCandidates.map(r=>r.p.id),
           calibration: calibration || null,
           computed_at: new Date().toISOString(),
           computation_time_ms: Date.now() - Date.now(),
@@ -4186,7 +4192,7 @@ Respond with ONLY the JSON array.` }],
         if (bErr) send(`  ERROR storing briefing: ${bErr.message}`);
         
         totalParcels += parcels.length;
-        send(`  DONE: ${parcels.length} parcels, top=${ranked[0]?.s.briefing_rank}, act_today=${actTodayCount}\n`);
+        send(`  DONE: ${parcels.length} parcels, top=${ranked[0]?.s.briefing_rank}, act_today=${actTodayCandidates.length}\n`);
         
         // Be polite
         await new Promise(r => setTimeout(r, 1500));
