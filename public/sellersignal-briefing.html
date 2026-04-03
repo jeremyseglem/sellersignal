@@ -4318,6 +4318,29 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     // Initialize the mini-map with prospect pins
     const allMapProspects = [...callToday, ...mailWeek, ...watchList.slice(0, 100)];
     initBriefingMap(allMapProspects);
+    
+    // Fetch confirmed sales from auto-detection system
+    const currentZip = (document.getElementById('farmInput')?.value || '').trim();
+    if (currentZip) {
+        fetch(`/api/sale-detections?zip=${currentZip}`).then(r=>r.json()).then(d => {
+            if (d.summary?.count > 0) {
+                // Update pipeline bar with confirmed sale data
+                const closedEl = document.querySelector('.pipeline-bar .pipeline-item:last-child .pv');
+                if (closedEl) {
+                    const comm = d.summary.estimatedCommission;
+                    closedEl.textContent = '$' + (comm >= 1000000 ? (comm/1000000).toFixed(1)+'M' : comm >= 1000 ? Math.round(comm/1000)+'K' : comm.toLocaleString());
+                    closedEl.style.color = 'var(--green)';
+                }
+                
+                // Show a confirmed sales banner
+                const banner = document.createElement('div');
+                banner.style.cssText = 'padding:12px 18px;background:var(--green-dim);border:1px solid rgba(74,222,128,0.2);border-radius:var(--radius);margin-bottom:12px;font-size:12px;color:var(--green);display:flex;align-items:center;gap:10px';
+                banner.innerHTML = `<span style="font-size:16px">✓</span><div><strong>${d.summary.count} confirmed sale${d.summary.count>1?'s':''}</strong> from previously flagged prospects · $${d.summary.totalSaleValue.toLocaleString()} total · $${d.summary.estimatedCommission.toLocaleString()} est. commission</div>`;
+                const content = document.getElementById('briefingContent');
+                if (content?.firstChild) content.insertBefore(banner, content.firstChild);
+            }
+        }).catch(() => {});
+    }
 }
 
 function renderSection(icon, iconClass, title, countText, prospects, actions, tier, newIds) {

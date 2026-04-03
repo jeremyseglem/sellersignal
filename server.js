@@ -4051,6 +4051,64 @@ app.get('/api/health', (req, res) => {
 // TERRITORY MANAGEMENT API
 // ===================
 
+// GET /api/sale-detections — confirmed sales from previously scored parcels
+app.get('/api/sale-detections', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const zip = req.query.zip;
+  let query = supabase.from('sale_detections')
+    .select('*')
+    .order('detected_at', { ascending: false })
+    .limit(100);
+  if (zip) query = query.eq('zip_code', zip);
+  
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  
+  const totalValue = (data || []).reduce((s, d) => s + (d.sale_price || 0), 0);
+  const totalCommission = Math.round(totalValue * 0.025);
+  
+  res.json({
+    detections: data || [],
+    summary: {
+      count: (data || []).length,
+      totalSaleValue: totalValue,
+      estimatedCommission: totalCommission,
+    }
+  });
+});
+
+// GET /api/sale-detections — confirmed sales from previously scored parcels
+app.get('/api/sale-detections', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const zip = req.query.zip;
+  let query = supabase.from('sale_detections')
+    .select('*')
+    .order('detected_at', { ascending: false })
+    .limit(100);
+  
+  if (zip) query = query.eq('zip_code', zip);
+  
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  
+  const totalValue = (data || []).reduce((s, d) => s + (d.sale_price || 0), 0);
+  const avgScore = data?.length ? Math.round(data.reduce((s, d) => s + (d.score_at_flag || 0), 0) / data.length) : 0;
+  
+  res.json({
+    detections: data || [],
+    summary: {
+      count: data?.length || 0,
+      totalSaleValue: totalValue,
+      estimatedCommission: Math.round(totalValue * 0.025),
+      avgScoreAtFlag: avgScore,
+    }
+  });
+});
+
 // ===================
 // BATCH PIPELINE API — serves pre-computed briefings from Supabase
 // ===================

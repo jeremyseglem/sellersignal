@@ -183,3 +183,23 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ============================================================
+-- 6. SALE DETECTIONS — automatic tracking of sold parcels
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sale_detections (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  parcel_id TEXT NOT NULL,
+  zip_code TEXT NOT NULL,
+  owner_name TEXT,
+  address TEXT,
+  sale_price INTEGER,
+  sale_date TEXT,
+  score_at_flag INTEGER,
+  cohort TEXT,
+  detected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(parcel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sale_detections_zip ON sale_detections(zip_code);
+ALTER TABLE sale_detections ENABLE ROW LEVEL SECURITY;

@@ -288,6 +288,56 @@ async function main() {
   }).eq('id', run.id);
   
   log(`\n=== DONE: ${zips.length-errs.length}/${zips.length} ZIPs | ${tP.toLocaleString()} parcels | ${tA} act today ===`);
+  
+  // ========================================
+  // AUTO SALE DETECTION — cross-reference new sales against previously scored parcels
+  // ========================================
+  log('\nRunning sale detection...');
+  try {
+    // Get all parcels that have a recent sale_price (sold recently)
+    const { data: recentSales } = await supabase.from('parcels')
+      .select('id, zip_code, owner_name, address, sale_price, last_transfer_date')
+      .not('sale_price', 'is', null)
+      .gt('sale_price', 50000);
+    
+    if (recentSales?.length) {
+      // Get all previously scored parcels
+      const { data: scoredParcels } = await supabase.from('parcel_scores')
+        .select('parcel_id, zip_code, briefing_rank, cohort, lite_score');
+      
+      const scoreMap = {};
+      for (const s of (scoredParcels || [])) scoreMap[s.parcel_id] = s;
+      
+      let detected = 0;
+      for (const sale of recentSales) {
+        const scored = scoreMap[sale.id];
+        if (!scored || scored.briefing_rank < 25) continue; // only track meaningful scores
+        
+        // Check if we already recorded this detection
+        const { data: existing } = await supabase.from('sale_detections')
+          .select('id').eq('parcel_id', sale.id).limit(1);
+        
+        if (existing?.length) continue; // already recorded
+        
+        await supabase.from('sale_detections').insert({
+          parcel_id: sale.id,
+          zip_code: sale.zip_code,
+          owner_name: sale.owner_name,
+          address: sale.address,
+          sale_price: sale.sale_price,
+          sale_date: sale.last_transfer_date,
+          score_at_flag: scored.briefing_rank,
+          cohort: scored.cohort,
+          detected_at: new Date().toISOString(),
+        });
+        detected++;
+      }
+      
+      log(`  Sale detection: ${detected} new confirmed sales from previously scored parcels`);
+    }
+  } catch(e) {
+    log(`  Sale detection error: ${e.message}`);
+  }
 }
 
 main().catch(e => { console.error('Fatal:', e); process.exit(1); });
