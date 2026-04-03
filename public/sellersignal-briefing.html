@@ -34,9 +34,9 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .map-reset.active{display:block}
 .prospect.map-highlight{border-color:var(--gold) !important;background:rgba(196,168,124,0.06) !important}
 
-/* Map detail panel — slides in from right side of map */
-.map-panel{position:absolute;top:0;right:-340px;width:340px;height:100%;background:rgba(7,11,16,0.94);backdrop-filter:blur(12px);border-left:1px solid var(--border);z-index:20;transition:right 0.25s ease;overflow-y:auto;display:flex;flex-direction:column}
-.map-panel.open{right:0}
+/* Map detail panel — right side overlay inside map */
+.map-panel{position:absolute;top:0;right:0;width:340px;height:100%;background:rgba(7,11,16,0.94);backdrop-filter:blur(12px);border-left:1px solid var(--border);z-index:20;overflow-y:auto;display:none;flex-direction:column}
+.map-panel.open{display:flex}
 .map-panel-close{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;z-index:1}
 .map-panel-header{padding:16px 18px;border-bottom:1px solid var(--border)}
 .map-panel-score{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;font-weight:700;font-size:14px;margin-right:10px;vertical-align:middle}
@@ -5143,6 +5143,8 @@ function initBriefingMap(prospects) {
 
 // Show detail panel on map
 function showMapPanel(p, isAct, isOut) {
+    try {
+    if (mapInfoWindow) mapInfoWindow.close();
     const id = p.id || `${p.lat}-${p.lng}`;
     const name = normalizeName(p.ownerName) || p.address;
     const scoreClass = (p.sellerLikelihood || p.briefingRank || 0) >= 55 ? 'high' : (p.sellerLikelihood || p.briefingRank || 0) >= 35 ? 'med' : 'low';
@@ -5186,6 +5188,7 @@ function showMapPanel(p, isAct, isOut) {
     `;
     
     document.getElementById('mapPanel').classList.add('open');
+    } catch(e) { console.error('Map panel error:', e); }
 }
 
 function closeMapPanel() {
