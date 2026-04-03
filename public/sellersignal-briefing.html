@@ -5165,7 +5165,7 @@ function showMapPanel(p, isAct, isOut) {
     `;
     
     let bodyHtml = '';
-    if (why) bodyHtml += `<div style="margin-bottom:12px;font-size:13px;line-height:1.6">↗ ${why}</div>`;
+    if (why && score > 0) bodyHtml += `<div style="margin-bottom:12px;font-size:13px;line-height:1.6">↗ ${why}</div>`;
     
     if (p._deepSignalVerified && p._deepSignal) {
         const ds = p._deepSignal;
@@ -5178,7 +5178,7 @@ function showMapPanel(p, isAct, isOut) {
         if (ds.what_not_to_say) bodyHtml += `<div style="margin-bottom:10px;color:var(--red)"><div style="font-weight:600;font-size:11px;letter-spacing:0.04em;margin-bottom:4px">DON'T SAY</div>${ds.what_not_to_say}</div>`;
     }
     
-    if (!bodyHtml && !why) bodyHtml = `<div style="color:var(--text-dim);font-style:italic">No intelligence yet. Run Deep Signal for full analysis.</div>`;
+    if (!bodyHtml || score === 0) bodyHtml = score === 0 ? `<div style="color:var(--text-dim);font-style:italic">No elevated seller signals detected.</div>` : `<div style="color:var(--text-dim);font-style:italic">Run Deep Signal for full analysis.</div>`;
     
     document.getElementById('mapPanelBody').innerHTML = bodyHtml;
     
@@ -5222,11 +5222,11 @@ async function loadBackgroundParcels(bounds) {
                 zIndex: 10,
                 icon: {
                     path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: '#2a3545',
-                    fillOpacity: 0.5,
-                    strokeColor: '#3a4555',
+                    fillColor: '#5a6a7a',
+                    fillOpacity: 0.7,
+                    strokeColor: '#7a8a9a',
                     strokeWeight: 0.5,
-                    scale: 3
+                    scale: 4
                 }
             });
             
