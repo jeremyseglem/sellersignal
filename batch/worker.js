@@ -237,17 +237,16 @@ PROSPECTS:\n${d}`}] });
   }
 
   // === STORE BRIEFING ===
-  // Tier assignment: show as many prospects as the market actually produces sellers
-  // sold24 / 24 = monthly sellers. Act Today = top 25 of those. Outreach = the rest.
-  // Floor: 10 act today, 30 outreach for markets with no sales data.
+  // Act Today = monthly turnover estimate, ranked by score. These are who's selling NOW.
+  // Deep Signal runs on top 15-25 for full analysis. All are actionable.
   const sorted = uR.sort((a,b) => b.s.briefingRank - a.s.briefingRank);
-  const monthlySellers = calibration?.sold24 ? Math.ceil(calibration.sold24 / 24) : Math.max(30, Math.ceil(parcels.length * 0.003));
-  const actSize = Math.min(25, Math.max(10, Math.ceil(monthlySellers * 0.15)));
-  const outSize = Math.max(30, monthlySellers - actSize);
+  const monthlySellers = calibration?.sold24 ? Math.ceil(calibration.sold24 / 24) : Math.max(20, Math.ceil(parcels.length * 0.003));
   
-  const actCands = sorted.slice(0, actSize).filter(r => r.s.briefingRank >= 20);
+  const actCands = sorted.slice(0, monthlySellers).filter(r => r.s.briefingRank >= 15);
   const actIds = new Set(actCands.map(r => r.p.id));
-  const outCands = sorted.slice(actSize, actSize + outSize).filter(r => r.s.briefingRank >= 15 && !actIds.has(r.p.id));
+  // Outreach = next tier beyond monthly sellers — 3-6 month horizon prospects
+  const outSize = Math.min(monthlySellers * 2, sorted.length - actCands.length);
+  const outCands = sorted.slice(actCands.length, actCands.length + outSize).filter(r => r.s.briefingRank >= 10 && !actIds.has(r.p.id));
   
   await supabase.from('zip_briefings').upsert({
     zip_code:zip, market_key:market.key, market_name:market.name,
