@@ -172,6 +172,21 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 /* Empty state */
 .empty-state{text-align:center;padding:48px 24px;color:var(--text-dim);font-size:14px;line-height:1.6}
 
+/* Pipeline value bar */
+.pipeline-bar{display:flex;gap:16px;padding:16px 20px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px}
+.pipeline-item{flex:1;text-align:center}
+.pipeline-item .pv{font-size:20px;font-weight:700}
+.pipeline-item .pl{font-size:9px;color:var(--text-dim);letter-spacing:0.06em;margin-top:2px}
+.pipeline-item .pv.gold{color:var(--gold)}.pipeline-item .pv.green{color:var(--green)}
+
+/* Filter bar */
+.filter-bar{display:flex;gap:8px;padding:12px 0;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.filter-bar select,.filter-bar input{padding:7px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;outline:none}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--gold)}
+.filter-bar input{flex:1;min-width:140px}
+.filter-bar select{min-width:100px}
+.filter-count{font-size:11px;color:var(--text-dim);margin-left:auto}
+
 /* Animations */
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulseGlow{0%,100%{border-color:rgba(74,222,128,0.15);box-shadow:0 0 0 0 rgba(74,222,128,0)}50%{border-color:rgba(74,222,128,0.3);box-shadow:0 0 12px 0 rgba(74,222,128,0.08)}}
@@ -4195,7 +4210,59 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-watch')?.scrollIntoView({behavior:'smooth'})" title="Jump to Watch List"><div class="bstat-val">${watchList.length}</div><div class="bstat-label">Watch List</div></div>
     `;
     
+    // ========================================
+    // PIPELINE VALUE — potential commission from all scored prospects
+    // ========================================
+    const allWithValue = liveEnriched.filter(p => p.totalValue > 0);
+    const totalPortfolioValue = allWithValue.reduce((s,p) => s + (p.totalValue || 0), 0);
+    const potentialCommission = Math.round(totalPortfolioValue * 0.025);
+    
+    // Active pipeline — prospects the agent has contacted (from CRM/localStorage)
+    let crmData = {};
+    try { crmData = JSON.parse(localStorage.getItem('ss_crm_pipeline') || '{}'); } catch(e) {}
+    const activeIds = Object.keys(crmData).filter(id => crmData[id]?.status && crmData[id].status !== 'new');
+    const activeProspects = liveEnriched.filter(p => activeIds.includes(p.id || `${p.lat}-${p.lng}`));
+    const activePipelineValue = activeProspects.reduce((s,p) => s + (p.totalValue || 0), 0);
+    const activeCommission = Math.round(activePipelineValue * 0.025);
+    
+    // Closed deals — auto-detected or manually marked
+    const closedIds = Object.keys(crmData).filter(id => crmData[id]?.status === 'closed');
+    const closedValue = closedIds.reduce((s,id) => s + (crmData[id]?.commission || 0), 0);
+    
+    // ========================================
+    // RENDER PIPELINE BAR + FILTER BAR
+    // ========================================
     let html = '';
+    
+    html += `<div class="pipeline-bar">
+        <div class="pipeline-item"><div class="pv gold">$${potentialCommission >= 1000000 ? (potentialCommission/1000000).toFixed(1)+'M' : potentialCommission >= 1000 ? Math.round(potentialCommission/1000)+'K' : potentialCommission.toLocaleString()}</div><div class="pl">POTENTIAL COMMISSION</div></div>
+        <div class="pipeline-item"><div class="pv">${allWithValue.length.toLocaleString()}</div><div class="pl">SELLERS TRACKED</div></div>
+        <div class="pipeline-item"><div class="pv green">${activeIds.length}</div><div class="pl">ACTIVE PIPELINE</div></div>
+        <div class="pipeline-item"><div class="pv" style="color:${closedValue > 0 ? 'var(--green)' : 'var(--text-dim)'}">$${closedValue > 0 ? closedValue.toLocaleString() : '0'}</div><div class="pl">CLOSED FROM SELLERSIGNAL</div></div>
+    </div>`;
+    
+    // Filter bar
+    const ownerTypes = {};
+    const propTypes = {};
+    for (const p of liveEnriched) {
+        const ot = p.cohortLabel || p.cohort || 'Unknown';
+        const pt = p.propType || 'Unknown';
+        ownerTypes[ot] = (ownerTypes[ot] || 0) + 1;
+        propTypes[pt] = (propTypes[pt] || 0) + 1;
+    }
+    
+    html += `<div class="filter-bar" id="filterBar">
+        <select id="filterOwnerType" onchange="applyFilters()">
+            <option value="">All Owner Types</option>
+            ${Object.entries(ownerTypes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<option value="${k}">${k} (${v})</option>`).join('')}
+        </select>
+        <select id="filterPropType" onchange="applyFilters()">
+            <option value="">All Property Types</option>
+            ${Object.entries(propTypes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<option value="${k}">${k} (${v})</option>`).join('')}
+        </select>
+        <input type="text" id="filterSearch" placeholder="Search by name, address..." oninput="applyFilters()">
+        <div class="filter-count" id="filterCount">${liveEnriched.length} prospects</div>
+    </div>`;
     
     // Since Last Briefing banner
     if (hasChanges) {
@@ -4272,7 +4339,13 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         const isNew = newIds && newIds.includes(id);
         const hidden = i >= initialShow ? ' style="display:none" data-overflow="' + sectionId + '"' : '';
         
-        return `<div class="prospect ${contacted?'contacted':''}"${hidden} id="card-${id}" onclick="toggleExpand('${id}')">
+        const crmPipeline = getCrmPipeline();
+        const crmStatus = crmPipeline[id]?.status || 'new';
+        const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
+        const ownerTypeLabel = p.cohortLabel || p.cohort || 'Unknown';
+        const propTypeLabel = p.propType || 'Unknown';
+        
+        return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
                 <div class="prospect-score ${p.scoreClass}">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:2px;color:var(--accent)">✓ DS</div>' : tier === 'call' && p._tier === 'act_today' ? '<div style="font-size:7px;margin-top:2px;color:var(--green)">✓ V2A</div>' : ''}</div>
                 <div class="prospect-info">
@@ -4281,10 +4354,20 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                     <div class="prospect-meta">
                         ${p._deepSignalVerified ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal verified</span>` : p._batchDeepSignal ? `<span class="chip" style="background:rgba(74,222,128,0.1);color:var(--green);border:1px solid rgba(74,222,128,0.2)">✓ Deep Signal</span>` : p._liteScored ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">Ranked by AI</span>` : ''}
                         <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
-                        ${p._liteNextMove && !p._deepSignalVerified && !p._batchDeepSignal ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--text-secondary);border:1px solid rgba(196,168,124,0.12)">${p._liteNextMove}</span>` : ''}
+                        ${val ? `<span class="chip" style="color:var(--text-dim)">${val}</span>` : ''}
+                        ${ownerTypeLabel !== 'Unknown' ? `<span class="chip" style="color:var(--text-dim)">${ownerTypeLabel}</span>` : ''}
                         ${(p._deepSignalVerified || p._batchDeepSignal) && p._dsTimeframe ? `<span class="chip" style="background:rgba(196,168,124,0.08);color:var(--accent);border:1px solid rgba(196,168,124,0.15)">${p._dsTimeframe}</span>` : ''}
                         ${tier === 'call' && p._freshness !== undefined && p._freshness < 50 ? '<span class="chip" style="background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.2)">Previously contacted</span>' : ''}
                         ${risk && tier !== 'call' ? '<span class="chip chip-risk">⚠ Risk flag</span>' : ''}
+                        <select id="crm-status-${safeId}" onclick="event.stopPropagation()" onchange="event.stopPropagation();onCrmStatusChange('${id}',this)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:10px;color:${crmStatus==='new'?'var(--text-dim)':crmStatus==='contacted'?'#60a5fa':crmStatus==='appointment'?'var(--gold)':crmStatus==='listed'?'var(--green)':crmStatus==='closed'?'var(--green)':'var(--red)'};font-family:'Outfit',sans-serif;cursor:pointer">
+                            <option value="new" ${crmStatus==='new'?'selected':''}>New</option>
+                            <option value="contacted" ${crmStatus==='contacted'?'selected':''}>Contacted</option>
+                            <option value="appointment" ${crmStatus==='appointment'?'selected':''}>Appointment</option>
+                            <option value="listed" ${crmStatus==='listed'?'selected':''}>Listed</option>
+                            <option value="under_contract" ${crmStatus==='under_contract'?'selected':''}>Under Contract</option>
+                            <option value="closed" ${crmStatus==='closed'?'selected':''}>Closed</option>
+                            <option value="dead" ${crmStatus==='dead'?'selected':''}>Dead</option>
+                        </select>
                     </div>
                 </div>
                 <div class="prospect-actions">
@@ -4510,6 +4593,70 @@ function toggleExpand(id) {
 // ========================================
 // ACTION MODAL — Call and Mail script panels
 // ========================================
+// ========================================
+// PROSPECT FILTERS
+// ========================================
+function applyFilters() {
+    const ownerType = document.getElementById('filterOwnerType')?.value || '';
+    const propType = document.getElementById('filterPropType')?.value || '';
+    const search = (document.getElementById('filterSearch')?.value || '').toLowerCase().trim();
+    
+    let visible = 0, hidden = 0;
+    document.querySelectorAll('.prospect-card').forEach(card => {
+        const name = (card.dataset.owner || '').toLowerCase();
+        const addr = (card.dataset.address || '').toLowerCase();
+        const ot = card.dataset.ownertype || '';
+        const pt = card.dataset.proptype || '';
+        
+        let show = true;
+        if (ownerType && ot !== ownerType) show = false;
+        if (propType && pt !== propType) show = false;
+        if (search && !name.includes(search) && !addr.includes(search)) show = false;
+        
+        card.style.display = show ? '' : 'none';
+        if (show) visible++; else hidden++;
+    });
+    
+    const countEl = document.getElementById('filterCount');
+    if (countEl) countEl.textContent = `${visible} prospects` + (hidden > 0 ? ` (${hidden} filtered)` : '');
+}
+
+// ========================================
+// CRM PIPELINE TRACKING
+// ========================================
+function getCrmPipeline() {
+    try { return JSON.parse(localStorage.getItem('ss_crm_pipeline') || '{}'); } catch(e) { return {}; }
+}
+
+function setCrmStatus(id, status, extraData) {
+    const pipeline = getCrmPipeline();
+    const prospect = allProspects.find(p => (p.id || `${p.lat}-${p.lng}`) === id);
+    pipeline[id] = {
+        ...pipeline[id],
+        status,
+        updatedAt: new Date().toISOString(),
+        ownerName: prospect?.ownerName || pipeline[id]?.ownerName,
+        address: prospect?.address || pipeline[id]?.address,
+        value: prospect?.totalValue || pipeline[id]?.value || 0,
+        commission: Math.round((prospect?.totalValue || pipeline[id]?.value || 0) * 0.025),
+        ...extraData,
+    };
+    localStorage.setItem('ss_crm_pipeline', JSON.stringify(pipeline));
+    
+    // Update the status dropdown if visible
+    const sel = document.getElementById('crm-status-' + id.replace(/[^a-zA-Z0-9]/g, '_'));
+    if (sel) sel.value = status;
+}
+
+function onCrmStatusChange(id, selectEl) {
+    const status = selectEl.value;
+    setCrmStatus(id, status);
+    
+    // Flash confirmation
+    selectEl.style.borderColor = 'var(--green)';
+    setTimeout(() => selectEl.style.borderColor = '', 1500);
+}
+
 function openCallModal(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
     if (!p) return;
