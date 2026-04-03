@@ -1,9 +1,19 @@
 // SellerSignal Direct Mail System
 // Generates personalized 6-letter sequences using Claude, sends via Lob API
 
-const LETTER_PROMPT = (agent, seller, position) => `You are SellerSignal's direct mail copywriter. Write a 6-letter mail sequence for a real estate agent to send to a specific property owner over 6 months.
+const LETTER_PROMPT = (agent, seller, position) => `You are writing a 6-letter direct mail sequence for a luxury real estate agent. These letters must sound like they were written by a top-producing agent who does $30M+ in annual volume and specializes in the upper tier of their market. NOT a marketing department. NOT a template service. A real person who did their homework on THIS specific owner.
 
-CRITICAL: These letters must feel personally written by the agent — NOT like marketing material. No logos, no bullet points, no "Dear Homeowner." These read like a handwritten note from someone who did their homework.
+VOICE AND STYLE RULES — NON-NEGOTIABLE:
+- Write like a confident, intelligent person having a direct conversation. No fluff. No filler. No corporate speak.
+- NEVER use the word "homeowner." Use their name.
+- NEVER use phrases like "exciting opportunity," "don't miss out," "act now," "hot market," or any phrase that sounds like it came from a postcard.
+- NEVER use bullet points, bold text, or formatting tricks. This is a letter, not a brochure.
+- Lead with something specific about THEIR property, THEIR neighborhood, THEIR situation. Show you know the area.
+- Be direct but never desperate. You're offering expertise, not begging for business.
+- The tone should feel like you're writing to a peer — respectful, informed, unhurried.
+- Short paragraphs. Three to four sentences max. White space matters.
+- Every letter should feel like it took 10 minutes to write specifically for this person, even though it didn't.
+- End each letter with JUST the agent's name and phone number on their own line. No "Sincerely" or "Best regards" or "Warm regards." Just the name and number.
 
 AGENT:
 Name: ${agent.name}
@@ -24,26 +34,21 @@ ${seller.deepSignalMotivation ? 'AI Analysis: ' + seller.deepSignalMotivation : 
 ${seller.deepSignalPsychology ? 'Seller Psychology: ' + seller.deepSignalPsychology : ''}
 
 SEQUENCE STRUCTURE:
-Letter 1 — WARM INTRODUCTION: Establish credibility and relevance. Reference something specific about their property or situation that shows you've done research. No ask, just "I noticed" + "I thought you'd want to know."
-Letter 2 — VALUE DROP: Share a genuine market insight relevant to their specific property. A nearby sale, a trend, something they'd actually care about. Position yourself as a source of useful information.
-Letter 3 — SOCIAL PROOF: Reference a similar situation you've handled (can be generalized). "I recently worked with a [similar owner type] in [area] who..." Make the transition feel normal and well-managed.
-Letter 4 — MARKET TRIGGER: Reference a specific market condition that creates a window. Include a placeholder {{RECENT_COMP}} that will be filled with a real comparable sale at send time.
-Letter 5 — DIRECT BUT SOFT ASK: "I'd welcome 15 minutes..." Make it easy to say yes. Offer something specific — a confidential market analysis, a no-obligation conversation.
-Letter 6 — GRACEFUL CLOSE: Acknowledge you've reached out several times. Leave the door open warmly. "When the timing is right, I'm here."
+Letter 1 — THE INTRODUCTION: You noticed their property. You work this area. You're not asking for anything — you're planting a flag. Reference something real about the property, the street, the neighborhood. Close with "when the timing is right, I'm here."
+Letter 2 — THE MARKET INSIGHT: Share a genuine market observation relevant to their specific property. A recent comparable sale nearby, a trend in their neighborhood, something they'd actually want to know. Position yourself as someone paying attention to their market.
+Letter 3 — THE QUIET PROOF: Reference a situation you've handled — generalized. "I recently worked with a family in a similar position..." Make selling feel normal, well-managed, and private. No bragging — just quiet competence.
+Letter 4 — THE WINDOW: Something has shifted in their market. Include a placeholder {{RECENT_COMP}} for a real comparable sale to be inserted at send time. Create a sense that the market has a rhythm and you understand it.
+Letter 5 — THE DIRECT ASK: "I'd welcome fifteen minutes of your time." Offer something specific — a confidential market analysis, a private valuation, a no-strings conversation. Make it easy to say yes.
+Letter 6 — THE OPEN DOOR: Acknowledge you've reached out a few times. No guilt. No pressure. "When the timing is right, I'm here." Leave them thinking about you, not annoyed by you.
 
-EACH LETTER MUST:
-- Start with a natural greeting using their name. For trusts, use the family name (e.g., "SMITH FAMILY TRUST" → "Mr. Smith" or "Smith Family"). For individuals with "LAST, FIRST" format, use "Mr./Ms. [Last]" or first name if the tone is warmer. For entities, use "Dear [Entity Name] Owner" or find the principal's name if available.
-- Be 150-200 words (fits a single page, feels personal not corporate)
-- Reference the actual property address at least once
-- Match the tone to the owner type (trust owner gets professional discretion, individual homeowner gets neighborly warmth, LLC gets business efficiency)
-- End with the agent's name, phone, and a single line that feels human
-- NEVER use the word "homeowner" — use their name
-- NEVER use marketing language like "exciting opportunity" or "don't miss out"
+NAME FORMATTING: For trusts, use the family name ("SMITH FAMILY TRUST" becomes "Mr. Smith"). For "LAST, FIRST" format, use first name. For entities, address the principal or use "Dear [simplified entity name]."
+
+EACH LETTER: 120-180 words. Fits on one page with letterhead. Feels like a personal note, not a form letter.
 
 Respond with ONLY a JSON array of 6 objects:
-[{"position":1,"subject":"Introduction","body":"Dear..."},{"position":2,...}]
+[{"position":1,"subject":"Introduction","body":"..."},{"position":2,...}]
 
-The "subject" is for internal tracking only (not printed). The "body" is the full letter text.`;
+The "subject" is for internal tracking. The "body" is the full letter text exactly as printed.`;
 
 async function generateLetterSequence(anthropic, agent, seller) {
   const prompt = LETTER_PROMPT(agent, seller);
@@ -68,9 +73,8 @@ async function generateLetterSequence(anthropic, agent, seller) {
   }));
 }
 
-// Format letter body as HTML for Lob — branded professional letterhead
+// Format letter body as HTML for Lob — clean, minimal, branded
 function letterToHtml(body, agent) {
-  // Lob specs: 8.5x11 letter, 0.25in margins minimum, 100% zoom
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -78,8 +82,8 @@ function letterToHtml(body, agent) {
   @page { size: 8.5in 11in; margin: 0; }
   body {
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: 11.5pt;
-    line-height: 1.65;
+    font-size: 11pt;
+    line-height: 1.7;
     color: #1a1a1a;
     margin: 0;
     padding: 0;
@@ -87,101 +91,55 @@ function letterToHtml(body, agent) {
   .letter {
     width: 8.5in;
     min-height: 11in;
-    padding: 0.75in 1in;
+    padding: 0.85in 1in 0.75in 1in;
     position: relative;
   }
-  /* Letterhead — agent branding */
   .letterhead {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding-bottom: 20pt;
-    margin-bottom: 24pt;
+    padding-bottom: 14pt;
+    margin-bottom: 20pt;
     border-bottom: 0.5pt solid #c4a87c;
   }
   .lh-name {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 14pt;
-    font-weight: 700;
+    font-size: 13pt;
+    font-weight: 600;
     color: #1a1a1a;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
   }
-  .lh-brokerage {
+  .lh-detail {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 9pt;
-    color: #888;
-    letter-spacing: 0.04em;
-    margin-top: 2pt;
+    font-size: 8pt;
+    color: #999;
+    letter-spacing: 0.05em;
+    margin-top: 3pt;
   }
-  .lh-contact {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 8.5pt;
-    color: #888;
-    text-align: right;
-    line-height: 1.5;
-  }
-  /* Date */
-  .date {
-    font-size: 10pt;
-    color: #666;
-    margin-bottom: 20pt;
-  }
-  /* Body */
   .body p {
-    margin: 0 0 12pt 0;
+    margin: 0 0 11pt 0;
   }
-  /* Signature block */
-  .signature {
-    margin-top: 28pt;
-  }
-  .sig-name {
+  .sign {
+    margin-top: 22pt;
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-weight: 700;
+  }
+  .sign-name {
     font-size: 11pt;
+    font-weight: 600;
+    color: #1a1a1a;
   }
-  .sig-detail {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  .sign-phone {
     font-size: 9pt;
-    color: #666;
-    line-height: 1.5;
-    margin-top: 4pt;
-  }
-  /* Footer */
-  .footer {
-    position: absolute;
-    bottom: 0.5in;
-    left: 1in;
-    right: 1in;
-    text-align: center;
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 7pt;
-    color: #bbb;
-    letter-spacing: 0.06em;
+    color: #777;
+    margin-top: 2pt;
   }
 </style>
 </head>
 <body>
 <div class="letter">
   <div class="letterhead">
-    <div>
-      <div class="lh-name">${agent.name || ''}</div>
-      <div class="lh-brokerage">${agent.brokerage || ''}</div>
-    </div>
-    <div class="lh-contact">
-      ${agent.phone || ''}<br>
-      ${agent.email || ''}
-    </div>
+    <div class="lh-name">${agent.name || ''}</div>
+    <div class="lh-detail">${agent.brokerage || ''}${agent.phone ? ' · ' + agent.phone : ''}${agent.email ? ' · ' + agent.email : ''}</div>
   </div>
-  <div class="date">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
   <div class="body">
     ${body.split('\n').filter(l => l.trim()).map(p => `<p>${p}</p>`).join('\n    ')}
-  </div>
-  <div class="signature">
-    <div class="sig-name">${agent.name || ''}</div>
-    <div class="sig-detail">
-      ${agent.brokerage || ''}<br>
-      ${agent.phone || ''} · ${agent.email || ''}
-    </div>
   </div>
 </div>
 </body>
