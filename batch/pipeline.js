@@ -60,46 +60,50 @@ function classifyPropType(a, cfg) {
     const rules = cfg.propTypeRules;
     if (!rules || rules.style === 'none') return { propType: 'Residential', isExempt: false, isVacant: false, isCommercial: false };
     
+    let propType = 'Residential', isExempt = false, isVacant = false, isCommercial = false;
+    
     if (rules.style === 'puc') {
         const code = String(a[rules.field] || '');
-        const isExempt = (rules.exempt || []).some(p => code.startsWith(p));
-        const isCommercial = (rules.commercial || []).some(p => code.startsWith(p));
-        const isVacant = (rules.vacant || []).some(p => code.startsWith(p));
+        isExempt = (rules.exempt || []).some(p => code.startsWith(p));
+        isCommercial = (rules.commercial || []).some(p => code.startsWith(p));
+        isVacant = (rules.vacant || []).some(p => code.startsWith(p));
         const isMulti = (rules.multiFamily || []).some(p => code.startsWith(p));
-        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : isMulti ? 'Multi-Family' : 'Residential';
-        return { propType, isExempt, isVacant, isCommercial };
-    }
-    
-    if (rules.style === 'class') {
+        propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : isMulti ? 'Multi-Family' : 'Residential';
+    } else if (rules.style === 'class') {
         const code = String(a[rules.field] || '');
-        const isExempt = (rules.exempt || []).some(p => code.startsWith(p));
-        const isCommercial = (rules.commercial || []).some(p => code.startsWith(p));
-        const isVacant = (rules.vacant || []).some(p => code.startsWith(p));
+        isExempt = (rules.exempt || []).some(p => code.startsWith(p));
+        isCommercial = (rules.commercial || []).some(p => code.startsWith(p));
+        isVacant = (rules.vacant || []).some(p => code.startsWith(p));
         const isMulti = (rules.multiFamily || []).some(p => code.startsWith(p));
-        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : isMulti ? 'Residential Multi' : 'Residential';
-        return { propType, isExempt, isVacant, isCommercial };
-    }
-    
-    if (rules.style === 'string') {
+        propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : isMulti ? 'Multi-Family' : 'Residential';
+    } else if (rules.style === 'string') {
         const val = (a[rules.field] || '').toLowerCase();
-        const isExempt = (rules.exempt || []).some(p => val.includes(p.toLowerCase()));
-        const isCommercial = (rules.commercial || []).some(p => val.includes(p.toLowerCase()));
-        const isVacant = (rules.vacant || []).some(p => val.includes(p.toLowerCase()));
-        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : val || 'Residential';
-        return { propType, isExempt, isVacant, isCommercial };
-    }
-    
-    if (rules.style === 'regex') {
+        isExempt = (rules.exempt || []).some(p => val.includes(p.toLowerCase()));
+        isCommercial = (rules.commercial || []).some(p => val.includes(p.toLowerCase()));
+        isVacant = (rules.vacant || []).some(p => val.includes(p.toLowerCase()));
+        propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : 'Residential';
+    } else if (rules.style === 'regex') {
         const val = a[rules.field] || '';
-        const isExempt = rules.exemptRx ? rules.exemptRx.test(val) : false;
-        const isCommercial = rules.commercialRx ? rules.commercialRx.test(val) : false;
-        const isVacant = rules.vacantRx ? rules.vacantRx.test(val) : false;
-        const isResidential = rules.residentialRx ? rules.residentialRx.test(val) : false;
-        const propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : val || 'Residential';
-        return { propType, isExempt, isVacant, isCommercial, isResidential };
+        isExempt = rules.exemptRx ? rules.exemptRx.test(val) : false;
+        isCommercial = rules.commercialRx ? rules.commercialRx.test(val) : false;
+        isVacant = rules.vacantRx ? rules.vacantRx.test(val) : false;
+        propType = isExempt ? 'Exempt' : isCommercial ? 'Commercial' : isVacant ? 'Vacant Land' : 'Residential';
     }
     
-    return { propType: 'Residential', isExempt: false, isVacant: false, isCommercial: false };
+    // Normalize raw propType strings to standard categories
+    const pt = propType.toLowerCase();
+    if (/single.?family|sfr|1\s*unit|detached|improved|bungalow|ranch|colonial|cape\s*cod|split\s*level/i.test(pt)) propType = 'Residential';
+    else if (/condo|condominium|cooperative|co-op/i.test(pt)) propType = 'Condo';
+    else if (/town\s*h|row\s*h|attached/i.test(pt)) propType = 'Townhouse';
+    else if (/multi|duplex|triplex|quad|apartment|2.?unit|3.?unit|4.?unit/i.test(pt)) propType = 'Multi-Family';
+    else if (/mobile|manufactured/i.test(pt)) propType = 'Mobile Home';
+    else if (/vacant|undeveloped|unimproved/i.test(pt)) propType = 'Vacant Land';
+    else if (/commercial|office|retail|store|warehouse|industrial/i.test(pt)) propType = 'Commercial';
+    else if (/exempt|government|municipal|school|church/i.test(pt)) propType = 'Exempt';
+    else if (/agri|farm|ranch|timber/i.test(pt) && !isVacant) propType = 'Agricultural';
+    // If still not matched but has building value, it's residential
+    
+    return { propType, isExempt, isVacant, isCommercial };
 }
 
 // ========================

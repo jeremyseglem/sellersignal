@@ -189,10 +189,14 @@ PROSPECTS:\n${d}`}] });
 
   // === STORE PARCELS ===
   log(`  Storing ${uP.length} parcels...`);
+  // Build a map of parcel_id → scored cohort for storage
+  const cohortMap = {};
+  for (const r of uR) cohortMap[r.p.id] = r.s.cohort || 'residential';
+  
   for (let i = 0; i < uP.length; i += 500) {
     const batch = uP.slice(i, i+500).map(p => ({
       id:p.id, zip_code:zip, market_key:market.key,
-      owner_name:p.ownerName, owner_type:p.cohort||'residential',
+      owner_name:p.ownerName, owner_type:cohortMap[p.id]||'residential',
       address:p.address, city:p.ownerCity||'', state:market.homeState,
       lat:p.lat||null, lng:p.lng||null,
       assessed_value:p.totalValue||null, building_value:p.buildingValue||null, land_value:p.landValue||null,
