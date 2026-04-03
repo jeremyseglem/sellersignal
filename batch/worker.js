@@ -237,16 +237,17 @@ PROSPECTS:\n${d}`}] });
   }
 
   // === STORE BRIEFING ===
-  // Tier assignment: percentile-based (adapts to each market's calibrated score distribution)
-  // Act Today = top ~0.2% by score, minimum 10, maximum 50, floor score 35
-  // Outreach = next ~5%, floor score 25
+  // Tier assignment: show as many prospects as the market actually produces sellers
+  // sold24 / 24 = monthly sellers. Act Today = top 25 of those. Outreach = the rest.
+  // Floor: 10 act today, 30 outreach for markets with no sales data.
   const sorted = uR.sort((a,b) => b.s.briefingRank - a.s.briefingRank);
-  const actCount = Math.min(50, Math.max(10, Math.ceil(sorted.length * 0.002)));
-  const outCount = Math.min(2000, Math.ceil(sorted.length * 0.05));
+  const monthlySellers = calibration?.sold24 ? Math.ceil(calibration.sold24 / 24) : Math.max(30, Math.ceil(parcels.length * 0.003));
+  const actSize = Math.min(25, Math.max(10, Math.ceil(monthlySellers * 0.15)));
+  const outSize = Math.max(30, monthlySellers - actSize);
   
-  const actCands = sorted.slice(0, actCount).filter(r => r.s.briefingRank >= 35);
+  const actCands = sorted.slice(0, actSize).filter(r => r.s.briefingRank >= 20);
   const actIds = new Set(actCands.map(r => r.p.id));
-  const outCands = sorted.slice(actCount, actCount + outCount).filter(r => r.s.briefingRank >= 25 && !actIds.has(r.p.id));
+  const outCands = sorted.slice(actSize, actSize + outSize).filter(r => r.s.briefingRank >= 15 && !actIds.has(r.p.id));
   
   await supabase.from('zip_briefings').upsert({
     zip_code:zip, market_key:market.key, market_name:market.name,
