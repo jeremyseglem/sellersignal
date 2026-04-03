@@ -487,7 +487,8 @@ body.demo-mode .feedback-tab{display:none}
         <div class="briefing-title">Daily Briefing</div>
         <div class="briefing-farm" id="briefFarm"></div>
         <div class="briefing-stats" id="briefStats"></div>
-        <div class="briefing-map" id="briefMap">
+        <div class="briefing-map" id="briefMapWrap">
+            <div id="briefMap" style="width:100%;height:100%"></div>
             <div class="map-filter-notice" id="mapFilterNotice">Showing prospects in current view</div>
             <div class="map-reset" id="mapReset" onclick="resetMapFilter()">Show All</div>
             <div class="map-panel" id="mapPanel">
@@ -3034,7 +3035,7 @@ async function startBriefingFromBounds(south, west, north, east, label) {
     const now = new Date();
     document.getElementById('briefDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
     document.getElementById('briefFarm').textContent = label || 'Current Map Area';
-    document.getElementById('briefStats').style.display = 'none'; document.getElementById('briefMap').style.display = 'none'; initPipelineUI();
+    document.getElementById('briefStats').style.display = 'none'; document.getElementById('briefMapWrap').style.display = 'none'; initPipelineUI();
     
     const centerLat = (south + north) / 2;
     const centerLng = (west + east) / 2;
@@ -3103,7 +3104,7 @@ async function startBriefingFromBounds(south, west, north, east, label) {
         
         allProspects = evidenceScored.filter(p => p.briefingRank >= 15);
         window._investigationComplete = true;
-        document.getElementById('briefStats').style.display = ''; document.getElementById('briefMap').style.display = '';
+        document.getElementById('briefStats').style.display = ''; document.getElementById('briefMapWrap').style.display = '';
         renderBriefing(allProspects, parcels.length, 0, 0);
         document.getElementById('briefingContent').classList.add('briefing-reveal');
         
@@ -3159,7 +3160,7 @@ async function startBriefing() {
     const now = new Date();
     document.getElementById('briefDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
     document.getElementById('briefFarm').textContent = cleanQuery;
-    document.getElementById('briefStats').style.display = 'none'; document.getElementById('briefMap').style.display = 'none'; initPipelineUI();
+    document.getElementById('briefStats').style.display = 'none'; document.getElementById('briefMapWrap').style.display = 'none'; initPipelineUI();
     
   try {
     const isZip = /^\d{5}$/.test(cleanQuery);
@@ -3229,7 +3230,7 @@ async function startBriefing() {
                     
                     // Show stats and map
                     document.getElementById('briefStats').style.display = '';
-                    document.getElementById('briefMap').style.display = '';
+                    document.getElementById('briefMapWrap').style.display = '';
                     
                     // Map pre-computed deep signals to prospects
                     const dsMap = new Map();
@@ -3874,7 +3875,7 @@ async function startBriefing() {
         
         // Show stats bar, render briefing, animate reveal
         stopPipelineUI();
-        document.getElementById('briefStats').style.display = ''; document.getElementById('briefMap').style.display = '';
+        document.getElementById('briefStats').style.display = ''; document.getElementById('briefMapWrap').style.display = '';
         renderBriefing(allProspects, parcels.length, marketResult.matches, marketResult.signals.length);
         document.getElementById('briefingContent').classList.add('briefing-reveal');
         
@@ -5028,7 +5029,7 @@ function initBriefingMap(prospects) {
     const pins = prospects.filter(p => p.lat && p.lng && p.lat !== 0);
     if (pins.length === 0) return;
     
-    mapEl.classList.add('active');
+    document.getElementById('briefMapWrap')?.classList.add('active');
     
     const bounds = new google.maps.LatLngBounds();
     
@@ -5271,7 +5272,7 @@ function resetMapFilter() {
 }
 
 function flyToOnMap(lat, lng, id) {
-    const mapEl = document.getElementById('briefMap');
+    const mapEl = document.getElementById('briefMapWrap');
     if (!mapEl || !briefingMap) return;
     
     mapEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
