@@ -25,8 +25,14 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 ::selection{background:var(--gold);color:var(--bg)}
 
 /* Mini Map */
-.briefing-map{height:280px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:20px;overflow:hidden;display:none}
+.briefing-map{height:400px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:16px;overflow:hidden;display:none;position:relative}
 .briefing-map.active{display:block}
+.map-filter-notice{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(7,11,16,0.85);backdrop-filter:blur(8px);border:1px solid var(--gold-border);border-radius:20px;padding:6px 16px;font-size:11px;color:var(--gold);z-index:10;pointer-events:none;display:none}
+.map-filter-notice.active{display:block}
+.map-reset{position:absolute;top:12px;left:12px;background:rgba(7,11,16,0.85);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;color:var(--text-secondary);cursor:pointer;z-index:10;font-family:'Outfit',sans-serif;display:none}
+.map-reset:hover{border-color:var(--gold);color:var(--gold)}
+.map-reset.active{display:block}
+.prospect.map-highlight{border-color:var(--gold) !important;background:rgba(196,168,124,0.06) !important}
 
 /* Action Modal */
 .action-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -330,8 +336,8 @@ body.demo-mode .feedback-tab{display:none}
     <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
     <div class="header-actions">
         <a class="nav-btn active" id="navBriefing" onclick="showView('briefing')">Briefing</a>
-        <a class="nav-btn" id="navMap" href="sellersignal-map.html" target="_blank">Map ↗</a>
         <a class="nav-btn" href="sellersignal-crm.html" target="_blank">Pipeline ↗</a>
+        <a class="nav-btn" href="sellersignal-mail.html" target="_blank">Mail ↗</a>
         <a class="nav-btn" href="sellersignal-mail.html" target="_blank">Mail ↗</a>
         <div id="userInfo" style="display:flex;align-items:center;gap:8px;margin-left:8px"></div>
     </div>
@@ -464,7 +470,10 @@ body.demo-mode .feedback-tab{display:none}
         <div class="briefing-title">Daily Briefing</div>
         <div class="briefing-farm" id="briefFarm"></div>
         <div class="briefing-stats" id="briefStats"></div>
-        <div class="briefing-map" id="briefMap"></div>
+        <div class="briefing-map" id="briefMap">
+            <div class="map-filter-notice" id="mapFilterNotice">Showing prospects in current view</div>
+            <div class="map-reset" id="mapReset" onclick="resetMapFilter()">Show All</div>
+        </div>
     </div>
     
     <div id="briefingContent">
@@ -4356,7 +4365,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         const ownerTypeLabel = p.cohortLabel || p.cohort || 'Unknown';
         const propTypeLabel = p.propType || 'Unknown';
         
-        return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" onclick="toggleExpand('${id}')">
+        return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
                 <div class="prospect-score ${p.scoreClass}">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:2px;color:var(--accent)">✓ DS</div>' : tier === 'call' && p._tier === 'act_today' ? '<div style="font-size:7px;margin-top:2px;color:var(--green)">✓ V2A</div>' : ''}</div>
                 <div class="prospect-info">
@@ -5004,17 +5013,20 @@ function initBriefingMap(prospects) {
         mapTypeId: 'hybrid',
         mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: false,
+        fullscreenControl: true,
         zoomControl: true,
         styles: []
     });
     
     mapInfoWindow = new google.maps.InfoWindow();
+    window._mapMarkers = {};
+    window._mapInitialBounds = null;
+    window._mapBoundsFiltering = false;
     
     const callIds = new Set((window._currentCallToday||[]).map(p => p.id || `${p.lat}-${p.lng}`));
     const mailIds = new Set((window._currentMailWeek||[]).map(p => p.id || `${p.lat}-${p.lng}`));
     
-    for (const p of pins.slice(0, 300)) {
+    for (const p of pins.slice(0, 500)) {
         const id = p.id || `${p.lat}-${p.lng}`;
         const isAct = callIds.has(id);
         const isOut = mailIds.has(id);
@@ -5039,6 +5051,8 @@ function initBriefingMap(prospects) {
             }
         });
         
+        window._mapMarkers[id] = marker;
+        
         const name = normalizeName(p.ownerName) || p.address;
         
         marker.addListener('click', () => {
@@ -5048,36 +5062,83 @@ function initBriefingMap(prospects) {
                     <div style="color:#555;font-size:11px">${p.address}</div>
                     <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
                         <span style="background:${isAct?'#c4a87c':isOut?'#6b7280':'#9ca3af'};color:white;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${p.briefingRank}</span>
-                        <span style="font-size:10px;color:#666">${p._liteNextMove || p.cohortLabel || ''}</span>
-                    </div>
-                    <div style="margin-top:6px">
-                        <a href="#card-${id}" onclick="document.getElementById('card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('card-${id}')?.classList.add('expanded');return false" style="color:#c4a87c;text-decoration:none;font-size:11px;font-weight:500">View details ↓</a>
-                        <span style="margin:0 6px;color:#ccc">·</span>
-                        <a href="sellersignal-map.html?search=${encodeURIComponent(p.address + (p.cityStateZip ? ', '+p.cityStateZip : ''))}" target="_blank" style="color:#c4a87c;text-decoration:none;font-size:11px;font-weight:500">Open full map ↗</a>
+                        <span style="font-size:10px;color:#666">${p.cohortLabel || ''}</span>
                     </div>
                 </div>
             `);
             mapInfoWindow.open(briefingMap, marker);
             
-            // Highlight card
-            const card = document.getElementById(`card-${id}`);
+            // Scroll to card and highlight
+            const card = document.getElementById('card-' + id);
             if (card) {
-                card.style.outline = '2px solid var(--gold)';
-                setTimeout(() => card.style.outline = '', 3000);
+                card.style.display = '';
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                document.querySelectorAll('.prospect.map-highlight').forEach(el => el.classList.remove('map-highlight'));
+                card.classList.add('map-highlight');
+                card.classList.add('expanded');
+                setTimeout(() => card.classList.remove('map-highlight'), 3000);
             }
         });
         
-        mapMarkers[id] = marker;
         bounds.extend(pos);
     }
     
-    if (!bounds.isEmpty()) {
-        briefingMap.fitBounds(bounds, { padding: 30 });
-        // Don't zoom in too far on small areas
-        google.maps.event.addListenerOnce(briefingMap, 'bounds_changed', () => {
-            if (briefingMap.getZoom() > 15) briefingMap.setZoom(15);
-        });
+    briefingMap.fitBounds(bounds, { top: 20, bottom: 20, left: 20, right: 20 });
+    
+    // Store initial bounds for reset
+    google.maps.event.addListenerOnce(briefingMap, 'idle', () => {
+        window._mapInitialBounds = briefingMap.getBounds();
+    });
+    
+    // Bounds filtering — when user zooms/pans, filter prospect list
+    let boundsTimeout;
+    briefingMap.addListener('idle', () => {
+        if (!window._mapInitialBounds) return;
+        clearTimeout(boundsTimeout);
+        boundsTimeout = setTimeout(() => {
+            const currentBounds = briefingMap.getBounds();
+            const initialBounds = window._mapInitialBounds;
+            
+            // Check if user has zoomed in significantly (not just at initial view)
+            const currentSpan = currentBounds.toSpan();
+            const initialSpan = initialBounds.toSpan();
+            const zoomRatio = (currentSpan.lat() * currentSpan.lng()) / (initialSpan.lat() * initialSpan.lng());
+            
+            if (zoomRatio < 0.5) {
+                // User has zoomed in — filter cards to visible pins
+                window._mapBoundsFiltering = true;
+                let visible = 0;
+                document.querySelectorAll('.prospect-card').forEach(card => {
+                    const lat = parseFloat(card.dataset.lat);
+                    const lng = parseFloat(card.dataset.lng);
+                    if (lat && lng && currentBounds.contains({ lat, lng })) {
+                        card.style.display = '';
+                        visible++;
+                    } else if (lat && lng) {
+                        card.style.display = 'none';
+                    }
+                });
+                document.getElementById('mapFilterNotice').textContent = `Showing ${visible} prospects in view`;
+                document.getElementById('mapFilterNotice').classList.add('active');
+                document.getElementById('mapReset').classList.add('active');
+                const fc = document.getElementById('filterCount');
+                if (fc) fc.textContent = `${visible} in view`;
+            } else if (window._mapBoundsFiltering) {
+                resetMapFilter();
+            }
+        }, 300);
+    });
+}
+
+function resetMapFilter() {
+    window._mapBoundsFiltering = false;
+    document.querySelectorAll('.prospect-card').forEach(card => card.style.display = '');
+    document.getElementById('mapFilterNotice').classList.remove('active');
+    document.getElementById('mapReset').classList.remove('active');
+    if (briefingMap && window._mapInitialBounds) {
+        briefingMap.fitBounds(window._mapInitialBounds);
     }
+    applyFilters();
 }
 
 function flyToOnMap(lat, lng, id) {
@@ -5090,7 +5151,7 @@ function flyToOnMap(lat, lng, id) {
         briefingMap.panTo({ lat, lng });
         briefingMap.setZoom(17);
         
-        const marker = mapMarkers[id];
+        const marker = window._mapMarkers?.[id];
         if (marker) {
             // Flash the marker
             marker.setIcon({
