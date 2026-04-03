@@ -230,8 +230,15 @@ function parseParcel(feature, cfg) {
 function calibrate(defaultBonus, featureKey, cal) {
     if (!cal || !cal.lifts || !(featureKey in cal.lifts)) return defaultBonus;
     const lift = cal.lifts[featureKey];
-    if (lift >= 1) return Math.round(defaultBonus * Math.min(lift, 3));
-    return Math.round(-defaultBonus * (1 - lift));
+    // Below base rate — penalize
+    if (lift <= 0) return -defaultBonus;
+    if (lift < 1) return Math.round(-defaultBonus * (1 - lift));
+    // Within noise of base rate — no predictive value, no bonus
+    if (lift <= 1.15) return 0;
+    // Above base rate — scale bonus by excess over 1.0
+    // lift 1.3x = 0.3 * default (modest), 2.0x = 1.0 * default (full), 8.0x = 2.5 * default (capped)
+    const excess = Math.min(lift - 1, 2.5);
+    return Math.round(defaultBonus * excess);
 }
 
 function precomputeStats(parcels) {
