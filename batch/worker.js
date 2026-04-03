@@ -237,10 +237,17 @@ PROSPECTS:\n${d}`}] });
   }
 
   // === STORE BRIEFING ===
-  // Tier assignment uses HEURISTIC briefingRank — the structural signal (trust + absentee + OOS)
-  // AI lite_score is used for RANKING within tiers, not for overriding tier placement
-  const actCands = uR.filter(r => r.s.briefingRank >= 55);
-  const outCands = uR.filter(r => r.s.briefingRank >= 35 && r.s.briefingRank < 55);
+  // Tier assignment: percentile-based (adapts to each market's calibrated score distribution)
+  // Act Today = top ~0.2% by score, minimum 10, maximum 50, floor score 35
+  // Outreach = next ~5%, floor score 25
+  const sorted = uR.sort((a,b) => b.s.briefingRank - a.s.briefingRank);
+  const actCount = Math.min(50, Math.max(10, Math.ceil(sorted.length * 0.002)));
+  const outCount = Math.min(2000, Math.ceil(sorted.length * 0.05));
+  
+  const actCands = sorted.slice(0, actCount).filter(r => r.s.briefingRank >= 35);
+  const actIds = new Set(actCands.map(r => r.p.id));
+  const outCands = sorted.slice(actCount, actCount + outCount).filter(r => r.s.briefingRank >= 25 && !actIds.has(r.p.id));
+  
   await supabase.from('zip_briefings').upsert({
     zip_code:zip, market_key:market.key, market_name:market.name,
     total_parcels:parcels.length,
