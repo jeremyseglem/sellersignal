@@ -139,40 +139,36 @@ function loadLeads() {
     leads = [];
     const seen = new Set();
     
-    // Pull from all ZIP snapshots
-    for (const [zipKey, snapshot] of Object.entries(snapshots)) {
-        const prospects = snapshot.prospects || snapshot;
-        if (!Array.isArray(prospects)) continue;
+    // Snapshots are stored as flat map: parcel_id → { ownerName, address, zip, briefingRank, ... }
+    for (const [id, p] of Object.entries(snapshots)) {
+        if (seen.has(id)) continue;
+        if (!p || typeof p !== 'object') continue;
+        if (!p.ownerName && !p.address) continue;
+        seen.add(id);
         
-        for (const p of prospects) {
-            const id = p.id || p._parcelId || `${p.lat}-${p.lng}`;
-            if (seen.has(id)) continue;
-            seen.add(id);
-            
-            const crm = crmPipeline[id] || {};
-            const contact = crmContacts[id] || {};
-            
-            leads.push({
-                id,
-                name: p.ownerName || p.owner_name || '',
-                address: p.address || '',
-                zip: p.zipCode || p.zip_code || zipKey.replace('ss_snap_',''),
-                score: p.briefingRank || p.sellerLikelihood || 0,
-                value: p.totalValue || p.assessed_value || 0,
-                commission: Math.round((p.totalValue || p.assessed_value || 0) * 0.025),
-                cohort: p.cohortLabel || p.cohort || p.owner_type || '',
-                propType: p.propType || p.prop_type || '',
-                status: crm.status || contact.action || 'new',
-                tab: statusToTab(crm.status || contact.action),
-                updatedAt: crm.updatedAt || contact.timestamp || '',
-                isAbsentee: p.isAbsentee || p.is_absentee,
-                isOutOfState: p.isOutOfState || p.is_out_of_state,
-                ownerState: p.ownerState || p.owner_state || '',
-                sold: !!saleDetections[id],
-                salePrice: crm.salePrice || saleDetections[id]?.sale_price || 0,
-                actualCommission: crm.actualCommission || 0,
-            });
-        }
+        const crm = crmPipeline[id] || {};
+        const contact = crmContacts[id] || {};
+        
+        leads.push({
+            id,
+            name: p.ownerName || p.owner_name || '',
+            address: p.address || '',
+            zip: p.zip || p.zipCode || p.zip_code || '',
+            score: p.briefingRank || p.sellerLikelihood || 0,
+            value: p.totalValue || p.assessed_value || 0,
+            commission: Math.round((p.totalValue || p.assessed_value || 0) * 0.025),
+            cohort: p.ownerType || p.cohortLabel || p.cohort || p.owner_type || '',
+            propType: p.propType || p.prop_type || '',
+            status: crm.status || contact.action || 'new',
+            tab: statusToTab(crm.status || contact.action),
+            updatedAt: crm.updatedAt || contact.timestamp || '',
+            isAbsentee: p.isAbsentee || p.is_absentee,
+            isOutOfState: p.isOutOfState || p.is_out_of_state,
+            ownerState: p.ownerState || p.owner_state || '',
+            sold: !!saleDetections[id],
+            salePrice: crm.salePrice || saleDetections[id]?.sale_price || 0,
+            actualCommission: crm.actualCommission || 0,
+        });
     }
 }
 

@@ -2774,8 +2774,8 @@ function persistSnapshots(parcels, zipKey) {
         const now = Date.now();
         let added = 0, updated = 0;
         
-        // Only persist top 200 to stay within localStorage limits
-        const toStore = parcels.slice(0, 200);
+        // Persist top 500 to cover act today + outreach for large markets
+        const toStore = parcels.slice(0, 500);
         
         for (const p of toStore) {
             const id = p.id || `${p.lat}-${p.lng}`;
@@ -3229,6 +3229,9 @@ async function startBriefing() {
                     // Render immediately
                     renderBriefing(prospects, totalParcels, 0, 0);
                     document.getElementById('briefingContent').classList.add('briefing-reveal');
+                    
+                    // Persist to localStorage for CRM/Pipeline
+                    persistSnapshots(prospects, query.trim());
                     
                     // Hide loading
                     const pipeEl = document.getElementById('pipelineLoading');
