@@ -213,6 +213,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
         <a class="nav-btn active" id="navBriefing" onclick="showView('briefing')">Briefing</a>
         <a class="nav-btn" id="navMap" href="sellersignal-map.html" target="_blank">Map ↗</a>
         <a class="nav-btn" href="sellersignal-crm.html" target="_blank">Pipeline ↗</a>
+        <a class="nav-btn" href="sellersignal-mail.html" target="_blank">Mail ↗</a>
         <div id="userInfo" style="display:flex;align-items:center;gap:8px;margin-left:8px"></div>
     </div>
 </header>
@@ -4786,20 +4787,27 @@ async function enrollInMailCampaign(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
     if (!p) return;
     
-    const agentEmail = prompt('Your email (for mail credits and tracking):');
+    // Load saved agent info or prompt
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('ss_agent_profile') || '{}'); } catch(e) {}
+    
+    const agentEmail = saved.email || prompt('Your email (for mail credits and tracking):');
     if (!agentEmail) return;
-    const agentName = prompt('Your name (appears on the letters):');
+    const agentName = saved.name || prompt('Your name (appears on the letters):');
     if (!agentName) return;
-    const agentBrokerage = prompt('Your brokerage:') || '';
-    const agentPhone = prompt('Your phone (included in letters):') || '';
+    const agentBrokerage = saved.brokerage || prompt('Your brokerage:') || '';
+    const agentPhone = saved.phone || prompt('Your phone (included in letters):') || '';
+    
+    // Save for next time
+    localStorage.setItem('ss_agent_profile', JSON.stringify({ email: agentEmail, name: agentName, brokerage: agentBrokerage, phone: agentPhone }));
     
     try {
         const credResp = await fetch(`/api/mail/credits?agent=${encodeURIComponent(agentEmail)}`);
         const credData = await credResp.json();
         const remaining = credData.credits?.credits_remaining || 0;
         
-        if (remaining < 6) {
-            const buyNow = confirm(`You need 6 credits but have ${remaining}.\n\nWould you like to purchase a credit pack?\n• Starter: 25 letters — $99\n• Growth: 50 letters — $179\n• Scale: 100 letters — $299`);
+        if (remaining < 1) {
+            const buyNow = confirm(`You have ${remaining} credits remaining.\n\nWould you like to purchase a credit pack?\n• 25 sellers — $99\n• 50 sellers — $179\n• 100 sellers — $299\n\n1 credit = 1 seller (all 6 letters included)`);
             if (buyNow) {
                 const pack = prompt('Which pack? (starter / growth / scale):', 'growth');
                 if (['starter','growth','scale'].includes(pack)) {
@@ -4815,7 +4823,7 @@ async function enrollInMailCampaign(id) {
         }
         
         const name = normalizeName(p.ownerName);
-        if (!confirm(`Enroll ${name} at ${p.address} in a 6-letter AI mail campaign?\n\nUses 6 credits (${remaining - 6} remaining after).\n\n• Letter 1 sends in 3 days\n• Letters 2-6 send monthly\n• Each letter uniquely written for this seller`)) return;
+        if (!confirm(`Enroll ${name} at ${p.address} in a 6-letter AI mail campaign?\n\nUses 1 credit (${remaining - 1} remaining after).\n\n• Letter 1 sends in 3 days\n• Letters 2-6 send monthly\n• Each letter uniquely written for this seller`)) return;
         
         // Show loading
         const btn = document.querySelector('[onclick*="enrollInMailCampaign"]');
@@ -4829,7 +4837,7 @@ async function enrollInMailCampaign(id) {
         const data = await resp.json();
         
         if (data.enrolled > 0) {
-            alert(`✓ ${name} enrolled!\n\n6 personalized letters generated.\nLetter 1 mails in 3 days.\nCredits remaining: ${remaining - 6}`);
+            alert(`✓ ${name} enrolled!\n\n6 personalized letters generated.\nLetter 1 mails in 3 days.\nCredits remaining: ${remaining - 1}`);
             closeModal();
         } else {
             alert('Could not enroll: ' + (data.results?.[0]?.error || data.error || 'Unknown error'));

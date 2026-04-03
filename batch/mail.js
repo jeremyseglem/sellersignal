@@ -32,7 +32,7 @@ Letter 5 — DIRECT BUT SOFT ASK: "I'd welcome 15 minutes..." Make it easy to sa
 Letter 6 — GRACEFUL CLOSE: Acknowledge you've reached out several times. Leave the door open warmly. "When the timing is right, I'm here."
 
 EACH LETTER MUST:
-- Start with "${seller.ownerName.split(',')[0].split(' ')[0]}," or a natural greeting using their name
+- Start with a natural greeting using their name. For trusts, use the family name (e.g., "SMITH FAMILY TRUST" → "Mr. Smith" or "Smith Family"). For individuals with "LAST, FIRST" format, use "Mr./Ms. [Last]" or first name if the tone is warmer. For entities, use "Dear [Entity Name] Owner" or find the principal's name if available.
 - Be 150-200 words (fits a single page, feels personal not corporate)
 - Reference the actual property address at least once
 - Match the tone to the owner type (trust owner gets professional discretion, individual homeowner gets neighborly warmth, LLC gets business efficiency)
