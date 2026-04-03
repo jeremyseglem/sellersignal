@@ -169,7 +169,8 @@ function loadLeads() {
                 isOutOfState: p.isOutOfState || p.is_out_of_state,
                 ownerState: p.ownerState || p.owner_state || '',
                 sold: !!saleDetections[id],
-                salePrice: saleDetections[id]?.sale_price || 0,
+                salePrice: crm.salePrice || saleDetections[id]?.sale_price || 0,
+                actualCommission: crm.actualCommission || 0,
             });
         }
     }
@@ -186,7 +187,9 @@ function renderPipeline() {
     const totalValue = leads.filter(l=>l.value>0).reduce((s,l)=>s+l.value,0);
     const totalComm = Math.round(totalValue * 0.025);
     const wonValue = leads.filter(l=>l.tab==='won').reduce((s,l)=>s+(l.salePrice||l.value),0);
-    const wonComm = Math.round(wonValue * 0.025);
+    const earnedComm = leads.filter(l=>l.actualCommission>0).reduce((s,l)=>s+l.actualCommission,0);
+    const activeValue = leads.filter(l=>l.status==='listed'||l.status==='under_contract').reduce((s,l)=>s+(l.salePrice||l.value),0);
+    const activeComm = Math.round(activeValue * 0.025);
     
     const fmt = n => n >= 1000000 ? '$'+(n/1000000).toFixed(1)+'M' : n >= 1000 ? '$'+Math.round(n/1000)+'K' : '$'+n.toLocaleString();
     
@@ -194,9 +197,9 @@ function renderPipeline() {
         <div class="pv-card"><div class="num">${total}</div><div class="lbl">TOTAL</div><div class="bar" style="background:var(--text-dim)"></div></div>
         <div class="pv-card"><div class="num" style="color:var(--green)">${hot}</div><div class="lbl">HOT LEADS</div><div class="bar" style="background:var(--green)"></div></div>
         <div class="pv-card"><div class="num" style="color:var(--gold)">${contacted}</div><div class="lbl">CONTACTED</div><div class="bar" style="background:var(--gold)"></div></div>
-        <div class="pv-card"><div class="num" style="color:var(--green)">${responded}</div><div class="lbl">APPOINTMENTS</div><div class="bar" style="background:var(--green)"></div></div>
-        <div class="pv-card"><div class="num" style="color:var(--gold)">${listings}</div><div class="lbl">LISTINGS</div><div class="bar" style="background:var(--gold)"></div></div>
-        <div class="pv-card"><div class="num" style="color:var(--green)">${fmt(totalComm)}</div><div class="lbl">POTENTIAL COMMISSION</div><div class="bar" style="background:var(--green)"></div></div>
+        <div class="pv-card"><div class="num" style="color:var(--gold)">${fmt(totalComm)}</div><div class="lbl">POTENTIAL COMMISSION</div><div class="bar" style="background:var(--gold)"></div></div>
+        <div class="pv-card"><div class="num" style="color:${activeComm>0?'var(--yellow)':'var(--text-dim)'}">${activeComm>0?fmt(activeComm):'$0'}</div><div class="lbl">PENDING CLOSE</div><div class="bar" style="background:var(--yellow)"></div></div>
+        <div class="pv-card"><div class="num" style="color:${earnedComm>0?'var(--green)':'var(--text-dim)'}">${earnedComm>0?fmt(earnedComm):'$0'}</div><div class="lbl">EARNED COMMISSION</div><div class="bar" style="background:var(--green)"></div></div>
     `;
 }
 
@@ -250,8 +253,16 @@ function renderLeads() {
                 </div>
             </div>
             <div class="lead-right">
-                ${valStr ? `<div class="lead-val">${valStr}</div>` : ''}
-                ${commStr ? `<div class="lead-comm">${commStr}</div>` : ''}
+                ${l.actualCommission > 0 ? `
+                    <div class="lead-val" style="color:var(--green)">$${l.actualCommission.toLocaleString()}</div>
+                    <div class="lead-comm" style="color:var(--green)">earned commission</div>
+                ` : l.salePrice > 0 && (l.status==='listed'||l.status==='under_contract') ? `
+                    <div class="lead-val">$${l.salePrice >= 1000000 ? (l.salePrice/1000000).toFixed(1)+'M' : Math.round(l.salePrice/1000)+'K'}</div>
+                    <div class="lead-comm">list price · $${Math.round(l.salePrice*0.025).toLocaleString()} est.</div>
+                ` : valStr ? `
+                    <div class="lead-val">${valStr}</div>
+                    <div class="lead-comm">${commStr}</div>
+                ` : ''}
                 <div class="lead-status">
                     <select onclick="event.stopPropagation()" onchange="event.stopPropagation();updateStatus('${l.id}',this.value)">
                         <option value="new" ${l.status==='new'?'selected':''}>New</option>
@@ -273,6 +284,30 @@ function renderLeads() {
 function updateStatus(id, status) {
     const pipeline = JSON.parse(localStorage.getItem('ss_crm_pipeline') || '{}');
     const lead = leads.find(l => l.id === id);
+    
+    let actualCommission = pipeline[id]?.actualCommission || 0;
+    let salePrice = pipeline[id]?.salePrice || 0;
+    
+    // Prompt for actual numbers when marking as closed
+    if (status === 'closed') {
+        const sp = prompt('Sale price? (e.g. 2400000)', lead?.value || '');
+        if (sp === null) return; // cancelled
+        salePrice = parseInt(sp.replace(/[^0-9]/g, '')) || 0;
+        
+        const defaultComm = Math.round(salePrice * 0.025);
+        const ac = prompt('Your commission? (e.g. ' + defaultComm + ')', defaultComm);
+        if (ac === null) return;
+        actualCommission = parseInt(ac.replace(/[^0-9]/g, '')) || 0;
+    }
+    
+    // Prompt for sale price when marking as listed or under contract
+    if ((status === 'listed' || status === 'under_contract') && !salePrice) {
+        const sp = prompt('List price? (e.g. 2400000)', lead?.value || '');
+        if (sp && sp !== 'null') {
+            salePrice = parseInt(sp.replace(/[^0-9]/g, '')) || 0;
+        }
+    }
+    
     pipeline[id] = {
         ...pipeline[id],
         status,
@@ -281,6 +316,8 @@ function updateStatus(id, status) {
         address: lead?.address || '',
         value: lead?.value || 0,
         commission: lead?.commission || 0,
+        salePrice: salePrice || pipeline[id]?.salePrice || 0,
+        actualCommission: actualCommission || pipeline[id]?.actualCommission || 0,
     };
     localStorage.setItem('ss_crm_pipeline', JSON.stringify(pipeline));
     
@@ -288,6 +325,8 @@ function updateStatus(id, status) {
     if (lead) {
         lead.status = status;
         lead.tab = statusToTab(status);
+        lead.salePrice = salePrice || lead.salePrice;
+        lead.actualCommission = actualCommission || lead.actualCommission;
     }
     renderPipeline();
     renderLeads();
