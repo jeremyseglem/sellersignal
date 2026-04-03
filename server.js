@@ -4207,13 +4207,14 @@ app.get('/api/briefing/:zip', async (req, res) => {
   
   if (bErr || !briefing) return res.status(404).json({ error: 'No briefing found for this ZIP.', detail: bErr?.message });
   
-  // Get top scored parcels — query scores and parcels separately to avoid join issues
+  // Get top scored parcels — enough to cover act today + outreach
+  const fetchLimit = Math.max(500, (briefing.act_today_count || 0) + (briefing.outreach_queue_count || 0) + 50);
   const { data: scores, error: sErr } = await supabase
     .from('parcel_scores')
     .select('*')
     .eq('zip_code', zip)
     .order('briefing_rank', { ascending: false })
-    .limit(100);
+    .limit(fetchLimit);
   
   // Get the parcel details for those scores
   let parcels = [];

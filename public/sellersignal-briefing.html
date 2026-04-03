@@ -4134,155 +4134,43 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         }
     }
     
-    // ACT TODAY: evidence-gated — requires corroborated signals, not just high score
-    const ACT_TODAY_MAX = 15;
-    
-    // If investigation hasn't completed yet, Act Today shows loading state
+    // ========================================
+    // TIER ASSIGNMENT — turnover-based, matches batch worker
+    // Act Today = monthly sellers (from calibration), Outreach = 2x monthly
+    // ========================================
     const investigationDone = window._investigationComplete || false;
     
-    let callToday = [];
-    
-    if (investigationDone) {
-        // Tier 1: Deep Signal verified (always qualifies)
-        callToday = liveEnriched.filter(p => p._deepSignalVerified);
-        
-        // Tier 2: V2A tier = act_today (claim-graph verified with 3+ corroborating categories)
-        if (callToday.length < ACT_TODAY_MAX) {
-            const v2aActToday = liveEnriched.filter(p => 
-                !p._deepSignalVerified && 
-                p._tier === 'act_today'
-            );
-            callToday = [...callToday, ...v2aActToday].slice(0, ACT_TODAY_MAX);
-        }
-        
-        // Tier 3: Lite-promoted — if Act Today is still sparse, promote top Lite-scored prospects
-        if (callToday.length < Math.min(5, ACT_TODAY_MAX)) {
-            const callIds_promo = new Set(callToday.map(p => p.id || `${p.lat}-${p.lng}`));
-            const litePromoted = liveEnriched.filter(p => {
-                const pid = p.id || `${p.lat}-${p.lng}`;
-                if (callIds_promo.has(pid)) return false;
-                if (!p._liteScored) return false;
-                if ((p.sellerLikelihood || 0) < 45) return false;
-                if (p._tier === 'watch' || p._tier === 'skip') return false;
-                if (p._activeListingBlocker) return false;
-                return true;
-            }).sort((a,b) => (b.sellerLikelihood||0) - (a.sellerLikelihood||0))
-              .slice(0, ACT_TODAY_MAX - callToday.length);
-            
-            if (litePromoted.length > 0) {
-                callToday = [...callToday, ...litePromoted];
-                console.log(`Act Today: ${litePromoted.length} Lite-promoted prospects added`);
-            }
-        }
-        
-        // ========================================
-        // ROTATION — contacted/acted-on leads sort to bottom, fresh leads surface
-        // ========================================
-        // Read CRM contacts and briefing actions
-        let crmContacts = {};
-        try { crmContacts = JSON.parse(localStorage.getItem('ss_crm_contacts') || '{}'); } catch(e) {}
-        
-        // Score each Act Today lead for freshness
-        callToday = callToday.map(p => {
-            const pid = p.id || `${p.lat}-${p.lng}`;
-            const act = actions[pid];
-            const contacts = crmContacts[pid] || [];
-            
-            let freshness = 100; // higher = fresher, shown first
-            
-            // Contacted leads get pushed down
-            if (contacts.length > 0) {
-                const lastContact = contacts[contacts.length - 1];
-                const daysSinceContact = (Date.now() - new Date(lastContact.date).getTime()) / (24 * 60 * 60 * 1000);
-                
-                // If contacted in last 7 days, push way down
-                if (daysSinceContact < 7) freshness -= 60;
-                // If contacted 7-30 days ago, push down moderately (time to follow up)
-                else if (daysSinceContact < 30) freshness -= 30;
-                // If contacted 30+ days ago with no response, bring back up
-                else if (lastContact.result === 'no_response') freshness -= 10;
-                
-                // If they responded or have appointment, keep them visible
-                if (lastContact.result === 'response') freshness += 20;
-                if (lastContact.result === 'appointment') freshness += 40;
-                // If listing won or not a fit, push to bottom
-                if (lastContact.result === 'listing' || lastContact.result === 'not_fit' || lastContact.result === 'wrong_person') freshness -= 80;
-            }
-            
-            // If marked contacted/skipped in briefing actions
-            if (act?.action === 'contacted') freshness -= 40;
-            
-            return { ...p, _freshness: freshness };
-        }).sort((a, b) => {
-            // Sort by freshness first, then by score
-            if (Math.abs(a._freshness - b._freshness) >= 20) return b._freshness - a._freshness;
-            return (b.sellerLikelihood || b.briefingRank) - (a.sellerLikelihood || a.briefingRank);
-        });
-        
-        // If top spots are all stale (contacted recently), pull up fresh from Outreach
-        const staleCount = callToday.filter(p => p._freshness < 50).length;
-        if (staleCount > 0 && callToday.length < ACT_TODAY_MAX) {
-            const callIds_temp = new Set(callToday.map(p => p.id || `${p.lat}-${p.lng}`));
-            const freshFromOutreach = liveEnriched.filter(p => {
-                const pid = p.id || `${p.lat}-${p.lng}`;
-                if (callIds_temp.has(pid)) return false;
-                // Must be at least deep_signal_first tier with decent score
-                if (p._tier !== 'deep_signal_first' && p._tier !== 'outreach_queue') return false;
-                if ((p.sellerLikelihood || 0) < 50) return false;
-                // Must not be contacted recently
-                const contacts = crmContacts[pid] || [];
-                if (contacts.length > 0) {
-                    const last = contacts[contacts.length - 1];
-                    const days = (Date.now() - new Date(last.date).getTime()) / (24 * 60 * 60 * 1000);
-                    if (days < 7) return false;
-                }
-                return true;
-            }).slice(0, staleCount);
-            
-            if (freshFromOutreach.length > 0) {
-                callToday = [...callToday, ...freshFromOutreach].slice(0, ACT_TODAY_MAX);
-            }
-        }
+    // Get monthly turnover from precomputed data or estimate
+    const precomp = window._precomputedBriefing;
+    let actTodaySize, outreachSize;
+    if (precomp?.act_today_count) {
+        actTodaySize = precomp.act_today_count;
+        outreachSize = precomp.outreach_queue_count || actTodaySize * 2;
+    } else if (window._backtestCalibration?.sold24) {
+        const monthly = Math.ceil(window._backtestCalibration.sold24 / 24);
+        actTodaySize = monthly;
+        outreachSize = monthly * 2;
+    } else {
+        actTodaySize = Math.max(20, Math.ceil(liveEnriched.length * 0.003));
+        outreachSize = actTodaySize * 2;
     }
     
-    if (callToday.length > ACT_TODAY_MAX) callToday = callToday.slice(0, ACT_TODAY_MAX);
-    
-    // ========================================
-    // ARCHETYPE BALANCING — quota-based blending by property + owner type
-    // Always run to ensure diversity, even with small or empty Act Today
-    // ========================================
-    callToday = balanceActTodayByArchetype(callToday, liveEnriched, ACT_TODAY_MAX);
-    
-    const qualifiedForActToday = callToday.length;
-    
-    // HARD FILTER: Remove any prospects with active listing blockers from Act Today
-    // These properties already have agent representation — never show in Act Today
-    callToday = callToday.filter(p => !p._activeListingBlocker);
-    
+    // Simply take top N by score — already sorted by _sortRank
+    let callToday = liveEnriched.slice(0, actTodaySize).filter(p => !p._activeListingBlocker);
     const callIds = new Set(callToday.map(p => p.id || `${p.lat}-${p.lng}`));
     
-    // OUTREACH QUEUE: evidence gate allows outreach or better
-    const mailWeek = liveEnriched.filter(p => {
+    const mailWeek = liveEnriched.slice(actTodaySize, actTodaySize + outreachSize).filter(p => {
         const id = p.id || `${p.lat}-${p.lng}`;
-        if (callIds.has(id)) return false;
-        // V2A tier: outreach_queue or deep_signal_first
-        if (p._tier === 'outreach_queue' || p._tier === 'deep_signal_first') return true;
-        // Old evidence gate fallback
-        if (p._evidence && (p._evidence.maxTier === 'outreach' || p._evidence.maxTier === 'act_today')) return true;
-        // Fallback for prospects without tier
-        if (p.sellerLikelihood >= 35 && p.offMarketReceptivity >= 35 && p.actionability >= 40 && p.ownerAddress && p.ownerAddress.length > 5) return true;
-        return false;
+        return !callIds.has(id) && !p._activeListingBlocker;
     });
     const mailIds = new Set(mailWeek.map(p => p.id || `${p.lat}-${p.lng}`));
     
-    // WATCH LIST: remaining prospects — includes "Deep Signal First" and "Watch"
     const watchList = liveEnriched.filter(p => {
         const id = p.id || `${p.lat}-${p.lng}`;
-        if (callIds.has(id) || mailIds.has(id)) return false;
-        return true;
+        return !callIds.has(id) && !mailIds.has(id);
     });
     
-    // Store rendered arrays for print and other workflows
+    // Store rendered arrays
     window._currentCallToday = callToday;
     window._currentMailWeek = mailWeek;
     window._currentWatchList = watchList;
@@ -4324,8 +4212,8 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     document.getElementById('briefStats').innerHTML = `
         <div class="bstat" style="cursor:pointer" onclick="window.open('sellersignal-map.html','_blank')" title="Open map"><div class="bstat-val">${totalAnalyzed.toLocaleString()}</div><div class="bstat-label">Parcels ↗${infoIcon(INFO.parcels)}</div></div>
         <div class="bstat"><div class="bstat-val">${(window._precomputedBriefing?.unique_owners || collapsed.length).toLocaleString()}</div><div class="bstat-label">Prospects Scored${infoIcon(INFO.prospects)}</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})" title="Jump to Act Today"><div class="bstat-val green">${investigationDone ? (window._precomputedBriefing?.act_today_count || high) : '<div style="display:flex;align-items:center;gap:6px"><span class="mini-spinner" style="width:14px;height:14px;border-width:2px"></span><span style="font-size:13px;color:var(--text-dim);font-weight:500">analyzing</span></div>'}</div><div class="bstat-label">Act Today${infoIcon(INFO.actToday)}</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})" title="Jump to Outreach Queue"><div class="bstat-val gold">${window._precomputedBriefing?.outreach_queue_count || med}</div><div class="bstat-label">Outreach Queue${infoIcon(INFO.outreach)}</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})" title="Jump to Act Today"><div class="bstat-val green">${high}</div><div class="bstat-label">Act Today${infoIcon(INFO.actToday)}</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})" title="Jump to Outreach Queue"><div class="bstat-val gold">${med}</div><div class="bstat-label">Outreach Queue${infoIcon(INFO.outreach)}</div></div>
         <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-watch')?.scrollIntoView({behavior:'smooth'})" title="Jump to Watch List"><div class="bstat-val">${watchList.length}</div><div class="bstat-label">Watch List${infoIcon(INFO.watchList)}</div></div>
     `;
     
