@@ -4126,6 +4126,37 @@ app.get('/api/health', (req, res) => {
 });
 
 // ===================
+// BETA FEEDBACK
+// ===================
+
+app.post('/api/feedback', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const { working, confusing, missing, rating, zip, agent, timestamp } = req.body;
+  
+  const { error } = await supabase.from('beta_feedback').insert({
+    agent_id: agent || 'anonymous',
+    zip_code: zip || null,
+    working: working || null,
+    confusing: confusing || null,
+    missing: missing || null,
+    rating: rating || null,
+    submitted_at: timestamp || new Date().toISOString(),
+  });
+  
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ saved: true });
+});
+
+app.options('/api/feedback', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(204);
+});
+
+// ===================
 // TERRITORY MANAGEMENT API
 // ===================
 
@@ -4153,36 +4184,6 @@ app.get('/api/sale-detections', async (req, res) => {
       count: (data || []).length,
       totalSaleValue: totalValue,
       estimatedCommission: totalCommission,
-    }
-  });
-});
-
-// GET /api/sale-detections — confirmed sales from previously scored parcels
-app.get('/api/sale-detections', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  if (!supabase) return res.status(503).json({ error: 'Not configured' });
-  
-  const zip = req.query.zip;
-  let query = supabase.from('sale_detections')
-    .select('*')
-    .order('detected_at', { ascending: false })
-    .limit(100);
-  
-  if (zip) query = query.eq('zip_code', zip);
-  
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  
-  const totalValue = (data || []).reduce((s, d) => s + (d.sale_price || 0), 0);
-  const avgScore = data?.length ? Math.round(data.reduce((s, d) => s + (d.score_at_flag || 0), 0) / data.length) : 0;
-  
-  res.json({
-    detections: data || [],
-    summary: {
-      count: data?.length || 0,
-      totalSaleValue: totalValue,
-      estimatedCommission: Math.round(totalValue * 0.025),
-      avgScoreAtFlag: avgScore,
     }
   });
 });

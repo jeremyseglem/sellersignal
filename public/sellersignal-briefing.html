@@ -187,6 +187,59 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .filter-bar select{min-width:100px}
 .filter-count{font-size:11px;color:var(--text-dim);margin-left:auto}
 
+/* Info icons with tooltips */
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(196,168,124,0.1);border:1px solid rgba(196,168,124,0.2);color:var(--gold);font-size:9px;font-weight:700;cursor:help;margin-left:6px;position:relative;vertical-align:middle;font-style:normal;flex-shrink:0}
+.info-icon:hover{background:rgba(196,168,124,0.2)}
+.info-tip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--bg-elevated);border:1px solid var(--gold-border);border-radius:8px;padding:12px 14px;font-size:12px;font-weight:400;color:var(--text-secondary);line-height:1.5;width:260px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,0.4);pointer-events:none}
+.info-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--gold-border)}
+.info-icon:hover .info-tip{display:block}
+
+/* Walkthrough overlay */
+.walkthrough-bg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.walkthrough{background:var(--bg-card);border:1px solid var(--gold-border);border-radius:16px;max-width:480px;width:92%;padding:0;overflow:hidden}
+.wt-step{padding:32px 28px;text-align:center;display:none}
+.wt-step.active{display:block}
+.wt-num{font-size:11px;color:var(--gold);letter-spacing:0.1em;font-weight:600;margin-bottom:12px}
+.wt-title{font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:10px}
+.wt-desc{font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:24px}
+.wt-icon{font-size:40px;margin-bottom:16px}
+.wt-dots{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.wt-dot{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.wt-dot.active{background:var(--gold)}
+.wt-btns{display:flex;gap:10px;justify-content:center}
+.wt-btn{padding:10px 28px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;border:none}
+.wt-btn.primary{background:var(--gold);color:var(--bg)}
+.wt-btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}
+.wt-btn:hover{opacity:0.9}
+
+/* Feedback tab */
+.feedback-tab{position:fixed;right:0;top:50%;transform:translateY(-50%) rotate(-90deg);transform-origin:right center;background:var(--gold);color:var(--bg);padding:6px 16px;font-size:11px;font-weight:700;letter-spacing:0.06em;cursor:pointer;border-radius:6px 6px 0 0;z-index:200;font-family:'Outfit',sans-serif}
+.feedback-tab:hover{background:#d4b88c}
+.feedback-panel{position:fixed;right:-380px;top:0;bottom:0;width:380px;background:var(--bg-card);border-left:1px solid var(--border);z-index:300;transition:right 0.3s ease;display:flex;flex-direction:column}
+.feedback-panel.open{right:0}
+.fb-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.fb-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer}
+.fb-body{padding:20px 24px;flex:1;overflow-y:auto}
+.fb-field{margin-bottom:16px}
+.fb-field label{display:block;font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:6px}
+.fb-field textarea{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;outline:none;resize:vertical;min-height:80px}
+.fb-field textarea:focus{border-color:var(--gold)}
+.fb-rating{display:flex;gap:6px}
+.fb-rating-btn{width:36px;height:36px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;font-family:'Outfit',sans-serif}
+.fb-rating-btn.selected{border-color:var(--gold);background:var(--gold-dim);color:var(--gold)}
+.fb-submit{width:100%;padding:12px;background:var(--gold);color:var(--bg);border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;margin-top:8px}
+
+/* Demo mode */
+body.demo-mode .header{display:none}
+body.demo-mode .farm-input-row{display:none}
+body.demo-mode .briefing-header{margin-top:0}
+body.demo-mode .bstat-val{font-size:28px}
+body.demo-mode .section-title{font-size:22px}
+body.demo-mode .prospect-addr{font-size:15px}
+body.demo-mode .prospect-why{font-size:13px}
+body.demo-mode .prospect-score{width:50px;height:50px;font-size:18px}
+body.demo-mode .feedback-tab{display:none}
+
 /* Animations */
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulseGlow{0%,100%{border-color:rgba(74,222,128,0.15);box-shadow:0 0 0 0 rgba(74,222,128,0)}50%{border-color:rgba(74,222,128,0.3);box-shadow:0 0 12px 0 rgba(74,222,128,0.08)}}
@@ -206,6 +259,72 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 </style>
 </head>
 <body>
+
+<!-- Walkthrough Overlay (first visit) -->
+<div class="walkthrough-bg" id="walkthroughBg" style="display:none">
+    <div class="walkthrough">
+        <div class="wt-step active" data-step="1">
+            <div class="wt-icon">🎯</div>
+            <div class="wt-num">STEP 1 OF 4</div>
+            <div class="wt-title">Enter Your ZIP Code</div>
+            <div class="wt-desc">Type any ZIP code in your market. SellerSignal scans every property, scores every owner, and builds your daily briefing in under two minutes.</div>
+        </div>
+        <div class="wt-step" data-step="2">
+            <div class="wt-icon">🔥</div>
+            <div class="wt-num">STEP 2 OF 4</div>
+            <div class="wt-title">Act Today — Who's Selling Now</div>
+            <div class="wt-desc">Your Act Today list shows the property owners most likely to sell this month, ranked by probability. The number matches your market's actual monthly turnover rate — real sellers, not a database dump.</div>
+        </div>
+        <div class="wt-step" data-step="3">
+            <div class="wt-icon">🔍</div>
+            <div class="wt-num">STEP 3 OF 4</div>
+            <div class="wt-title">Deep Signal — Seller Psychology</div>
+            <div class="wt-desc">Click Deep Signal on any prospect to get a full psychological profile: why they might sell, how to approach them, what to say, and what NOT to say. Personalized scripts for phone, mail, and door.</div>
+        </div>
+        <div class="wt-step" data-step="4">
+            <div class="wt-icon">✉️</div>
+            <div class="wt-num">STEP 4 OF 4</div>
+            <div class="wt-title">Automated Mail Campaigns</div>
+            <div class="wt-desc">Enroll any prospect in a 6-letter mail campaign. Each letter is AI-written specifically for that seller's situation and sent automatically over 6 months. You just approve and send.</div>
+        </div>
+        <div style="padding:0 28px 24px">
+            <div class="wt-dots" id="wtDots"></div>
+            <div class="wt-btns">
+                <button class="wt-btn ghost" id="wtSkip" onclick="closeWalkthrough()">Skip</button>
+                <button class="wt-btn primary" id="wtNext" onclick="nextWalkthroughStep()">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Feedback Tab -->
+<div class="feedback-tab" onclick="openFeedback()">Beta Feedback</div>
+<div class="feedback-panel" id="feedbackPanel">
+    <div class="fb-header">
+        <div style="font-weight:600">Beta Feedback</div>
+        <button class="fb-close" onclick="closeFeedback()">✕</button>
+    </div>
+    <div class="fb-body">
+        <div class="fb-field">
+            <label>WHAT'S WORKING?</label>
+            <textarea id="fbWorking" placeholder="What do you find most useful?"></textarea>
+        </div>
+        <div class="fb-field">
+            <label>WHAT'S CONFUSING?</label>
+            <textarea id="fbConfusing" placeholder="Anything unclear or hard to find?"></textarea>
+        </div>
+        <div class="fb-field">
+            <label>WHAT'S MISSING?</label>
+            <textarea id="fbMissing" placeholder="Features you wish existed?"></textarea>
+        </div>
+        <div class="fb-field">
+            <label>OVERALL RATING</label>
+            <div class="fb-rating" id="fbRating"></div>
+        </div>
+        <button class="fb-submit" onclick="submitFeedback()">Submit Feedback</button>
+        <div id="fbStatus" style="text-align:center;font-size:12px;color:var(--green);margin-top:10px;display:none"></div>
+    </div>
+</div>
 
 <header class="header">
     <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
@@ -4203,11 +4322,11 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     const withMarketSig = collapsed.filter(p => p._marketSignal).length;
     
     document.getElementById('briefStats').innerHTML = `
-        <div class="bstat" style="cursor:pointer" onclick="window.open('sellersignal-map.html','_blank')" title="Open map"><div class="bstat-val">${totalAnalyzed.toLocaleString()}</div><div class="bstat-label">Parcels ↗</div></div>
-        <div class="bstat"><div class="bstat-val">${(window._precomputedBriefing?.unique_owners || collapsed.length).toLocaleString()}</div><div class="bstat-label">Prospects Scored</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})" title="Jump to Act Today"><div class="bstat-val green">${investigationDone ? (window._precomputedBriefing?.act_today_count || high) : '<div style="display:flex;align-items:center;gap:6px"><span class="mini-spinner" style="width:14px;height:14px;border-width:2px"></span><span style="font-size:13px;color:var(--text-dim);font-weight:500">analyzing</span></div>'}</div><div class="bstat-label">Act Today</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})" title="Jump to Outreach Queue"><div class="bstat-val gold">${window._precomputedBriefing?.outreach_queue_count || med}</div><div class="bstat-label">Outreach Queue</div></div>
-        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-watch')?.scrollIntoView({behavior:'smooth'})" title="Jump to Watch List"><div class="bstat-val">${watchList.length}</div><div class="bstat-label">Watch List</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="window.open('sellersignal-map.html','_blank')" title="Open map"><div class="bstat-val">${totalAnalyzed.toLocaleString()}</div><div class="bstat-label">Parcels ↗${infoIcon(INFO.parcels)}</div></div>
+        <div class="bstat"><div class="bstat-val">${(window._precomputedBriefing?.unique_owners || collapsed.length).toLocaleString()}</div><div class="bstat-label">Prospects Scored${infoIcon(INFO.prospects)}</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})" title="Jump to Act Today"><div class="bstat-val green">${investigationDone ? (window._precomputedBriefing?.act_today_count || high) : '<div style="display:flex;align-items:center;gap:6px"><span class="mini-spinner" style="width:14px;height:14px;border-width:2px"></span><span style="font-size:13px;color:var(--text-dim);font-weight:500">analyzing</span></div>'}</div><div class="bstat-label">Act Today${infoIcon(INFO.actToday)}</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})" title="Jump to Outreach Queue"><div class="bstat-val gold">${window._precomputedBriefing?.outreach_queue_count || med}</div><div class="bstat-label">Outreach Queue${infoIcon(INFO.outreach)}</div></div>
+        <div class="bstat" style="cursor:pointer" onclick="document.getElementById('section-watch')?.scrollIntoView({behavior:'smooth'})" title="Jump to Watch List"><div class="bstat-val">${watchList.length}</div><div class="bstat-label">Watch List${infoIcon(INFO.watchList)}</div></div>
     `;
     
     // ========================================
@@ -4574,7 +4693,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
     return `<div class="section" id="section-${tier}">
         <div class="section-header">
             <div class="section-icon ${iconClass}">${icon}</div>
-            <div class="section-title">${title}</div>
+            <div class="section-title">${title}${tier==='call' ? infoIcon(INFO.actToday) : tier==='mail' ? infoIcon(INFO.outreach) : infoIcon(INFO.watchList)}</div>
             <div class="section-count">${countText}</div>
         </div>
         ${cards}
@@ -4593,6 +4712,122 @@ function toggleExpand(id) {
 // ========================================
 // PROSPECT FILTERS
 // ========================================
+// ========================================
+// INFO ICONS — contextual tooltips throughout the UI
+// ========================================
+function infoIcon(text) {
+    return `<i class="info-icon">i<span class="info-tip">${text}</span></i>`;
+}
+
+const INFO = {
+    parcels: 'Total properties scanned in this ZIP code from county assessor records.',
+    prospects: 'Unique property owners after deduplication and filtering of government, institutional, and junk records.',
+    actToday: 'Property owners most likely to sell THIS MONTH. The count matches your market\'s actual monthly sales rate — if 144 homes sell per month in this ZIP, you see 144 ranked prospects.',
+    outreach: 'The next tier of likely sellers on a 3-6 month horizon. Worth a letter or early relationship-building, but not ready for a phone call yet.',
+    watchList: 'Properties with some elevated signals but not enough convergence for outreach. These can move up as new data arrives.',
+    score: 'Composite score based on ownership type, tenure, absentee status, out-of-state mailing, property characteristics, and market-specific calibration. Higher = more likely to sell.',
+    deepSignal: 'AI-powered psychological analysis of the seller. Includes motivation assessment, timeline estimate, recommended approach, personalized scripts, and what NOT to say.',
+    mailCampaign: '6 AI-written letters sent over 6 months, each personalized to the seller\'s specific situation. Letters advance the relationship from introduction to direct ask.',
+    ownerType: 'How the property is owned: Trust, Estate/Heir, LLC/Corp, Absentee, Individual. Different owner types have different selling patterns and require different approaches.',
+    propType: 'Property classification: Residential, Vacant Land, Condo, Multi-Family, etc.',
+};
+
+// ========================================
+// WALKTHROUGH — first visit guided tour
+// ========================================
+let wtStep = 1;
+const WT_TOTAL = 4;
+
+function initWalkthrough() {
+    if (localStorage.getItem('ss_walkthrough_done')) return;
+    if (new URLSearchParams(window.location.search).get('demo') === 'true') return;
+    document.getElementById('walkthroughBg').style.display = 'flex';
+    renderWtDots();
+}
+
+function renderWtDots() {
+    document.getElementById('wtDots').innerHTML = Array.from({length:WT_TOTAL}, (_,i) =>
+        `<div class="wt-dot ${i+1===wtStep?'active':''}"></div>`
+    ).join('');
+    document.getElementById('wtNext').textContent = wtStep === WT_TOTAL ? 'Get Started' : 'Next';
+    document.getElementById('wtSkip').style.display = wtStep === WT_TOTAL ? 'none' : '';
+}
+
+function nextWalkthroughStep() {
+    if (wtStep >= WT_TOTAL) { closeWalkthrough(); return; }
+    document.querySelector(`.wt-step[data-step="${wtStep}"]`).classList.remove('active');
+    wtStep++;
+    document.querySelector(`.wt-step[data-step="${wtStep}"]`).classList.add('active');
+    renderWtDots();
+}
+
+function closeWalkthrough() {
+    document.getElementById('walkthroughBg').style.display = 'none';
+    localStorage.setItem('ss_walkthrough_done', 'true');
+}
+
+// ========================================
+// FEEDBACK PANEL
+// ========================================
+let fbRating = 0;
+
+function openFeedback() {
+    document.getElementById('feedbackPanel').classList.add('open');
+    if (!document.getElementById('fbRating').children.length) {
+        document.getElementById('fbRating').innerHTML = [1,2,3,4,5,6,7,8,9,10].map(n =>
+            `<button class="fb-rating-btn" onclick="setFbRating(${n})">${n}</button>`
+        ).join('');
+    }
+}
+
+function closeFeedback() { document.getElementById('feedbackPanel').classList.remove('open'); }
+
+function setFbRating(n) {
+    fbRating = n;
+    document.querySelectorAll('.fb-rating-btn').forEach((btn,i) => {
+        btn.classList.toggle('selected', i < n);
+    });
+}
+
+async function submitFeedback() {
+    const working = document.getElementById('fbWorking').value;
+    const confusing = document.getElementById('fbConfusing').value;
+    const missing = document.getElementById('fbMissing').value;
+    const zip = (document.getElementById('farmInput')?.value || '').trim();
+    
+    try {
+        const resp = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ working, confusing, missing, rating: fbRating, zip, agent: localStorage.getItem('ss_agent_id') || 'anonymous', timestamp: new Date().toISOString() })
+        });
+        const status = document.getElementById('fbStatus');
+        status.textContent = 'Thank you! Feedback submitted.';
+        status.style.display = 'block';
+        document.getElementById('fbWorking').value = '';
+        document.getElementById('fbConfusing').value = '';
+        document.getElementById('fbMissing').value = '';
+        fbRating = 0;
+        document.querySelectorAll('.fb-rating-btn').forEach(b => b.classList.remove('selected'));
+        setTimeout(() => { status.style.display = 'none'; closeFeedback(); }, 2000);
+    } catch(e) {
+        alert('Failed to submit — try again');
+    }
+}
+
+// ========================================
+// DEMO MODE — ?demo=true for Zoom presentations
+// ========================================
+function initDemoMode() {
+    if (new URLSearchParams(window.location.search).get('demo') === 'true') {
+        document.body.classList.add('demo-mode');
+    }
+}
+
+// Init UI features on load
+initDemoMode();
+setTimeout(initWalkthrough, 500);
+
 function applyFilters() {
     const ownerType = document.getElementById('filterOwnerType')?.value || '';
     const propType = document.getElementById('filterPropType')?.value || '';
