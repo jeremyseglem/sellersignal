@@ -4211,35 +4211,9 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     `;
     
     // ========================================
-    // PIPELINE VALUE — potential commission from all scored prospects
-    // ========================================
-    const allWithValue = liveEnriched.filter(p => p.totalValue > 0);
-    const totalPortfolioValue = allWithValue.reduce((s,p) => s + (p.totalValue || 0), 0);
-    const potentialCommission = Math.round(totalPortfolioValue * 0.025);
-    
-    // Active pipeline — prospects the agent has contacted (from CRM/localStorage)
-    let crmData = {};
-    try { crmData = JSON.parse(localStorage.getItem('ss_crm_pipeline') || '{}'); } catch(e) {}
-    const activeIds = Object.keys(crmData).filter(id => crmData[id]?.status && crmData[id].status !== 'new');
-    const activeProspects = liveEnriched.filter(p => activeIds.includes(p.id || `${p.lat}-${p.lng}`));
-    const activePipelineValue = activeProspects.reduce((s,p) => s + (p.totalValue || 0), 0);
-    const activeCommission = Math.round(activePipelineValue * 0.025);
-    
-    // Closed deals — auto-detected or manually marked
-    const closedIds = Object.keys(crmData).filter(id => crmData[id]?.status === 'closed');
-    const closedValue = closedIds.reduce((s,id) => s + (crmData[id]?.commission || 0), 0);
-    
-    // ========================================
-    // RENDER PIPELINE BAR + FILTER BAR
+    // RENDER FILTER BAR + SECTIONS
     // ========================================
     let html = '';
-    
-    html += `<div class="pipeline-bar">
-        <div class="pipeline-item"><div class="pv gold">$${potentialCommission >= 1000000 ? (potentialCommission/1000000).toFixed(1)+'M' : potentialCommission >= 1000 ? Math.round(potentialCommission/1000)+'K' : potentialCommission.toLocaleString()}</div><div class="pl">POTENTIAL COMMISSION</div></div>
-        <div class="pipeline-item"><div class="pv">${allWithValue.length.toLocaleString()}</div><div class="pl">SELLERS TRACKED</div></div>
-        <div class="pipeline-item"><div class="pv green">${activeIds.length}</div><div class="pl">ACTIVE PIPELINE</div></div>
-        <div class="pipeline-item"><div class="pv" style="color:${closedValue > 0 ? 'var(--green)' : 'var(--text-dim)'}">$${closedValue > 0 ? closedValue.toLocaleString() : '0'}</div><div class="pl">CLOSED FROM SELLERSIGNAL</div></div>
-    </div>`;
     
     // Filter bar
     const ownerTypes = {};

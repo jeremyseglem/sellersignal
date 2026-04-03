@@ -5,624 +5,329 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SellerSignal — My Pipeline</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-    --bg:#070b10;--bg-card:#0e1419;--bg-card-hover:#141c24;--bg-elevated:#111921;
-    --text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;
-    --gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);--accent:#c4a87c;
-    --green:#4ade80;--green-dim:rgba(74,222,128,0.1);--green-border:rgba(74,222,128,0.2);
-    --yellow:#fbbf24;--yellow-dim:rgba(251,191,36,0.1);
-    --red:#f87171;--red-dim:rgba(248,113,113,0.08);
-    --blue:#60a5fa;--blue-dim:rgba(96,165,250,0.08);--blue-border:rgba(96,165,250,0.2);
-    --border:#172030;--border-light:#1e2d3d;
-    --radius:10px;
-}
+:root{--bg:#070b10;--bg-card:#0e1419;--bg-hover:#141c24;--bg-elevated:#111921;--text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;--gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);--green:#4ade80;--green-dim:rgba(74,222,128,0.1);--green-border:rgba(74,222,128,0.2);--yellow:#fbbf24;--yellow-dim:rgba(251,191,36,0.1);--red:#f87171;--red-dim:rgba(248,113,113,0.08);--blue:#60a5fa;--blue-dim:rgba(96,165,250,0.08);--border:#172030;--radius:10px}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 ::selection{background:var(--gold);color:var(--bg)}
+
 .header{padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(7,11,16,0.92);backdrop-filter:blur(20px);z-index:100}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
 .logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
 .logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
 .logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
 .logo-text{font-family:'DM Serif Display',serif;font-size:18px}
-.header-actions{display:flex;gap:12px;align-items:center}
-.nav-btn{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s;text-decoration:none;display:flex;align-items:center;gap:6px}
-.nav-btn:hover{border-color:var(--gold);color:var(--gold)}
+.header-nav{display:flex;gap:8px}
+.nav-btn{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);transition:all 0.2s}
+.nav-btn:hover{color:var(--text);border-color:var(--gold)}
 .nav-btn.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
-.page{max-width:900px;margin:0 auto;padding:24px 24px 80px}
-.page-header{margin-bottom:28px;animation:fadeUp 0.4s ease}
-.page-date{font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
-.page-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:4px}
-.page-sub{font-size:14px;color:var(--text-secondary)}
-.stats-bar{display:flex;gap:24px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:24px}
-.bstat{display:flex;flex-direction:column;gap:2px;cursor:pointer}
-.bstat-val{font-size:22px;font-weight:700;color:var(--text)}
-.bstat-val.gold{color:var(--gold)}.bstat-val.green{color:var(--green)}
-.bstat-label{font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-dim)}
-.tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
-.tab{padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:20px;color:var(--text-dim);font-size:11px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s;letter-spacing:0.03em}
-.tab:hover{border-color:var(--border-light);color:var(--text-secondary)}
+
+.page{max-width:960px;margin:0 auto;padding:28px 24px 80px}
+
+/* Pipeline value bar */
+.pipeline{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:28px}
+.pv-card{padding:16px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);text-align:center}
+.pv-card .num{font-size:22px;font-weight:700}
+.pv-card .lbl{font-size:9px;color:var(--text-dim);letter-spacing:0.06em;margin-top:4px}
+.pv-card .bar{height:3px;border-radius:2px;margin-top:8px}
+
+/* Status tabs */
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:7px 16px;background:transparent;border:1px solid var(--border);border-radius:20px;color:var(--text-dim);font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s}
+.tab:hover{border-color:var(--border);color:var(--text-secondary)}
 .tab.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
-.prospect{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;transition:all 0.2s;cursor:pointer}
-.prospect:hover{border-color:var(--border-light);background:var(--bg-card-hover)}
-.prospect.expanded{border-color:var(--gold-border)}
-.prospect-main{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 18px;align-items:center}
-.prospect-score{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:2px solid rgba(0,0,0,0.3);flex-shrink:0}
-.prospect-score.high{background:rgba(74,222,128,0.15);color:var(--green);border-color:var(--green-border)}
-.prospect-score.medium{background:var(--gold-dim);color:var(--gold);border-color:var(--gold-border)}
-.prospect-score.low{background:rgba(255,255,255,0.03);color:var(--text-dim);border-color:var(--border)}
-.prospect-info{min-width:0}
-.prospect-addr{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.prospect-owner{font-size:12px;color:var(--text-secondary);margin-top:2px}
-.prospect-meta{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
-.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em}
-.chip.t-hot{background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)}
-.chip.t-out{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
-.chip.t-watch{background:rgba(255,255,255,0.03);color:var(--text-dim);border:1px solid var(--border)}
-.chip.s-contacted{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue-border)}
-.chip.s-responded{background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)}
-.chip.s-listing{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
-.prospect-actions{display:flex;gap:6px;flex-shrink:0}
-.action-btn{padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.15s;color:var(--text-secondary)}
-.action-btn:hover{border-color:var(--gold);color:var(--gold)}
-.prospect-detail{display:none;padding:0 20px 16px;border-top:1px solid var(--border)}
-.prospect.expanded .prospect-detail{display:block}
-.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-.detail-item{display:flex;flex-direction:column;gap:2px}
-.detail-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)}
-.detail-value{font-size:13px;color:var(--text-secondary)}
-.contact-form{background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
-.contact-form h4{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--gold);margin-bottom:12px}
-.form-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.form-group{display:flex;flex-direction:column;gap:4px}
-.form-group label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim)}
-.form-group select,.form-group input,.form-group textarea{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;outline:none;transition:border-color 0.2s}
-.form-group select:focus,.form-group input:focus,.form-group textarea:focus{border-color:var(--gold)}
-.form-group textarea{resize:vertical;min-height:60px}
-.btn-p{padding:10px 20px;background:var(--gold);border:none;border-radius:6px;color:var(--bg);font-size:12px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.2s}
-.btn-p:hover{background:#d4b88c}
-.btn-s{padding:10px 20px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s}
-.btn-s:hover{border-color:var(--gold);color:var(--gold)}
-.contact-history{margin-top:14px}
-.ch-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);margin-bottom:8px}
-.ch-entry{background:var(--bg);border-left:3px solid var(--gold);padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:6px}
-.ch-meta{font-size:11px;color:var(--text-dim);display:flex;gap:8px;align-items:center}
-.ch-result{font-weight:600;color:var(--text-secondary)}
-.ch-notes{font-size:12px;color:var(--text-secondary);line-height:1.5;margin-top:4px}
-.empty-state{text-align:center;padding:80px 24px;animation:fadeUp 0.4s ease}
-.empty-state h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--text);margin-bottom:8px}
-.empty-state p{color:var(--text-dim);font-size:14px;line-height:1.6}
-.empty-state a{color:var(--gold);text-decoration:none}
-.empty-state a:hover{text-decoration:underline}
-.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap}
-.toolbar-left{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:1;min-width:0}
-.toolbar-right{display:flex;gap:8px;align-items:center;flex-shrink:0}
-.tool-btn{padding:6px 14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s;letter-spacing:0.03em}
-.tool-btn:hover,.tool-btn.active{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
-.tool-select{padding:6px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;outline:none}
-.tool-select:focus{border-color:var(--gold)}
-.filter-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px;animation:fadeUp 0.2s ease}
-.filter-chips{display:flex;gap:6px;flex-wrap:wrap}
-.filter-chip{padding:4px 10px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.15s;border:1px solid var(--border);color:var(--text-dim);background:transparent;font-family:'Outfit',sans-serif}
-.filter-chip:hover{border-color:var(--text-secondary);color:var(--text-secondary)}
-.filter-chip.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
-.active-filter{display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 10px;border-radius:4px;font-size:10px;font-weight:600;background:var(--gold-dim);border:1px solid var(--gold-border);color:var(--gold);cursor:pointer;font-family:'Outfit',sans-serif;letter-spacing:0.02em}
-.active-filter:hover{background:rgba(196,168,124,0.2)}
-.active-filter .x{font-size:12px;margin-left:2px;opacity:0.6}
-.lead-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
-.lead-tag{padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase}
-.lead-tag.tag-trust{background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.2)}
-.lead-tag.tag-estate{background:rgba(248,113,113,0.08);color:#f87171;border:1px solid rgba(248,113,113,0.15)}
-.lead-tag.tag-llc{background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.2)}
-.lead-tag.tag-absentee{background:rgba(251,191,36,0.08);color:#fbbf24;border:1px solid rgba(251,191,36,0.2)}
-.lead-tag.tag-oos{background:rgba(251,146,60,0.08);color:#fb923c;border:1px solid rgba(251,146,60,0.2)}
-.lead-tag.tag-vacant{background:rgba(34,197,94,0.08);color:#22c55e;border:1px solid rgba(34,197,94,0.2)}
-.lead-tag.tag-individual{background:rgba(255,255,255,0.03);color:var(--text-dim);border:1px solid var(--border)}
-.lead-tag.tag-contacted{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue-border)}
-.lead-count{font-size:11px;color:var(--text-dim);margin-bottom:8px;padding-left:2px}
-.search-input{padding:7px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-weight:400;font-family:'Outfit',sans-serif;outline:none;width:220px;transition:border-color 0.2s}
-.search-input:focus{border-color:var(--gold)}
-.search-input::placeholder{color:var(--text-dim)}
-.loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:60px auto}
-@keyframes spin{to{transform:rotate(360deg)}}
+.tab .cnt{font-weight:700;margin-left:4px}
+
+/* Controls */
+.controls{display:flex;gap:8px;margin-bottom:20px;align-items:center}
+.controls input{flex:1;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;outline:none}
+.controls input:focus{border-color:var(--gold)}
+.controls input::placeholder{color:var(--text-dim)}
+.controls select{padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;outline:none;cursor:pointer}
+
+/* Prospect cards */
+.lead{display:flex;align-items:center;gap:16px;padding:16px 18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;transition:all 0.15s;cursor:pointer}
+.lead:hover{border-color:var(--border);background:var(--bg-hover)}
+.lead-score{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.lead-score.high{background:var(--green-dim);border:2px solid var(--green-border);color:var(--green)}
+.lead-score.med{background:var(--gold-dim);border:2px solid var(--gold-border);color:var(--gold)}
+.lead-score.low{background:rgba(255,255,255,0.04);border:2px solid var(--border);color:var(--text-dim)}
+.lead-info{flex:1;min-width:0}
+.lead-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead-addr{font-size:12px;color:var(--text-dim);margin-top:2px}
+.lead-chips{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.chip{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:500;border:1px solid var(--border);color:var(--text-dim)}
+.lead-right{text-align:right;flex-shrink:0}
+.lead-val{font-weight:600;font-size:14px;color:var(--gold)}
+.lead-comm{font-size:10px;color:var(--text-dim);margin-top:2px}
+.lead-status{margin-top:6px}
+.lead-status select{padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text-secondary);font-family:'Outfit',sans-serif;cursor:pointer}
+
+.empty{text-align:center;padding:60px 20px;color:var(--text-dim)}
+.empty .icon{font-size:40px;margin-bottom:12px}
+
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:640px){.prospect-main{grid-template-columns:36px 1fr;gap:10px}.prospect-actions{display:none}.stats-bar{flex-wrap:wrap;gap:16px}.detail-grid{grid-template-columns:1fr}}
+@media(max-width:768px){
+.pipeline{grid-template-columns:repeat(3,1fr)}.controls{flex-wrap:wrap}.header{padding:12px 16px}.page{padding:16px 12px 60px}
+}
 </style>
 </head>
 <body>
 <header class="header">
-    <a class="logo" href="/"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
-    <div class="header-actions">
-        <a class="nav-btn" href="sellersignal-briefing.html?resume">Briefing</a>
-        <a class="nav-btn" href="sellersignal-map.html">Map</a>
-        <a class="nav-btn active">Pipeline</a>
+    <a href="/" class="logo">
+        <div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="logo-text">SellerSignal</span>
+    </a>
+    <div class="header-nav">
+        <a href="/sellersignal-briefing.html" class="nav-btn">Briefing</a>
+        <a href="/sellersignal-crm.html" class="nav-btn active">Pipeline</a>
+        <a href="/territories.html" class="nav-btn">Territories</a>
     </div>
 </header>
 <div class="page">
-    <div class="page-header">
-        <div class="page-date" id="pageDate"></div>
-        <div class="page-title">My Pipeline</div>
-        <div class="page-sub">Every lead you've seen, scored, and contacted.</div>
+    <div style="margin-bottom:24px">
+        <div style="font-family:'DM Serif Display',serif;font-size:28px;margin-bottom:4px">My Pipeline</div>
+        <div style="font-size:13px;color:var(--text-secondary)">Every lead you've seen, scored, and contacted.</div>
     </div>
-    <div class="stats-bar" id="statsBar">
-        <div class="bstat" onclick="switchTab('all')"><div class="bstat-val" id="sT">—</div><div class="bstat-label">Total</div></div>
-        <div class="bstat" onclick="switchTab('hot')"><div class="bstat-val green" id="sH">—</div><div class="bstat-label">Hot Leads</div></div>
-        <div class="bstat" onclick="switchTab('contacted')"><div class="bstat-val gold" id="sC">—</div><div class="bstat-label">Contacted</div></div>
-        <div class="bstat"><div class="bstat-val" id="sR">—</div><div class="bstat-label">Responded</div></div>
-        <div class="bstat"><div class="bstat-val green" id="sA">—</div><div class="bstat-label">Appointments</div></div>
-        <div class="bstat"><div class="bstat-val gold" id="sL">—</div><div class="bstat-label">Listings</div></div>
+    <div class="pipeline" id="pipelineBar"></div>
+    <div class="tabs" id="statusTabs"></div>
+    <div class="controls">
+        <input type="text" id="searchInput" placeholder="Search name or address..." oninput="renderLeads()">
+        <select id="sortSelect" onchange="renderLeads()">
+            <option value="score">Score ↓</option>
+            <option value="value">Value ↓</option>
+            <option value="recent">Recently Updated</option>
+            <option value="name">Name A-Z</option>
+        </select>
+        <select id="ownerTypeFilter" onchange="renderLeads()">
+            <option value="">All Types</option>
+        </select>
     </div>
-    <div class="tabs" id="tabBar">
-        <div class="tab active" data-tab="all" onclick="switchTab('all')">All</div>
-        <div class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot</div>
-        <div class="tab" data-tab="contacted" onclick="switchTab('contacted')">Contacted</div>
-        <div class="tab" data-tab="follow-up" onclick="switchTab('follow-up')">Follow Up</div>
-        <div class="tab" data-tab="won" onclick="switchTab('won')">🏆 Won</div>
-        <div class="tab" data-tab="archived" onclick="switchTab('archived')">Archived</div>
-    </div>
-    <div class="toolbar" id="filterBar">
-        <div class="toolbar-left">
-            <input type="text" id="searchInput" class="search-input" placeholder="Search name or address..." oninput="applySearch()">
-            <div id="activeFilters" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
-        </div>
-        <div class="toolbar-right">
-            <button class="tool-btn" onclick="toggleFilterPanel()" id="filterToggle">☰ Filters</button>
-            <select class="tool-select" id="sortSelect" onchange="applySort()">
-                <option value="score-desc">Score ↓</option>
-                <option value="score-asc">Score ↑</option>
-                <option value="date-desc">Newest First</option>
-                <option value="date-asc">Oldest First</option>
-                <option value="value-desc">Value ↓</option>
-                <option value="value-asc">Value ↑</option>
-                <option value="name-asc">Name A–Z</option>
-            </select>
-        </div>
-    </div>
-    <div class="filter-panel" id="filterPanel" style="display:none">
-        <div style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px">Filter by Tag</div>
-        <div class="filter-chips" id="filterChips"></div>
-    </div>
-    <div id="leadList"><div class="loading-spinner"></div></div>
+    <div id="leadList"></div>
 </div>
 <script>
-const API_BASE = 'https://sellersignal.co';
-const CC='ss_crm_contacts';
+const STATUSES = {
+    all: { label:'All', color:'var(--text)' },
+    hot: { label:'🔥 Hot', color:'var(--gold)' },
+    contacted: { label:'Contacted', color:'var(--blue)' },
+    follow_up: { label:'Follow Up', color:'var(--yellow)' },
+    won: { label:'🏆 Won', color:'var(--green)' },
+    archived: { label:'Archived', color:'var(--text-dim)' },
+};
 
-// === CONTACT STORAGE — localStorage is source of truth, server is backup ===
-// This avoids the race condition where server re-fetch overwrites local writes
-
-function getLocalContacts(){try{return JSON.parse(localStorage.getItem(CC)||'{}')}catch{return{}}}
-function setLocalContacts(d){try{localStorage.setItem(CC,JSON.stringify(d))}catch(e){}}
-
-let allLeads=[],curTab='all',expId=null;
-let activeFilters = new Set();
-let currentSort = 'score-desc';
-let searchQuery = '';
-const dd=new Date();document.getElementById('pageDate').textContent=dd.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-
-function applySearch(){
-    searchQuery = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
-    render();
+// Map CRM status to tab
+function statusToTab(s) {
+    if (!s || s === 'new') return 'hot';
+    if (s === 'contacted') return 'contacted';
+    if (s === 'appointment' || s === 'follow_up') return 'follow_up';
+    if (s === 'listed' || s === 'under_contract' || s === 'closed') return 'won';
+    if (s === 'dead' || s === 'archived') return 'archived';
+    return 'hot';
 }
 
-// Contact accessor — always reads from localStorage (source of truth)
-function gC(){ return getLocalContacts(); }
+let leads = [];
+let activeTab = 'all';
+let saleDetections = {};
 
-// Sync server contacts INTO localStorage on initial load (one-time merge)
-async function syncServerContacts(){
-    try {
-        const res = await fetch(`${API_BASE}/api/persist/contacts`);
-        if (res.ok) {
-            const data = await res.json();
-            const server = data.contacts || {};
-            const local = getLocalContacts();
-            let merged = 0;
-            // Merge: if server has entries we don't have locally, add them
-            for (const [id, entries] of Object.entries(server)) {
-                if (!local[id] || local[id].length < entries.length) {
-                    local[id] = entries;
-                    merged++;
-                }
-            }
-            if (merged > 0) {
-                setLocalContacts(local);
-                console.log(`Synced ${merged} leads from server`);
-            }
-        }
-    } catch(e) { console.log('Server sync skipped:', e.message); }
-}
-
-// Push a contact to server (fire-and-forget, localStorage is already updated)
-function pushToServer(id, entry) {
-    fetch(`${API_BASE}/api/persist/contact`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-            parcelId: id,
-            channel: entry.channel,
-            result: entry.result,
-            notes: entry.notes || '',
-            followUpDate: entry.followUpDate || null
-        })
-    }).catch(e => console.log('Server push failed:', e.message));
-}
-
-function loadFromSnapshots(){
-    const leads={};
-    try{
-        const store=JSON.parse(localStorage.getItem('ss_snapshots')||'{}');
-        for(const[id,s]of Object.entries(store)){
-            leads[id]={id,
-                ownerName:s.ownerName||s.ownerCleaned||s.ownerRaw||'Unknown',
-                address:s.address||s.situsAddress||'',
-                cityStateZip:s.cityStateZip||'',
-                ownerAddress:s.mailingAddress||'',
-                totalValue:s.totalValue||s.assessedValue||0,
-                tier:s.tier||'watch',
-                briefingRank:s.briefingRank||0,
-                scoreClass:s.scoreClass||'low',
-                sellerLikelihood:s.sellerLikelihood||0,
-                offMarketReceptivity:s.offMarketReceptivity||0,
-                actionability:s.actionability||0,
-                confidence:s.confidence||0,
-                cohortLabel:s.cohortLabel||'',
-                whyNow:s.whyNow||s.topReason||'',
-                status:'new',
-                addedDate:s.firstSeen||Date.now(),
-                lastBriefing:s.lastSeen||Date.now(),
-                tags: []
-            };
-            // Generate tags from property characteristics
-            const on = (s.ownerName||s.ownerCleaned||s.ownerRaw||'').toUpperCase();
-            if (/\bTRUST\b/.test(on)) leads[id].tags.push('Trust');
-            if (/\bESTATE\b|\bHEIRS\b|\bDECEASED\b|\bSURVIVOR\b/.test(on)) leads[id].tags.push('Estate');
-            if (/\bLLC\b|\bCORP\b|\bINC\b|\bCOMPAN/.test(on)) leads[id].tags.push('LLC');
-            if (s.isAbsentee || s._isAbsentee) leads[id].tags.push('Absentee');
-            if (s.isOutOfState || s._isOutOfState) leads[id].tags.push('Out-of-State');
-            if (s.isVacantLand || s._isVacant || (s.buildingValue === 0 && s.landValue > 0)) leads[id].tags.push('Vacant Land');
-            if (!leads[id].tags.some(t => ['Trust','Estate','LLC'].includes(t)) && on.length > 3) leads[id].tags.push('Individual');
-        }
-    }catch(e){console.log('Snapshot read error:',e.message)}
+// Load from localStorage snapshots + CRM status
+function loadLeads() {
+    const snapshots = JSON.parse(localStorage.getItem('ss_snapshots') || '{}');
+    const crmPipeline = JSON.parse(localStorage.getItem('ss_crm_pipeline') || '{}');
+    const crmContacts = JSON.parse(localStorage.getItem('ss_crm_contacts') || '{}');
     
-    // Apply statuses from contact history
-    const contacts=gC();
-    for(const[id,entries]of Object.entries(contacts)){
-        if(leads[id]&&entries.length>0){
-            const last=entries[entries.length-1];
-            if(last.result==='listing')leads[id].status='won';
-            else if(last.result==='appointment')leads[id].status='appointment';
-            else if(last.result==='not_fit'||last.result==='wrong_person')leads[id].status='not_fit';
-            else if(last.result==='response')leads[id].status='responded';
-            else leads[id].status='contacted';
-        }
-    }
+    leads = [];
+    const seen = new Set();
     
-    try{
-        const archived=JSON.parse(localStorage.getItem('ss_crm_archived')||'[]');
-        for(const aid of archived){if(leads[aid])leads[aid].status='archived'}
-    }catch(e){}
-    
-    return leads;
-}
-
-function refreshLeads(){
-    const leads=loadFromSnapshots();
-    allLeads=Object.values(leads).sort((a,b)=>(b.briefingRank||0)-(a.briefingRank||0));
-    stats();render();
-}
-
-async function load(){
-    await syncServerContacts();
-    refreshLeads();
-}
-
-function stats(){
-    const c=gC();
-    const contacted=new Set(),responded=new Set(),appts=new Set(),listings=new Set();
-    for(const[id,es]of Object.entries(c)){
-        if(!es.length) continue;
-        contacted.add(id);
-        for(const e of es){
-            if(['response','appointment','listing'].includes(e.result))responded.add(id);
-            if(['appointment','listing'].includes(e.result))appts.add(id);
-            if(e.result==='listing')listings.add(id);
-        }
-    }
-    document.getElementById('sT').textContent=allLeads.length;
-    document.getElementById('sH').textContent=allLeads.filter(l=>l.tier==='act_today'||l.briefingRank>=55).length;
-    document.getElementById('sC').textContent=contacted.size;
-    document.getElementById('sR').textContent=responded.size;
-    document.getElementById('sA').textContent=appts.size;
-    document.getElementById('sL').textContent=listings.size;
-}
-
-function filt(){
-    const c=gC();
-    const cIds=new Set(Object.keys(c).filter(id=>c[id].length>0));
-    switch(curTab){
-        case'hot':return allLeads.filter(l=>l.tier==='act_today'||l.briefingRank>=55);
-        case'contacted':return allLeads.filter(l=>cIds.has(l.id));
-        case'follow-up':{
-            // Show ALL leads with any follow-up date set (future or past)
-            return allLeads.filter(l=>{
-                const entries=c[l.id]||[];
-                return entries.some(e => e.followUpDate);
+    // Pull from all ZIP snapshots
+    for (const [zipKey, snapshot] of Object.entries(snapshots)) {
+        const prospects = snapshot.prospects || snapshot;
+        if (!Array.isArray(prospects)) continue;
+        
+        for (const p of prospects) {
+            const id = p.id || p._parcelId || `${p.lat}-${p.lng}`;
+            if (seen.has(id)) continue;
+            seen.add(id);
+            
+            const crm = crmPipeline[id] || {};
+            const contact = crmContacts[id] || {};
+            
+            leads.push({
+                id,
+                name: p.ownerName || p.owner_name || '',
+                address: p.address || '',
+                zip: p.zipCode || p.zip_code || zipKey.replace('ss_snap_',''),
+                score: p.briefingRank || p.sellerLikelihood || 0,
+                value: p.totalValue || p.assessed_value || 0,
+                commission: Math.round((p.totalValue || p.assessed_value || 0) * 0.025),
+                cohort: p.cohortLabel || p.cohort || p.owner_type || '',
+                propType: p.propType || p.prop_type || '',
+                status: crm.status || contact.action || 'new',
+                tab: statusToTab(crm.status || contact.action),
+                updatedAt: crm.updatedAt || contact.timestamp || '',
+                isAbsentee: p.isAbsentee || p.is_absentee,
+                isOutOfState: p.isOutOfState || p.is_out_of_state,
+                ownerState: p.ownerState || p.owner_state || '',
+                sold: !!saleDetections[id],
+                salePrice: saleDetections[id]?.sale_price || 0,
             });
         }
-        case'won':return allLeads.filter(l=>{const e=c[l.id]||[];return e.some(x=>x.result==='listing')});
-        case'archived':return allLeads.filter(l=>l.status==='archived'||l.status==='not_fit');
-        default:return allLeads.filter(l=>l.status!=='archived'&&l.status!=='not_fit');
     }
 }
 
-function switchTab(t){curTab=t;document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));render()}
+function renderPipeline() {
+    const total = leads.length;
+    const hot = leads.filter(l => l.tab === 'hot').length;
+    const contacted = leads.filter(l => l.tab === 'contacted').length;
+    const responded = leads.filter(l => l.status === 'appointment').length;
+    const won = leads.filter(l => l.tab === 'won').length;
+    const listings = leads.filter(l => l.status === 'listed' || l.status === 'under_contract' || l.status === 'closed').length;
+    
+    const totalValue = leads.filter(l=>l.value>0).reduce((s,l)=>s+l.value,0);
+    const totalComm = Math.round(totalValue * 0.025);
+    const wonValue = leads.filter(l=>l.tab==='won').reduce((s,l)=>s+(l.salePrice||l.value),0);
+    const wonComm = Math.round(wonValue * 0.025);
+    
+    const fmt = n => n >= 1000000 ? '$'+(n/1000000).toFixed(1)+'M' : n >= 1000 ? '$'+Math.round(n/1000)+'K' : '$'+n.toLocaleString();
+    
+    document.getElementById('pipelineBar').innerHTML = `
+        <div class="pv-card"><div class="num">${total}</div><div class="lbl">TOTAL</div><div class="bar" style="background:var(--text-dim)"></div></div>
+        <div class="pv-card"><div class="num" style="color:var(--green)">${hot}</div><div class="lbl">HOT LEADS</div><div class="bar" style="background:var(--green)"></div></div>
+        <div class="pv-card"><div class="num" style="color:var(--gold)">${contacted}</div><div class="lbl">CONTACTED</div><div class="bar" style="background:var(--gold)"></div></div>
+        <div class="pv-card"><div class="num" style="color:var(--green)">${responded}</div><div class="lbl">APPOINTMENTS</div><div class="bar" style="background:var(--green)"></div></div>
+        <div class="pv-card"><div class="num" style="color:var(--gold)">${listings}</div><div class="lbl">LISTINGS</div><div class="bar" style="background:var(--gold)"></div></div>
+        <div class="pv-card"><div class="num" style="color:var(--green)">${fmt(totalComm)}</div><div class="lbl">POTENTIAL COMMISSION</div><div class="bar" style="background:var(--green)"></div></div>
+    `;
+}
 
-// Filter system
-const ALL_TAGS = ['Trust','Estate','LLC','Absentee','Out-of-State','Vacant Land','Individual'];
-
-function initFilterPanel(){
-    const el = document.getElementById('filterChips');
-    if (!el) return;
-    el.innerHTML = ALL_TAGS.map(t => 
-        `<button class="filter-chip${activeFilters.has(t)?' active':''}" onclick="toggleFilter('${t}')">${t}</button>`
+function renderTabs() {
+    const counts = { all: leads.length };
+    for (const l of leads) counts[l.tab] = (counts[l.tab] || 0) + 1;
+    
+    document.getElementById('statusTabs').innerHTML = Object.entries(STATUSES).map(([key, s]) => 
+        `<div class="tab ${activeTab===key?'active':''}" onclick="activeTab='${key}';renderLeads()">${s.label}<span class="cnt">${counts[key]||0}</span></div>`
     ).join('');
 }
 
-function toggleFilterPanel(){
-    const panel = document.getElementById('filterPanel');
-    const btn = document.getElementById('filterToggle');
-    if (panel.style.display === 'none') {
-        panel.style.display = 'block';
-        btn.classList.add('active');
-        initFilterPanel();
-    } else {
-        panel.style.display = 'none';
-        btn.classList.remove('active');
-    }
-}
-
-function toggleFilter(tag){
-    if (activeFilters.has(tag)) activeFilters.delete(tag);
-    else activeFilters.add(tag);
-    initFilterPanel();
-    renderActiveFilters();
-    render();
-}
-
-function clearFilter(tag){
-    activeFilters.delete(tag);
-    initFilterPanel();
-    renderActiveFilters();
-    render();
-}
-
-function clearAllFilters(){
-    activeFilters.clear();
-    initFilterPanel();
-    renderActiveFilters();
-    render();
-}
-
-function renderActiveFilters(){
-    const el = document.getElementById('activeFilters');
-    if (!el) return;
-    if (activeFilters.size === 0) { el.innerHTML = ''; return; }
-    el.innerHTML = Array.from(activeFilters).map(t => 
-        `<div class="active-filter" onclick="clearFilter('${t}')">${t}<span class="x">✕</span></div>`
-    ).join('') + (activeFilters.size > 1 ? `<div class="active-filter" onclick="clearAllFilters()" style="background:transparent;border-color:var(--border);color:var(--text-dim)">Clear all<span class="x">✕</span></div>` : '');
-}
-
-function applySort(){
-    currentSort = document.getElementById('sortSelect')?.value || 'score-desc';
-    render();
-}
-
-function sortLeads(leads){
-    const sorted = [...leads];
-    switch(currentSort){
-        case 'score-desc': return sorted.sort((a,b) => (b.briefingRank||0) - (a.briefingRank||0));
-        case 'score-asc': return sorted.sort((a,b) => (a.briefingRank||0) - (b.briefingRank||0));
-        case 'date-desc': return sorted.sort((a,b) => (b.addedDate||0) - (a.addedDate||0));
-        case 'date-asc': return sorted.sort((a,b) => (a.addedDate||0) - (b.addedDate||0));
-        case 'value-desc': return sorted.sort((a,b) => (b.totalValue||0) - (a.totalValue||0));
-        case 'value-asc': return sorted.sort((a,b) => (a.totalValue||0) - (b.totalValue||0));
-        case 'name-asc': return sorted.sort((a,b) => (a.ownerName||'').localeCompare(b.ownerName||''));
-        default: return sorted;
-    }
-}
-
-function tagClass(tag) {
-    const map = { Trust:'tag-trust', Estate:'tag-estate', LLC:'tag-llc', Absentee:'tag-absentee', 'Out-of-State':'tag-oos', 'Vacant Land':'tag-vacant', Individual:'tag-individual' };
-    return map[tag] || 'tag-individual';
-}
-
-function render(){
-    let leads=filt();
+function renderLeads() {
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const sort = document.getElementById('sortSelect')?.value || 'score';
+    const ownerType = document.getElementById('ownerTypeFilter')?.value || '';
     
-    // Apply tag filters
-    if (activeFilters.size > 0) {
-        leads = leads.filter(l => {
-            for (const f of activeFilters) {
-                if (l.tags && l.tags.includes(f)) return true;
-            }
-            return false;
-        });
-    }
-    
-    // Apply search
-    if (searchQuery) {
-        leads = leads.filter(l => {
-            const name = (l.ownerName || '').toLowerCase();
-            const addr = (l.address || '').toLowerCase();
-            const city = (l.cityStateZip || '').toLowerCase();
-            return name.includes(searchQuery) || addr.includes(searchQuery) || city.includes(searchQuery);
-        });
-    }
-    
-    // Apply sort
-    leads = sortLeads(leads);
-    
-    const el=document.getElementById('leadList');
-    
-    // Follow-up banner
-    const c=gC();
-    const fuLeads = allLeads.filter(l => {
-        const entries = c[l.id]||[];
-        const lastFu = [...entries].reverse().find(e => e.followUpDate);
-        if (!lastFu) return false;
-        return new Date(lastFu.followUpDate) <= new Date(new Date().toISOString().split('T')[0] + 'T23:59:59');
+    let filtered = leads.filter(l => {
+        if (activeTab !== 'all' && l.tab !== activeTab) return false;
+        if (search && !l.name.toLowerCase().includes(search) && !l.address.toLowerCase().includes(search)) return false;
+        if (ownerType && l.cohort !== ownerType) return false;
+        return true;
     });
     
-    let fuBanner = '';
-    if (curTab === 'all' && fuLeads.length > 0) {
-        fuBanner = `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:14px 18px;margin-bottom:16px;cursor:pointer" onclick="switchTab('follow-up')">
-            <div style="font-size:12px;font-weight:600;color:#fbbf24;margin-bottom:4px">📅 ${fuLeads.length} Follow-Up${fuLeads.length>1?'s':''} Due</div>
-            <div style="font-size:11px;color:var(--text-dim)">Click to view</div>
+    if (sort === 'score') filtered.sort((a,b) => b.score - a.score);
+    else if (sort === 'value') filtered.sort((a,b) => b.value - a.value);
+    else if (sort === 'recent') filtered.sort((a,b) => (b.updatedAt||'').localeCompare(a.updatedAt||''));
+    else if (sort === 'name') filtered.sort((a,b) => a.name.localeCompare(b.name));
+    
+    if (!filtered.length) {
+        document.getElementById('leadList').innerHTML = `<div class="empty"><div class="icon">📋</div>No leads${activeTab!=='all'?' in this category':''}.<br><span style="font-size:12px">Run a briefing to start building your pipeline.</span></div>`;
+        return;
+    }
+    
+    document.getElementById('leadList').innerHTML = filtered.slice(0, 100).map(l => {
+        const scoreClass = l.score >= 55 ? 'high' : l.score >= 35 ? 'med' : 'low';
+        const valStr = l.value >= 1000000 ? '$'+(l.value/1000000).toFixed(1)+'M' : l.value >= 1000 ? '$'+Math.round(l.value/1000)+'K' : l.value > 0 ? '$'+l.value.toLocaleString() : '';
+        const commStr = l.commission > 0 ? '$'+l.commission.toLocaleString()+' est. commission' : '';
+        const name = l.name.split(',').map(w=>w.trim().charAt(0).toUpperCase()+w.trim().slice(1).toLowerCase()).join(', ');
+        
+        return `<div class="lead" onclick="toggleDetail('${l.id}')">
+            <div class="lead-score ${scoreClass}">${l.score}</div>
+            <div class="lead-info">
+                <div class="lead-name">${name}${l.sold ? ' <span style="color:var(--green);font-size:10px;font-weight:700">✓ SOLD</span>' : ''}</div>
+                <div class="lead-addr">${l.address}${l.zip ? ' · '+l.zip : ''}</div>
+                <div class="lead-chips">
+                    ${l.cohort ? `<span class="chip">${l.cohort}</span>` : ''}
+                    ${l.isOutOfState ? `<span class="chip" style="color:var(--gold)">Out-of-State (${l.ownerState})</span>` : ''}
+                    ${l.isAbsentee ? `<span class="chip">Absentee</span>` : ''}
+                    ${l.propType ? `<span class="chip">${l.propType}</span>` : ''}
+                </div>
+            </div>
+            <div class="lead-right">
+                ${valStr ? `<div class="lead-val">${valStr}</div>` : ''}
+                ${commStr ? `<div class="lead-comm">${commStr}</div>` : ''}
+                <div class="lead-status">
+                    <select onclick="event.stopPropagation()" onchange="event.stopPropagation();updateStatus('${l.id}',this.value)">
+                        <option value="new" ${l.status==='new'?'selected':''}>New</option>
+                        <option value="contacted" ${l.status==='contacted'?'selected':''}>Contacted</option>
+                        <option value="appointment" ${l.status==='appointment'?'selected':''}>Appointment</option>
+                        <option value="listed" ${l.status==='listed'?'selected':''}>Listed</option>
+                        <option value="under_contract" ${l.status==='under_contract'?'selected':''}>Under Contract</option>
+                        <option value="closed" ${l.status==='closed'?'selected':''}>Closed</option>
+                        <option value="dead" ${l.status==='dead'?'selected':''}>Dead / Archive</option>
+                    </select>
+                </div>
+            </div>
         </div>`;
+    }).join('') + (filtered.length > 100 ? `<div style="text-align:center;padding:16px;color:var(--text-dim);font-size:12px">Showing 100 of ${filtered.length} leads</div>` : '');
+    
+    renderTabs();
+}
+
+function updateStatus(id, status) {
+    const pipeline = JSON.parse(localStorage.getItem('ss_crm_pipeline') || '{}');
+    const lead = leads.find(l => l.id === id);
+    pipeline[id] = {
+        ...pipeline[id],
+        status,
+        updatedAt: new Date().toISOString(),
+        ownerName: lead?.name || '',
+        address: lead?.address || '',
+        value: lead?.value || 0,
+        commission: lead?.commission || 0,
+    };
+    localStorage.setItem('ss_crm_pipeline', JSON.stringify(pipeline));
+    
+    // Update in-memory
+    if (lead) {
+        lead.status = status;
+        lead.tab = statusToTab(status);
     }
-    
-    // Lead count
-    const countText = `<div class="lead-count">${leads.length} lead${leads.length!==1?'s':''}${activeFilters.size > 0 ? ' (filtered)' : ''}</div>`;
-    
-    if(!leads.length){el.innerHTML=fuBanner+countText+`<div class="empty-state"><h2>${searchQuery?'No matches':'curTab==='all'&&activeFilters.size>0?'No leads match filters':'No leads yet'}</h2><p>${searchQuery?'No leads match "'+searchQuery+'". Try a different search.':curTab==='all'?activeFilters.size>0?'Try removing a filter.':'Run a <a href="sellersignal-briefing.html?resume">Daily Briefing</a> to start.':'Try a different filter.'}</p></div>`;return}
-    const contacts=gC();
-    el.innerHTML=fuBanner+countText+leads.map(l=>{
-        const id=l.id,log=contacts[id]||[],last=log.length?log[log.length-1]:null;
-        const sc=l.scoreClass||(l.briefingRank>=55?'high':l.briefingRank>=35?'medium':'low');
-        const tc=l.tier==='act_today'?'t-hot':l.tier==='outreach_queue'||l.tier==='deep_signal_first'?'t-out':'t-watch';
-        const tl=l.tier==='act_today'?'Hot Lead':l.tier==='outreach_queue'?'Outreach':l.tier==='deep_signal_first'?'Investigate':'Watch';
-        const contactCount = log.length;
-        const lastContact = last ? `<span class="chip s-${last.result==='listing'?'listing':['response','appointment'].includes(last.result)?'responded':'contacted'}">${last.channel} · ${last.result.replace(/_/g,' ')}</span>` : '';
-        
-        // Follow-up indicator
-        const lastFu = [...log].reverse().find(e => e.followUpDate);
-        let fuChip = '';
-        if (lastFu) {
-            const fuDate = new Date(lastFu.followUpDate);
-            const today = new Date(new Date().toISOString().split('T')[0]);
-            const daysUntil = Math.round((fuDate - today) / (1000*60*60*24));
-            if (daysUntil < 0) fuChip = `<span class="chip" style="background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2)">📅 Overdue ${Math.abs(daysUntil)}d</span>`;
-            else if (daysUntil === 0) fuChip = `<span class="chip" style="background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2)">📅 Due today</span>`;
-            else fuChip = `<span class="chip" style="background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.2)">📅 ${lastFu.followUpDate}</span>`;
+    renderPipeline();
+    renderLeads();
+}
+
+function toggleDetail(id) {
+    // Future: expand card with full Deep Signal, mail history, notes
+}
+
+// Populate owner type filter
+function populateFilters() {
+    const types = {};
+    for (const l of leads) if (l.cohort) types[l.cohort] = (types[l.cohort]||0) + 1;
+    const sel = document.getElementById('ownerTypeFilter');
+    sel.innerHTML = '<option value="">All Types</option>' + 
+        Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<option value="${k}">${k} (${v})</option>`).join('');
+}
+
+// Fetch sale detections
+async function loadSaleDetections() {
+    try {
+        const r = await fetch('/api/sale-detections');
+        const d = await r.json();
+        for (const det of (d.detections || [])) {
+            saleDetections[det.parcel_id] = det;
         }
-        
-        // Tags
-        const tagsHtml = (l.tags||[]).map(t => `<span class="lead-tag ${tagClass(t)}">${t}</span>`).join('');
-        
-        const ex=expId===id;
-        return`<div class="prospect${ex?' expanded':''}" id="prospect-${id}" onclick="toggle('${id}')"><div class="prospect-main"><div class="prospect-score ${sc}">${l.briefingRank||'—'}</div><div class="prospect-info"><div class="prospect-addr">${l.address||'Unknown'}</div><div class="prospect-owner">${l.ownerName||''} ${contactCount>0?`<span style="color:var(--text-dim);font-size:10px">(${contactCount} contact${contactCount>1?'s':''})</span>`:''}</div><div class="prospect-meta"><span class="chip ${tc}">${tl}</span>${lastContact}${fuChip}${l.totalValue?`<span class="chip t-watch">$${(l.totalValue/1000).toFixed(0)}K</span>`:''}</div><div class="lead-tags">${tagsHtml}</div></div><div class="prospect-actions"><button class="action-btn" onclick="event.stopPropagation();openLog('${id}','call')" title="Log call">📞</button><button class="action-btn" onclick="event.stopPropagation();openLog('${id}','mail')" title="Log mail">✉️</button><button class="action-btn" onclick="event.stopPropagation();openLog('${id}','door')" title="Door knock">🚪</button></div></div><div class="prospect-detail" onclick="event.stopPropagation()">${ex?detail(l,log):''}</div></div>`;
-    }).join('');
-}
-
-function detail(l,log){
-    const id=l.id;
-    
-    // Score breakdown
-    const scores = `<div style="display:flex;gap:16px;margin-top:4px">
-        <div><span style="font-size:10px;color:var(--text-dim)">Seller</span><br><span style="font-weight:700;color:var(--text)">${l.sellerLikelihood||'—'}</span></div>
-        <div><span style="font-size:10px;color:var(--text-dim)">Off-Market</span><br><span style="font-weight:700;color:var(--text)">${l.offMarketReceptivity||'—'}</span></div>
-        <div><span style="font-size:10px;color:var(--text-dim)">Actionability</span><br><span style="font-weight:700;color:var(--text)">${l.actionability||'—'}</span></div>
-        <div><span style="font-size:10px;color:var(--text-dim)">Confidence</span><br><span style="font-weight:700;color:var(--text)">${l.confidence||'—'}</span></div>
-    </div>`;
-    
-    // Why now
-    const whyNow = l.whyNow ? `<div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--gold);border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:600;color:var(--gold);letter-spacing:0.05em;margin-bottom:4px">WHY NOW</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${l.whyNow}</div></div>` : '';
-    
-    return`<div class="detail-grid">
-        <div class="detail-item"><div class="detail-label">Mailing Address</div><div class="detail-value">${l.ownerAddress||'Same as property'}</div></div>
-        <div class="detail-item"><div class="detail-label">Assessed Value</div><div class="detail-value">${l.totalValue?'$'+l.totalValue.toLocaleString():'Unknown'}</div></div>
-        <div class="detail-item"><div class="detail-label">Cohort</div><div class="detail-value">${l.cohortLabel||'—'}</div></div>
-        <div class="detail-item"><div class="detail-label">First Seen</div><div class="detail-value">${l.addedDate?new Date(l.addedDate).toLocaleDateString():''}</div></div>
-    </div>
-    ${scores}
-    ${whyNow}
-    <div class="contact-form" id="contact-form-${id}">
-        <h4>Log Contact</h4>
-        <div class="form-row">
-            <div class="form-group"><label>Channel</label><select id="ch-${id}"><option value="call">📞 Call</option><option value="mail">✉️ Mail</option><option value="door">🚪 Door</option><option value="email">📧 Email</option><option value="text">💬 Text</option></select></div>
-            <div class="form-group"><label>Result</label><select id="rs-${id}"><option value="no_response">No Response</option><option value="response">Got Response</option><option value="appointment">Appointment Set</option><option value="listing">Listing Won 🎉</option><option value="declined">Declined</option><option value="wrong_person">Wrong Person</option><option value="not_fit">Not a Fit</option></select></div>
-            <div class="form-group"><label>Follow Up</label><input type="date" id="fu-${id}"></div>
-        </div>
-        <div class="form-group" style="margin-bottom:10px"><label>Notes</label><textarea id="nt-${id}" placeholder="What happened? What did they say?"></textarea></div>
-        <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-p" onclick="event.stopPropagation();saveContact('${id}')">Save Contact</button>
-            <button class="btn-s" onclick="event.stopPropagation();archive('${id}')">Archive</button>
-            <div id="save-status-${id}" style="font-size:11px;color:var(--text-dim);margin-left:8px"></div>
-        </div>
-    </div>
-    ${log.length?`<div class="contact-history"><div class="ch-label">Contact History (${log.length})</div>${log.slice().reverse().map(c=>`<div class="ch-entry"><div class="ch-meta"><span>${new Date(c.date).toLocaleDateString()}</span><span style="font-weight:600">${c.channel||'?'}</span><span class="ch-result">${(c.result||'pending').replace(/_/g,' ')}</span>${c.followUpDate?`<span style="color:#fbbf24">📅 Follow up: ${c.followUpDate}</span>`:''}</div>${c.notes?`<div class="ch-notes">${c.notes}</div>`:''}</div>`).join('')}</div>`:'<div style="padding:12px 0;font-size:12px;color:var(--text-dim)">No contact history yet. Use the form above to log your first outreach.</div>'}`;
-}
-
-function toggle(id){
-    expId=expId===id?null:id;
-    render();
-}
-
-// Quick-action buttons now OPEN the card and pre-select the channel (instead of silently logging)
-function openLog(id, channel){
-    expId = id;
-    render();
-    // After render, set the channel dropdown and scroll to the form
-    setTimeout(() => {
-        const chSelect = document.getElementById(`ch-${id}`);
-        if (chSelect) chSelect.value = channel;
-        const form = document.getElementById(`contact-form-${id}`);
-        if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 50);
-}
-
-// Save contact — writes to localStorage immediately, pushes to server in background
-function saveContact(id){
-    const ch=document.getElementById(`ch-${id}`)?.value || 'call';
-    const rs=document.getElementById(`rs-${id}`)?.value || 'no_response';
-    const fu=document.getElementById(`fu-${id}`)?.value || null;
-    const nt=document.getElementById(`nt-${id}`)?.value || '';
-    const statusEl = document.getElementById(`save-status-${id}`);
-    
-    const entry = {date:new Date().toISOString(),channel:ch,result:rs,notes:nt,followUpDate:fu};
-    
-    // Write to localStorage (source of truth)
-    const c=getLocalContacts();
-    if(!c[id]) c[id]=[];
-    c[id].push(entry);
-    setLocalContacts(c);
-    
-    // Show confirmation immediately
-    if(statusEl) { 
-        statusEl.textContent = '✓ Saved'; 
-        statusEl.style.color = '#4ade80';
-        setTimeout(() => { if(statusEl) statusEl.textContent = ''; }, 3000);
-    }
-    
-    // Clear the form
-    const ntEl = document.getElementById(`nt-${id}`);
-    if(ntEl) ntEl.value = '';
-    const fuEl = document.getElementById(`fu-${id}`);
-    if(fuEl) fuEl.value = '';
-    const rsEl = document.getElementById(`rs-${id}`);
-    if(rsEl) rsEl.value = 'no_response';
-    
-    // Push to server in background (non-blocking)
-    pushToServer(id, entry);
-    
-    // Re-render WITHOUT re-fetching server data (keeps card open, updates stats + history)
-    refreshLeads();
-}
-
-function archive(id){
-    try{const archived=JSON.parse(localStorage.getItem('ss_crm_archived')||'[]');if(!archived.includes(id)){archived.push(id);localStorage.setItem('ss_crm_archived',JSON.stringify(archived))}}catch(e){}
-    expId = null;
-    refreshLeads();
+    } catch(e) {}
 }
 
 // Init
-try { localStorage.removeItem('ss_crm_leads'); } catch(e) {}
-load().catch(e => { 
-    document.getElementById('leadList').innerHTML = '<div style="padding:40px;color:#f87171;font-size:13px;font-family:Outfit,sans-serif">Error loading pipeline: ' + e.message + '<br><br>Try running a <a href="sellersignal-briefing.html?resume" style="color:#c4a87c">Daily Briefing</a> first.</div>'; 
-});
+async function init() {
+    await loadSaleDetections();
+    loadLeads();
+    populateFilters();
+    renderPipeline();
+    renderTabs();
+    renderLeads();
+}
+
+init();
 </script>
 </body>
 </html>
