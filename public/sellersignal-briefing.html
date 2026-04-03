@@ -2770,12 +2770,16 @@ function persistSnapshots(parcels, zipKey) {
         // Clear old bloated keys first
         try { localStorage.removeItem('ss_crm_leads'); } catch(e) {}
         
+        // Filter out institutions before saving
+        const institutionRx = /\bSCHOOL\b|\bACADEMY\b|\bSEMINARY\b|\bCHURCH\b|\bDIOCESE\b|\bFOUNDATION\b|\bUNIVERSIT|\bCOLLEGE\b|\bHOSPITAL\b|\bHEALTHCARE|\bMEDICAL\s*CENTER|\bYMCA\b|\bYWCA\b|\bSCOUT|\bROTARY\b|\bLIONS\s*CLUB|\bELKS\b|\bVFW\b|\bAMERICAN\s*LEGION|\bSALVATION|\bGOODWILL\b|\bHABITAT\b|\bRED\s*CROSS|\bCITY OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bFEDERAL\b|\bMUNICIPAL\b|\bGOVERNMENT\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCONDO\s*(MASTER|ASSOC)|\bBANK\b|\bCREDIT\s*UNION|\bREAL ESTATE\b|\bREALTY\b|\bBROKERAGE\b/i;
+        const cleanParcels = parcels.filter(p => !institutionRx.test(p.ownerName || ''));
+        
         const store = getSnapshotStore();
         const now = Date.now();
         let added = 0, updated = 0;
         
         // Persist top 500 to cover act today + outreach for large markets
-        const toStore = parcels.slice(0, 500);
+        const toStore = cleanParcels.slice(0, 500);
         
         for (const p of toStore) {
             const id = p.id || `${p.lat}-${p.lng}`;
