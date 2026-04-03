@@ -1490,8 +1490,8 @@ app.post('/api/mail/enroll', async (req, res) => {
   const { data: credits } = await supabase.from('mail_credits')
     .select('credits_remaining').eq('user_id', agentId).single();
   
-  if (!credits || credits.credits_remaining < parcelIds.length * 6) {
-    return res.json({ error: 'Not enough credits', creditsNeeded: parcelIds.length * 6, creditsAvailable: credits?.credits_remaining || 0 });
+  if (!credits || credits.credits_remaining < parcelIds.length) {
+    return res.json({ error: 'Not enough credits', creditsNeeded: parcelIds.length, creditsAvailable: credits?.credits_remaining || 0 });
   }
   
   const agent = { name: agentName, brokerage: agentBrokerage, phone: agentPhone, email: agentEmail };
@@ -1568,6 +1568,9 @@ app.post('/api/mail/enroll', async (req, res) => {
       
       await supabase.from('mail_letters').insert(letterRows);
       
+      // Deduct 1 credit per enrollment (covers all 6 letters)
+      await supabase.rpc('decrement_mail_credits', { agent: agentId });
+      
       results.push({ parcelId, enrollmentId: enrollment.id, letters: letters.length, status: 'enrolled' });
     } catch(e) {
       results.push({ parcelId, error: e.message });
@@ -1610,6 +1613,81 @@ app.get('/api/mail/preview/:enrollmentId', async (req, res) => {
     .order('position');
   
   res.json({ letters: letters || [] });
+});
+
+// POST /api/agent/profile — save agent profile (return address, branding)
+app.post('/api/agent/profile', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const { agentId, agentName, brokerage, phone, email, returnAddress, returnCity, returnState, returnZip, licenseNumber } = req.body;
+  if (!agentId) return res.status(400).json({ error: 'Agent ID required' });
+  
+  const { data, error } = await supabase.from('agent_profiles').upsert({
+    agent_id: agentId,
+    agent_name: agentName,
+    brokerage: brokerage,
+    phone: phone,
+    email: email,
+    return_address: returnAddress,
+    return_city: returnCity,
+    return_state: returnState,
+    return_zip: returnZip,
+    license_number: licenseNumber,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'agent_id' });
+  
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ saved: true });
+});
+
+app.options('/api/agent/profile', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(204);
+});
+
+// GET /api/agent/profile — get agent profile
+app.get('/api/agent/profile', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const agentId = req.query.agentId;
+  if (!agentId) return res.status(400).json({ error: 'agentId required' });
+  
+  const { data } = await supabase.from('agent_profiles')
+    .select('*').eq('agent_id', agentId).single();
+  
+  res.json({ profile: data || null });
+});
+
+// GET /api/mail/campaigns — full campaign dashboard for an agent
+app.get('/api/mail/campaigns', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const agentId = req.query.agentId;
+  if (!agentId) return res.status(400).json({ error: 'agentId required' });
+  
+  const { data: enrollments } = await supabase.from('mail_enrollments')
+    .select('*, mail_letters(position, subject, body_text), mail_sends(position, status, sent_at, lob_url)')
+    .eq('agent_id', agentId)
+    .order('enrolled_at', { ascending: false });
+  
+  const { data: credits } = await supabase.from('mail_credits')
+    .select('*').eq('user_id', agentId).single();
+  
+  res.json({
+    enrollments: enrollments || [],
+    credits: credits || { credits_remaining: 0, credits_purchased: 0, credits_used: 0 },
+    summary: {
+      active: (enrollments || []).filter(e => e.status === 'active').length,
+      completed: (enrollments || []).filter(e => e.status === 'completed').length,
+      totalLettersSent: (enrollments || []).reduce((s, e) => s + e.current_position, 0),
+      totalSellers: (enrollments || []).length,
+    }
+  });
 });
 
 // GET /api/mail/credits — check credit balance

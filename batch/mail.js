@@ -68,21 +68,122 @@ async function generateLetterSequence(anthropic, agent, seller) {
   }));
 }
 
-// Format letter body as HTML for Lob
+// Format letter body as HTML for Lob — branded professional letterhead
 function letterToHtml(body, agent) {
+  // Lob specs: 8.5x11 letter, 0.25in margins minimum, 100% zoom
   return `<!DOCTYPE html>
 <html>
 <head>
 <style>
-  body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.6; color: #1a1a1a; max-width: 6.5in; margin: 0.75in auto; }
-  p { margin-bottom: 12pt; }
-  .signature { margin-top: 24pt; }
-  .sig-name { font-weight: bold; }
-  .sig-detail { font-size: 10pt; color: #555; }
+  @page { size: 8.5in 11in; margin: 0; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 11.5pt;
+    line-height: 1.65;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 0;
+  }
+  .letter {
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0.75in 1in;
+    position: relative;
+  }
+  /* Letterhead — agent branding */
+  .letterhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 20pt;
+    margin-bottom: 24pt;
+    border-bottom: 0.5pt solid #c4a87c;
+  }
+  .lh-name {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 14pt;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: 0.02em;
+  }
+  .lh-brokerage {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    color: #888;
+    letter-spacing: 0.04em;
+    margin-top: 2pt;
+  }
+  .lh-contact {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 8.5pt;
+    color: #888;
+    text-align: right;
+    line-height: 1.5;
+  }
+  /* Date */
+  .date {
+    font-size: 10pt;
+    color: #666;
+    margin-bottom: 20pt;
+  }
+  /* Body */
+  .body p {
+    margin: 0 0 12pt 0;
+  }
+  /* Signature block */
+  .signature {
+    margin-top: 28pt;
+  }
+  .sig-name {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    font-size: 11pt;
+  }
+  .sig-detail {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    color: #666;
+    line-height: 1.5;
+    margin-top: 4pt;
+  }
+  /* Footer */
+  .footer {
+    position: absolute;
+    bottom: 0.5in;
+    left: 1in;
+    right: 1in;
+    text-align: center;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 7pt;
+    color: #bbb;
+    letter-spacing: 0.06em;
+  }
 </style>
 </head>
 <body>
-${body.split('\n').filter(l => l.trim()).map(p => `<p>${p}</p>`).join('\n')}
+<div class="letter">
+  <div class="letterhead">
+    <div>
+      <div class="lh-name">${agent.name || ''}</div>
+      <div class="lh-brokerage">${agent.brokerage || ''}</div>
+    </div>
+    <div class="lh-contact">
+      ${agent.phone || ''}<br>
+      ${agent.email || ''}
+    </div>
+  </div>
+  <div class="date">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+  <div class="body">
+    ${body.split('\n').filter(l => l.trim()).map(p => `<p>${p}</p>`).join('\n    ')}
+  </div>
+  <div class="signature">
+    <div class="sig-name">${agent.name || ''}</div>
+    <div class="sig-detail">
+      ${agent.brokerage || ''}<br>
+      ${agent.phone || ''} · ${agent.email || ''}
+    </div>
+  </div>
+</div>
 </body>
 </html>`;
 }
@@ -145,48 +246,44 @@ async function processMailQueue(supabase, anthropic, lobApiKey) {
   for (const enrollment of due) {
     const nextPos = enrollment.current_position + 1;
     if (nextPos > enrollment.total_letters) {
-      // Sequence complete
       await supabase.from('mail_enrollments')
         .update({ status: 'completed' })
         .eq('id', enrollment.id);
       continue;
     }
     
-    // Check agent has credits
-    const { data: credits } = await supabase.from('mail_credits')
-      .select('credits_remaining')
-      .eq('user_id', enrollment.agent_id)
+    // Get agent profile for return address
+    const { data: agentProfile } = await supabase.from('agent_profiles')
+      .select('*')
+      .eq('agent_id', enrollment.agent_id)
       .single();
     
-    if (!credits || credits.credits_remaining <= 0) {
-      continue; // Skip — no credits
+    if (!agentProfile?.return_address) {
+      continue; // Can't send without a return address
     }
     
-    // Get the letter for this position
     const letter = enrollment.mail_letters?.find(l => l.position === nextPos);
     if (!letter) continue;
     
     try {
-      // TODO: Inject dynamic comp data into letter body if {{RECENT_COMP}} placeholder exists
       let bodyHtml = letter.body_html;
       
-      // Send via Lob
       const lobResult = await sendViaLob(lobApiKey, {
         subject: letter.subject,
         html: bodyHtml,
       }, {
         name: enrollment.owner_name,
         address_line1: enrollment.mailing_address,
+        address_line2: undefined,
         city: enrollment.mailing_city,
         state: enrollment.mailing_state,
         zip: enrollment.mailing_zip,
       }, {
-        // Return address — agent's brokerage
-        name: enrollment.agent_id, // TODO: look up agent name
-        address_line1: '', // TODO: agent return address
-        city: '',
-        state: '',
-        zip: '',
+        name: agentProfile.agent_name,
+        address_line1: agentProfile.return_address,
+        city: agentProfile.return_city,
+        state: agentProfile.return_state,
+        zip: agentProfile.return_zip,
       });
       
       // Log the send
@@ -209,9 +306,6 @@ async function processMailQueue(supabase, anthropic, lobApiKey) {
         last_sent_at: now.toISOString(),
         next_send_at: nextSendAt.toISOString(),
       }).eq('id', enrollment.id);
-      
-      // Deduct credit
-      await supabase.rpc('decrement_mail_credits', { agent: enrollment.agent_id });
       
       sent++;
     } catch(e) {

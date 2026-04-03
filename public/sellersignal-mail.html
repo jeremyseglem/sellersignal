@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — Mail Campaigns</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070b10;--bg-card:#0e1419;--bg-hover:#141c24;--bg-elevated:#111921;--text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;--gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);--green:#4ade80;--green-dim:rgba(74,222,128,0.1);--blue:#60a5fa;--red:#f87171;--border:#172030;--radius:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+::selection{background:var(--gold);color:var(--bg)}
+.header{padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(7,11,16,0.92);backdrop-filter:blur(20px);z-index:100}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.header-nav{display:flex;gap:8px}
+.nav-btn{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);transition:all 0.2s}
+.nav-btn:hover{color:var(--text);border-color:var(--gold)}
+.nav-btn.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+.page{max-width:960px;margin:0 auto;padding:28px 24px 80px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+.stat{padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);text-align:center}
+.stat .num{font-size:22px;font-weight:700}
+.stat .lbl{font-size:9px;color:var(--text-dim);letter-spacing:0.06em;margin-top:4px}
+.section{margin-bottom:32px}
+.section h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text-secondary)}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:8px;cursor:pointer;transition:all 0.15s}
+.card:hover{border-color:var(--gold-border)}
+.card-row{display:flex;align-items:center;gap:14px}
+.card-info{flex:1;min-width:0}
+.card-name{font-weight:600;font-size:14px}
+.card-sub{font-size:12px;color:var(--text-dim);margin-top:2px}
+.card-right{text-align:right;flex-shrink:0}
+.progress{display:flex;gap:4px;margin-top:8px}
+.progress .dot{width:20px;height:4px;border-radius:2px;background:var(--border)}
+.progress .dot.sent{background:var(--green)}
+.progress .dot.next{background:var(--gold)}
+.badge{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.badge-active{background:var(--green-dim);color:var(--green);border:1px solid rgba(74,222,128,0.2)}
+.badge-completed{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
+.badge-paused{background:rgba(255,255,255,0.04);color:var(--text-dim);border:1px solid var(--border)}
+/* Letter preview modal */
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;max-width:700px;width:95%;max-height:85vh;overflow-y:auto;padding:0}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg-card);z-index:1}
+.modal-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer}
+.letter-nav{display:flex;gap:4px;padding:12px 24px;border-bottom:1px solid var(--border)}
+.letter-tab{padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border);color:var(--text-dim);background:transparent}
+.letter-tab.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+.letter-tab.sent{color:var(--green);border-color:rgba(74,222,128,0.2)}
+.letter-body{padding:24px;font-family:Georgia,serif;font-size:14px;line-height:1.7;color:var(--text-secondary);white-space:pre-wrap}
+/* Profile form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{margin-bottom:0}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:4px}
+.field input{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;outline:none}
+.field input:focus{border-color:var(--gold)}
+.btn{padding:10px 24px;background:var(--gold);color:var(--bg);border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif}
+.btn:hover{background:#d4b88c}
+.empty{text-align:center;padding:48px 20px;color:var(--text-dim);font-size:13px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="header">
+    <a href="/" class="logo">
+        <div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="logo-text">SellerSignal</span>
+    </a>
+    <div class="header-nav">
+        <a href="/sellersignal-briefing.html" class="nav-btn">Briefing</a>
+        <a href="/sellersignal-crm.html" class="nav-btn">Pipeline</a>
+        <a href="/sellersignal-mail.html" class="nav-btn active">Mail</a>
+    </div>
+</header>
+<div class="page">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+        <div>
+            <div style="font-family:'DM Serif Display',serif;font-size:28px">Mail Campaigns</div>
+            <div style="font-size:13px;color:var(--text-secondary)">Personalized 6-letter sequences sent automatically over 6 months.</div>
+        </div>
+        <button class="btn" onclick="showProfile()" style="font-size:12px">⚙ Agent Profile</button>
+    </div>
+    <div class="stats" id="statsBar"></div>
+    <div class="section" id="activeSection"></div>
+    <div class="section" id="completedSection"></div>
+</div>
+
+<!-- Letter Preview Modal -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+        <div class="modal-header">
+            <div>
+                <div style="font-weight:600;font-size:15px" id="modalTitle"></div>
+                <div style="font-size:12px;color:var(--text-dim)" id="modalSub"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="letter-nav" id="letterNav"></div>
+        <div class="letter-body" id="letterBody"></div>
+    </div>
+</div>
+
+<!-- Profile Modal -->
+<div class="modal-bg" id="profileBg" onclick="if(event.target===this)closeProfile()">
+    <div class="modal" style="max-width:500px">
+        <div class="modal-header">
+            <div style="font-weight:600">Agent Profile</div>
+            <button class="modal-close" onclick="closeProfile()">✕</button>
+        </div>
+        <div style="padding:20px 24px" id="profileForm"></div>
+    </div>
+</div>
+
+<script>
+const AGENT_ID = localStorage.getItem('ss_agent_id') || prompt('Enter your email (agent ID):') || 'demo';
+if (AGENT_ID && AGENT_ID !== 'demo') localStorage.setItem('ss_agent_id', AGENT_ID);
+
+let campaigns = [];
+let currentLetters = [];
+let currentLetterIdx = 0;
+
+async function loadCampaigns() {
+    const r = await fetch(`/api/mail/campaigns?agentId=${encodeURIComponent(AGENT_ID)}`);
+    const d = await r.json();
+    campaigns = d.enrollments || [];
+    
+    document.getElementById('statsBar').innerHTML = `
+        <div class="stat"><div class="num" style="color:var(--green)">${d.summary?.active || 0}</div><div class="lbl">ACTIVE CAMPAIGNS</div></div>
+        <div class="stat"><div class="num">${d.summary?.totalSellers || 0}</div><div class="lbl">SELLERS ENROLLED</div></div>
+        <div class="stat"><div class="num" style="color:var(--gold)">${d.summary?.totalLettersSent || 0}</div><div class="lbl">LETTERS SENT</div></div>
+        <div class="stat"><div class="num">${d.credits?.credits_remaining || 0}</div><div class="lbl">CREDITS REMAINING</div></div>
+    `;
+    
+    const active = campaigns.filter(c => c.status === 'active');
+    const completed = campaigns.filter(c => c.status !== 'active');
+    
+    document.getElementById('activeSection').innerHTML = active.length ? `
+        <h3>Active Campaigns (${active.length})</h3>
+        ${active.map(c => renderCampaignCard(c)).join('')}
+    ` : '<div class="empty">No active campaigns. Enroll sellers from your Daily Briefing.</div>';
+    
+    document.getElementById('completedSection').innerHTML = completed.length ? `
+        <h3>Completed / Paused (${completed.length})</h3>
+        ${completed.map(c => renderCampaignCard(c)).join('')}
+    ` : '';
+}
+
+function renderCampaignCard(c) {
+    const sent = c.current_position || 0;
+    const total = c.total_letters || 6;
+    const nextSend = c.next_send_at ? new Date(c.next_send_at).toLocaleDateString() : '—';
+    const statusBadge = c.status === 'active' ? 'badge-active' : c.status === 'completed' ? 'badge-completed' : 'badge-paused';
+    
+    return `<div class="card" onclick="showLetters('${c.id}')">
+        <div class="card-row">
+            <div class="card-info">
+                <div class="card-name">${c.owner_name || 'Unknown'}</div>
+                <div class="card-sub">${c.property_address || ''} · ${c.zip_code || ''} · ${c.cohort || ''}</div>
+                <div class="progress">
+                    ${Array.from({length:total}, (_,i) => `<div class="dot ${i < sent ? 'sent' : i === sent ? 'next' : ''}"></div>`).join('')}
+                </div>
+            </div>
+            <div class="card-right">
+                <div class="badge ${statusBadge}">${c.status === 'active' ? 'Active' : c.status === 'completed' ? 'Complete' : 'Paused'}</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:6px">${sent}/${total} sent</div>
+                ${c.status === 'active' ? `<div style="font-size:10px;color:var(--gold);margin-top:2px">Next: ${nextSend}</div>` : ''}
+            </div>
+        </div>
+    </div>`;
+}
+
+async function showLetters(enrollmentId) {
+    const r = await fetch(`/api/mail/preview/${enrollmentId}`);
+    const d = await r.json();
+    currentLetters = d.letters || [];
+    currentLetterIdx = 0;
+    
+    const enrollment = campaigns.find(c => c.id === enrollmentId);
+    document.getElementById('modalTitle').textContent = enrollment?.owner_name || 'Letter Preview';
+    document.getElementById('modalSub').textContent = enrollment?.property_address || '';
+    
+    renderLetterNav(enrollment?.current_position || 0);
+    renderLetter(0);
+    document.getElementById('modalBg').classList.add('open');
+}
+
+function renderLetterNav(sentCount) {
+    document.getElementById('letterNav').innerHTML = currentLetters.map((l, i) => {
+        const cls = i === currentLetterIdx ? 'active' : i < sentCount ? 'sent' : '';
+        return `<div class="letter-tab ${cls}" onclick="currentLetterIdx=${i};renderLetterNav(${sentCount});renderLetter(${i})">
+            ${i < sentCount ? '✓ ' : ''}Letter ${i+1}
+        </div>`;
+    }).join('');
+}
+
+function renderLetter(idx) {
+    const l = currentLetters[idx];
+    if (!l) return;
+    document.getElementById('letterBody').textContent = l.body_text || l.body_html?.replace(/<[^>]+>/g, '') || '';
+}
+
+function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
+
+async function showProfile() {
+    const r = await fetch(`/api/agent/profile?agentId=${encodeURIComponent(AGENT_ID)}`);
+    const d = await r.json();
+    const p = d.profile || {};
+    
+    document.getElementById('profileForm').innerHTML = `
+        <div class="form-grid">
+            <div class="field"><label>FULL NAME</label><input id="pName" value="${p.agent_name||''}"></div>
+            <div class="field"><label>BROKERAGE</label><input id="pBrokerage" value="${p.brokerage||''}"></div>
+            <div class="field"><label>PHONE</label><input id="pPhone" value="${p.phone||''}"></div>
+            <div class="field"><label>EMAIL</label><input id="pEmail" value="${p.email||AGENT_ID}"></div>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.06em;margin-bottom:12px">RETURN ADDRESS (for mail campaigns)</div>
+            <div class="form-grid">
+                <div class="field" style="grid-column:1/-1"><label>STREET ADDRESS</label><input id="pAddr" value="${p.return_address||''}"></div>
+                <div class="field"><label>CITY</label><input id="pCity" value="${p.return_city||''}"></div>
+                <div class="field"><label>STATE</label><input id="pState" value="${p.return_state||''}"></div>
+            </div>
+            <div class="field" style="margin-top:12px"><label>ZIP</label><input id="pZip" value="${p.return_zip||''}" style="max-width:120px"></div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:12px">
+            <button class="btn" onclick="saveProfile()">Save Profile</button>
+            <button class="btn" style="background:transparent;border:1px solid var(--border);color:var(--text-secondary)" onclick="closeProfile()">Cancel</button>
+        </div>
+    `;
+    document.getElementById('profileBg').classList.add('open');
+}
+
+async function saveProfile() {
+    const body = {
+        agentId: AGENT_ID,
+        agentName: document.getElementById('pName').value,
+        brokerage: document.getElementById('pBrokerage').value,
+        phone: document.getElementById('pPhone').value,
+        email: document.getElementById('pEmail').value,
+        returnAddress: document.getElementById('pAddr').value,
+        returnCity: document.getElementById('pCity').value,
+        returnState: document.getElementById('pState').value,
+        returnZip: document.getElementById('pZip').value,
+    };
+    
+    await fetch('/api/agent/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    
+    closeProfile();
+    alert('Profile saved');
+}
+
+function closeProfile() { document.getElementById('profileBg').classList.remove('open'); }
+
+loadCampaigns();
+</script>
+</body>
+</html>
