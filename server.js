@@ -4250,7 +4250,7 @@ app.get('/api/briefing/:zip', async (req, res) => {
   });
 });
 
-// GET /api/parcels/:zip — all parcels for a ZIP with scores
+// GET /api/parcels/:zip — all parcels for a ZIP with scores, optional bounds filter
 app.get('/api/parcels/:zip', async (req, res) => {
   if (!supabase) return res.status(503).json({ error: 'Database not configured' });
   
@@ -4258,6 +4258,25 @@ app.get('/api/parcels/:zip', async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
   const offset = parseInt(req.query.offset) || 0;
   const minScore = parseInt(req.query.minScore) || 0;
+  const minLat = parseFloat(req.query.minLat) || null;
+  const maxLat = parseFloat(req.query.maxLat) || null;
+  const minLng = parseFloat(req.query.minLng) || null;
+  const maxLng = parseFloat(req.query.maxLng) || null;
+  
+  // If bounds provided, query parcels table directly (includes unscored parcels)
+  if (minLat && maxLat && minLng && maxLng) {
+    const { data, error } = await supabase
+      .from('parcels')
+      .select('id, owner_name, address, city, state, zip_code, lat, lng, assessed_value, owner_type, is_absentee, is_out_of_state, owner_state, mailing_state, tenure_years, prop_type')
+      .eq('zip_code', zip)
+      .gte('lat', minLat).lte('lat', maxLat)
+      .gte('lng', minLng).lte('lng', maxLng)
+      .limit(limit);
+    
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ parcels: data || [] });
+    return;
+  }
   
   const { data, error, count } = await supabase
     .from('parcel_scores')
