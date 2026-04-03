@@ -5046,6 +5046,7 @@ function initBriefingMap(prospects) {
     window._mapMarkers = {};
     window._mapInitialBounds = null;
     window._mapBoundsFiltering = false;
+    window._bgMarkers = [];
     
     const callIds = new Set((window._currentCallToday||[]).map(p => p.id || `${p.lat}-${p.lng}`));
     const mailIds = new Set((window._currentMailWeek||[]).map(p => p.id || `${p.lat}-${p.lng}`));
@@ -5088,19 +5089,13 @@ function initBriefingMap(prospects) {
     
     briefingMap.fitBounds(bounds, { top: 20, bottom: 20, left: 20, right: 20 });
     
-    // Store initial bounds for reset
+    // Store initial bounds after fitBounds settles, THEN enable bounds filtering
     google.maps.event.addListenerOnce(briefingMap, 'idle', () => {
         window._mapInitialBounds = briefingMap.getBounds();
-    });
-    
-    // Progressive loading — when zoomed past street level, fetch ALL parcels in bounds
-    window._bgMarkers = [];
-    let bgLoadTimeout;
-    
-    // Bounds filtering + progressive loading
-    let boundsTimeout;
-    briefingMap.addListener('idle', () => {
-        if (!window._mapInitialBounds) return;
+        
+        // NOW add the ongoing bounds listener
+        let boundsTimeout;
+        briefingMap.addListener('idle', () => {
         clearTimeout(boundsTimeout);
         boundsTimeout = setTimeout(() => {
             const currentBounds = briefingMap.getBounds();
@@ -5127,65 +5122,68 @@ function initBriefingMap(prospects) {
                 document.getElementById('mapReset').classList.add('active');
                 const fc = document.getElementById('filterCount');
                 if (fc) fc.textContent = `${visible} in view`;
+                
+                // Load ALL parcels in visible bounds for neighborhood exploration
+                loadBackgroundParcels(currentBounds);
             } else if (window._mapBoundsFiltering) {
                 resetMapFilter();
-            }
-            
-            // Progressive loading at zoom >= 15
-            if (briefingMap.getZoom() >= 15) {
-                clearTimeout(bgLoadTimeout);
-                bgLoadTimeout = setTimeout(() => loadBackgroundParcels(currentBounds), 500);
-            } else {
                 clearBackgroundParcels();
             }
         }, 300);
+        });
     });
 }
 
-// Show detail panel on map
+// Show detail panel on map — matches prospect card design
 function showMapPanel(p, isAct, isOut) {
     try {
     if (mapInfoWindow) mapInfoWindow.close();
     const id = p.id || `${p.lat}-${p.lng}`;
     const name = normalizeName(p.ownerName) || p.address;
-    const scoreClass = (p.sellerLikelihood || p.briefingRank || 0) >= 55 ? 'high' : (p.sellerLikelihood || p.briefingRank || 0) >= 35 ? 'med' : 'low';
     const score = p.sellerLikelihood || p.briefingRank || 0;
+    const scoreClass = score >= 55 ? 'high' : score >= 35 ? 'med' : 'low';
     const val = p.totalValue ? (p.totalValue >= 1000000 ? '$'+(p.totalValue/1000000).toFixed(1)+'M' : p.totalValue >= 1000 ? '$'+Math.round(p.totalValue/1000)+'K' : '$'+p.totalValue.toLocaleString()) : '';
     const cohort = p.cohortLabel || p.cohort || '';
     const why = p._dsWhyNow || p._liteReason || (typeof whyNow === 'function' ? whyNow(p) : '');
     
     document.getElementById('mapPanelHeader').innerHTML = `
-        <div><span class="map-panel-score ${scoreClass}">${score}</span><span class="map-panel-name">${name}</span></div>
-        <div class="map-panel-addr">${p.address || ''}${p.cityStateZip ? ' · '+p.cityStateZip : ''}</div>
-        <div class="map-panel-chips">
-            ${isAct ? '<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">🔥 Act Today</span>' : isOut ? '<span class="chip" style="background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)">Outreach</span>' : '<span class="chip">Watch List</span>'}
+        <div style="display:flex;align-items:center;gap:12px">
+            <div class="prospect-score ${scoreClass}" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;background:${scoreClass==='high'?'var(--green-dim)':scoreClass==='med'?'var(--gold-dim)':'rgba(255,255,255,0.04)'};border:2px solid ${scoreClass==='high'?'var(--green-border)':scoreClass==='med'?'var(--gold-border)':'var(--border)'};color:${scoreClass==='high'?'var(--green)':scoreClass==='med'?'var(--gold)':'var(--text-dim)'}">${score}</div>
+            <div>
+                <div style="font-weight:600;font-size:14px">${name}</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${p.address || ''}</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+            ${isAct ? '<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border);font-weight:600">🔥 Act Today</span>' : isOut ? '<span class="chip" style="background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)">Outreach</span>' : '<span class="chip">Watch List</span>'}
             ${cohort ? '<span class="chip">'+cohort+'</span>' : ''}
             ${val ? '<span class="chip">'+val+'</span>' : ''}
-            ${p.isOutOfState ? '<span class="chip" style="color:var(--gold)">Out-of-State ('+p.ownerState+')</span>' : ''}
+            ${p.isOutOfState ? '<span class="chip" style="color:var(--gold)">OOS · '+p.ownerState+'</span>' : ''}
             ${p.isAbsentee ? '<span class="chip">Absentee</span>' : ''}
+            ${p.tenureYears != null ? '<span class="chip">'+p.tenureYears+'yr tenure</span>' : ''}
         </div>
     `;
     
     let bodyHtml = '';
-    if (why) bodyHtml += `<div style="margin-bottom:10px">↗ ${why}</div>`;
+    if (why) bodyHtml += `<div style="margin-bottom:12px;font-size:13px;line-height:1.6">↗ ${why}</div>`;
+    
     if (p._deepSignalVerified && p._deepSignal) {
         const ds = p._deepSignal;
-        if (ds.motivation) bodyHtml += `<div style="margin-bottom:8px"><strong style="color:var(--text)">Motivation:</strong> ${ds.motivation}</div>`;
-        if (ds.timeline) bodyHtml += `<div style="margin-bottom:8px"><strong style="color:var(--text)">Timeline:</strong> ${ds.timeline}</div>`;
-        if (ds.whatNotToSay) bodyHtml += `<div style="margin-bottom:8px;color:var(--red)"><strong>Don't say:</strong> ${ds.whatNotToSay}</div>`;
+        if (ds.motivation) bodyHtml += `<div style="margin-bottom:10px"><div style="font-weight:600;color:var(--text);font-size:11px;letter-spacing:0.04em;margin-bottom:4px">MOTIVATION</div>${ds.motivation}</div>`;
+        if (ds.timeline) bodyHtml += `<div style="margin-bottom:10px"><div style="font-weight:600;color:var(--text);font-size:11px;letter-spacing:0.04em;margin-bottom:4px">TIMELINE</div>${ds.timeline}</div>`;
+        if (ds.whatNotToSay) bodyHtml += `<div style="margin-bottom:10px;color:var(--red)"><div style="font-weight:600;font-size:11px;letter-spacing:0.04em;margin-bottom:4px">DON'T SAY</div>${ds.whatNotToSay}</div>`;
     } else if (p._batchDeepSignal) {
         const ds = p._batchDeepSignal;
-        if (ds.motivation) bodyHtml += `<div style="margin-bottom:8px"><strong style="color:var(--text)">Motivation:</strong> ${ds.motivation}</div>`;
-        if (ds.what_not_to_say) bodyHtml += `<div style="margin-bottom:8px;color:var(--red)"><strong>Don't say:</strong> ${ds.what_not_to_say}</div>`;
+        if (ds.motivation) bodyHtml += `<div style="margin-bottom:10px"><div style="font-weight:600;color:var(--text);font-size:11px;letter-spacing:0.04em;margin-bottom:4px">MOTIVATION</div>${ds.motivation}</div>`;
+        if (ds.what_not_to_say) bodyHtml += `<div style="margin-bottom:10px;color:var(--red)"><div style="font-weight:600;font-size:11px;letter-spacing:0.04em;margin-bottom:4px">DON'T SAY</div>${ds.what_not_to_say}</div>`;
     }
-    if (p.tenureYears != null) bodyHtml += `<div>Tenure: ${p.tenureYears} years</div>`;
-    if (!bodyHtml) bodyHtml = `<div style="color:var(--text-dim)">Score: ${score} · ${cohort || 'Residential'}</div>`;
+    
+    if (!bodyHtml && !why) bodyHtml = `<div style="color:var(--text-dim);font-style:italic">No intelligence yet. Run Deep Signal for full analysis.</div>`;
     
     document.getElementById('mapPanelBody').innerHTML = bodyHtml;
     
     document.getElementById('mapPanelActions').innerHTML = `
-        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="openMailModal('${id}')">✉ Mail</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button>`}
-        <button class="mp-btn-secondary" onclick="document.getElementById('card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('card-${id}')?.classList.add('expanded')">View Card ↓</button>
+        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="openMailModal('${id}')">✉ Mail</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="openMailModal('${id}')">✉ Mail</button>`}
     `;
     
     document.getElementById('mapPanel').classList.add('open');
