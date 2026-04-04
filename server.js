@@ -4659,3 +4659,20 @@ async function runBackgroundLabeler() {
     console.error('Background labeler error:', e.message);
   }
 }
+
+// GET /api/v2/investigate-test — test investigation on a single address
+app.get('/api/v2/investigate-test', async (req, res) => {
+  const { address, city, state, owner } = req.query;
+  if (!address) return res.status(400).json({ error: 'address required' });
+  
+  const { investigateParcel } = require('./batch/investigate');
+  const result = await investigateParcel({
+    id: 'test',
+    owner_name: owner || 'UNKNOWN',
+    address: address,
+    city: city || 'Bozeman',
+    state: state || 'MT',
+  });
+  
+  res.json(result);
+});
