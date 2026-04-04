@@ -42,41 +42,83 @@ function extractSignals(label, results) {
   const signals = [];
   if (!results || results.length === 0) return signals;
   
-  const allText = results.map(r => `${r.title} ${r.snippet}`).join(' ').toLowerCase();
+  const allText = results.map(r => `${r.title} ${r.snippet}`).join(' ');
+  const lower = allText.toLowerCase();
   
   if (label === 'Zillow' || label === 'Redfin' || label === 'Listing') {
-    if (/for sale|active listing|listed for/i.test(allText)) signals.push({ type: 'active_listing', confidence: 0.9, detail: 'Active listing found' });
-    if (/sold|closed|off market.*sold/i.test(allText)) signals.push({ type: 'recently_sold', confidence: 0.8, detail: 'Recent sale detected' });
-    if (/pending|under contract/i.test(allText)) signals.push({ type: 'pending_sale', confidence: 0.85, detail: 'Pending sale' });
-    if (/price (cut|drop|reduced|change)|reduced by/i.test(allText)) signals.push({ type: 'price_reduction', confidence: 0.8, detail: 'Price reduction detected' });
-    if (/off market|removed|delisted|withdrawn|expired|cancelled/i.test(allText)) signals.push({ type: 'failed_listing', confidence: 0.75, detail: 'Previous listing failed/expired' });
-    if (/days on (market|zillow|redfin)|dom\b/i.test(allText)) signals.push({ type: 'extended_dom', confidence: 0.6, detail: 'Extended days on market' });
+    // CRITICAL: Distinguish current vs historical listing status
+    // Zillow/Redfin snippets say "off market", "sold", "pending", or show active price
     
-    // Price extraction
-    const priceMatch = allText.match(/\$[\d,]+(?:\.\d+)?(?:\s*(?:k|m))?/i);
-    if (priceMatch) signals.push({ type: 'list_price', confidence: 0.7, detail: priceMatch[0] });
+    // Previously listed but NOT currently active — strongest prospecting signal
+    if (/off\s*market|removed|delisted|withdrawn|expired|cancelled|no longer|previously listed/i.test(lower)) {
+      signals.push({ type: 'previously_listed', confidence: 0.85, detail: 'Property was listed but is now off market — possible failed sale or withdrawn listing' });
+    }
     
-    // Multiple listing attempts
-    const historyMatch = allText.match(/(\d+)\s*(?:times?|listing|sale)/i);
-    if (historyMatch) signals.push({ type: 'multiple_listings', confidence: 0.7, detail: `${historyMatch[1]} listing attempts` });
+    // Sold to a different owner — property already transferred
+    if (/sold\b.*\b20(2[3-6])|closed\b.*\b20(2[3-6])/i.test(lower)) {
+      signals.push({ type: 'recently_sold', confidence: 0.7, detail: 'Recent sale detected in listing history' });
+    }
+    
+    // Pending/under contract RIGHT NOW — blocker
+    if (/pending|under contract|contingent/i.test(lower) && !/was pending|previously pending|no longer pending/i.test(lower)) {
+      signals.push({ type: 'pending_sale', confidence: 0.6, detail: 'Possibly pending — needs verification' });
+    }
+    
+    // Price reductions in history — motivation signal
+    if (/price (cut|drop|reduced|change|decrease)|reduced by/i.test(lower)) {
+      signals.push({ type: 'price_history', confidence: 0.75, detail: 'Price reductions in listing history — seller motivation' });
+    }
+    
+    // Days on market / listing duration — long DOM = struggling seller
+    if (/(\d{3,})\s*days?\s*(on\s*(market|zillow|redfin)|\bdom\b)/i.test(lower)) {
+      signals.push({ type: 'extended_dom', confidence: 0.8, detail: 'Extended time on market in listing history' });
+    }
+    
+    // Multiple listing attempts over time
+    if (/list(ed|ing)\s*(history|activity)|(\d+)\s*times?\s*(listed|on market)/i.test(lower)) {
+      signals.push({ type: 'multiple_listing_attempts', confidence: 0.8, detail: 'Property has been listed multiple times' });
+    }
+    
+    // Has ANY Zillow/Redfin page at all — means it's been on the radar
+    if (results.length > 0 && results.some(r => /zillow\.com|redfin\.com/.test(r.link || ''))) {
+      signals.push({ type: 'listing_history_exists', confidence: 0.5, detail: 'Property has listing platform history' });
+    }
+    
+    // Price extraction from snippets
+    const priceMatch = lower.match(/\$([\d,]+(?:\.\d+)?)\s*(?:k|m)?/i);
+    if (priceMatch) signals.push({ type: 'historical_price', confidence: 0.5, detail: priceMatch[0] });
   }
   
   if (label === 'LinkedIn') {
-    if (results.length > 0) signals.push({ type: 'linkedin_found', confidence: 0.6, detail: results[0].title });
-    if (/retired|retirement|former|ex-/i.test(allText)) signals.push({ type: 'retired', confidence: 0.7, detail: 'Retirement indicator' });
-    if (/relocated|moving|moved to/i.test(allText)) signals.push({ type: 'relocation', confidence: 0.7, detail: 'Relocation indicator' });
+    if (results.length > 0 && results[0].link && /linkedin\.com\/in\//.test(results[0].link)) {
+      signals.push({ type: 'linkedin_found', confidence: 0.6, detail: results[0].title });
+    }
+    if (/retired|retirement|former\s+(ceo|president|director|vp|partner|owner)/i.test(lower)) {
+      signals.push({ type: 'retired', confidence: 0.7, detail: 'Retirement indicator from LinkedIn' });
+    }
+    if (/relocated|moving|moved to|new position in/i.test(lower)) {
+      signals.push({ type: 'relocation', confidence: 0.7, detail: 'Relocation indicator from LinkedIn' });
+    }
   }
   
   if (label === 'Life Events') {
-    if (/obituary|death|memorial|funeral|passed away|in loving memory/i.test(allText)) signals.push({ type: 'obituary', confidence: 0.8, detail: 'Possible death in household' });
-    if (/divorce|dissolution|separated/i.test(allText)) signals.push({ type: 'divorce', confidence: 0.7, detail: 'Divorce indicator' });
-    if (/retired|retirement/i.test(allText)) signals.push({ type: 'retirement', confidence: 0.7, detail: 'Retirement indicator' });
-    if (/bankrupt|foreclosure|delinquent/i.test(allText)) signals.push({ type: 'financial_distress', confidence: 0.8, detail: 'Financial distress indicator' });
+    if (/obituary|passed away|in loving memory|memorial service|funeral/i.test(lower)) {
+      signals.push({ type: 'obituary', confidence: 0.75, detail: 'Possible death connected to this owner or household' });
+    }
+    if (/divorce|dissolution of marriage|separated/i.test(lower)) {
+      signals.push({ type: 'divorce', confidence: 0.7, detail: 'Divorce indicator' });
+    }
+    if (/retired|retirement|retiring/i.test(lower)) {
+      signals.push({ type: 'retirement', confidence: 0.65, detail: 'Retirement indicator' });
+    }
+    if (/bankrupt|foreclosure|tax\s*lien|delinquent/i.test(lower)) {
+      signals.push({ type: 'financial_distress', confidence: 0.8, detail: 'Financial distress indicator' });
+    }
   }
   
   if (label === 'Agent Check') {
-    if (/real estate agent|realtor|broker|realty/i.test(allText) && results.length > 0) {
-      signals.push({ type: 'is_agent', confidence: 0.8, detail: 'Owner appears to be a real estate agent' });
+    if (/real estate agent|realtor|licensed.*broker|associate broker/i.test(lower) && results.some(r => /zillow\.com\/profile|realtor\.com\/realtoragent/i.test(r.link || ''))) {
+      signals.push({ type: 'is_agent', confidence: 0.85, detail: 'Owner appears to be a real estate agent — likely not a prospect' });
     }
   }
   
@@ -125,10 +167,12 @@ async function investigateParcel(parcel) {
   }
   
   // Build investigation summary
-  const hasListingHistory = allSignals.some(s => ['active_listing','failed_listing','recently_sold','pending_sale','price_reduction','extended_dom','multiple_listings'].includes(s.type));
+  const hasListingHistory = allSignals.some(s => ['previously_listed','listing_history_exists','multiple_listing_attempts','price_history','extended_dom','recently_sold'].includes(s.type));
+  const hasPreviousListing = allSignals.some(s => s.type === 'previously_listed' || s.type === 'multiple_listing_attempts');
   const hasLifeEvent = allSignals.some(s => ['obituary','divorce','retirement','financial_distress','relocation'].includes(s.type));
   const isAgent = allSignals.some(s => s.type === 'is_agent');
   const hasLinkedIn = allSignals.some(s => s.type === 'linkedin_found');
+  const isPending = allSignals.some(s => s.type === 'pending_sale');
   
   return {
     parcelId: parcel.id || parcel.parcel_id,
@@ -136,17 +180,19 @@ async function investigateParcel(parcel) {
     signals: allSignals,
     summary: {
       hasListingHistory,
+      hasPreviousListing,
       hasLifeEvent,
       isAgent,
       hasLinkedIn,
+      isPending,
       signalCount: allSignals.length,
     },
     // Enhanced claims for re-inference
     enhancedClaims: {
-      listingSignals: allSignals.filter(s => ['active_listing','failed_listing','recently_sold','pending_sale','price_reduction','extended_dom','multiple_listings'].includes(s.type)).map(s => s.detail),
+      listingSignals: allSignals.filter(s => ['previously_listed','multiple_listing_attempts','price_history','extended_dom'].includes(s.type)).map(s => s.detail),
       lifeEventSignals: allSignals.filter(s => ['obituary','divorce','retirement','financial_distress','relocation'].includes(s.type)).map(s => s.detail),
-      identitySignals: allSignals.filter(s => ['linkedin_found','is_agent','retired'].includes(s.type)).map(s => s.detail),
-      blockerSignals: allSignals.filter(s => s.type === 'is_agent').map(s => s.detail),
+      identitySignals: allSignals.filter(s => ['linkedin_found','retired','relocation'].includes(s.type)).map(s => s.detail),
+      blockerSignals: allSignals.filter(s => ['is_agent','pending_sale'].includes(s.type)).map(s => s.detail),
     },
   };
 }
