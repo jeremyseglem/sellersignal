@@ -184,51 +184,35 @@ function buildTruthObject(parcel, marketContext) {
 // BATCH INFERENCE — send truth objects to Claude
 // ========================================
 async function runInferenceBatch(anthropic, truthObjects, marketKey, modelVersion) {
-  const userPrompt = `You are scoring a batch of ${truthObjects.length} parcels for SellerSignal.
+  const userPrompt = `Score ${truthObjects.length} parcels. Market: ${marketKey}. Model: ${modelVersion}.
 
-Market: ${marketKey}
-Model version: ${modelVersion}
+Return ONLY raw JSON (no markdown, no backticks):
+{"results":[{"parcelId":"str","ownershipArchetype":"owner_occupant_long_term|individual_absentee_second_home|trust_estate_transition|small_portfolio_simplifier|vacant_land_holder|ranch_operator|institutional_entity|unknown","sellerState":"stable_hold|latent_transition|moderate_motivation|high_motivation|research_required|likely_false_positive","pressureSources":["str"],"timelineBucket":"0_6_months|6_12_months|12_24_months|24_plus_months|unclear","preferredOutreach":"soft_mail|call_first|research_first|watch_only|premium_discreet_outreach","sellerIntentScore":0.0,"offMarketReceptivity":0.0,"contactability":0.0,"falsePositiveRisk":0.0,"confidence":0.0,"topReason":"str","mainBlocker":"str","evidenceKeys":["str"]}]}
 
-Return JSON in exactly this shape — no markdown, no backticks, ONLY the JSON object:
-{
-  "results": [
-    {
-      "parcelId": "string",
-      "ownershipArchetype": "owner_occupant_long_term|individual_absentee_second_home|trust_estate_transition|small_portfolio_simplifier|vacant_land_holder|ranch_operator|institutional_entity|unknown",
-      "sellerState": "stable_hold|latent_transition|moderate_motivation|high_motivation|research_required|likely_false_positive",
-      "pressureSources": ["string"],
-      "timelineBucket": "0_6_months|6_12_months|12_24_months|24_plus_months|unclear",
-      "preferredOutreach": "soft_mail|call_first|research_first|watch_only|premium_discreet_outreach",
-      "sellerIntentScore": 0.0,
-      "offMarketReceptivity": 0.0,
-      "contactability": 0.0,
-      "falsePositiveRisk": 0.0,
-      "confidence": 0.0,
-      "topReason": "string",
-      "mainBlocker": "string",
-      "evidenceKeys": ["string"]
-    }
-  ]
-}
-
-Input parcels:
+Parcels:
 ${JSON.stringify(truthObjects)}`;
 
   const response = await anthropic.messages.create({
     model: process.env.ANTHROPIC_BATCH_MODEL || 'claude-haiku-4-5-20251001',
-    max_tokens: 8000,
+    max_tokens: 16000,
     temperature: 0,
     system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }]
+    messages: [
+      { role: 'user', content: userPrompt },
+      { role: 'assistant', content: '{"results":[' }
+    ]
   });
   
-  const rawText = response.content
+  let rawText = '{"results":[' + (response.content
     ?.filter(c => c.type === 'text')
     ?.map(c => c.text)
     ?.join('\n')
-    ?.trim() || '';
+    ?.trim() || '');
   
-  // Parse JSON — handle markdown wrapping
+  // Strip markdown fences
+  rawText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  
+  // Parse JSON
   let parsed;
   try {
     parsed = JSON.parse(rawText);

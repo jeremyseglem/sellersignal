@@ -9,7 +9,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const MODEL_VERSION = 'seller_state_v1';
-const BATCH_SIZE = 40; // parcels per API call
+const BATCH_SIZE = 25; // parcels per API call
 const CONCURRENCY = 2;  // parallel API calls
 
 function log(msg) { console.log(`[${new Date().toISOString().substring(11,19)}] ${msg}`); }
@@ -105,10 +105,14 @@ async function processZip(zip, marketKey, marketContext) {
       chunk.map(async (batch, idx) => {
         const batchNum = i + idx + 1;
         try {
-          // Strip internal fields before sending to AI
+          // Strip internal fields and compact before sending to AI
           const cleanBatch = batch.map(t => {
             const { _truthHash, ...clean } = t;
-            return clean;
+            // Remove null/empty fields to save tokens
+            const compact = JSON.parse(JSON.stringify(clean, (k, v) => 
+              v === null || v === '' || v === 0 || v === false || (Array.isArray(v) && v.length === 0) ? undefined : v
+            ));
+            return compact;
           });
           
           const inferences = await runInferenceBatch(anthropic, cleanBatch, marketKey, MODEL_VERSION);
