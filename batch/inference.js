@@ -260,7 +260,8 @@ function computeRanking(inference) {
 const JUNK_RX = /\bUSA\b|\bCITY OF\b|\bTOWN OF\b|\bVILLAGE OF\b|\bBOROUGH OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL\b|\bACADEMY\b|\bSEMINARY\b|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bMINISTR(Y|IES)\b|\bPARISH\b|\bMONASTER|\bCONVENT\b|\bSYNAGOGUE\b|\bTEMPLE\b|\bMOSQUE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCONDO\s*(MASTER|ASSOC)|\bCONDOMINIUM\s*ASS|\bOWNERS?\s*ASSOC|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bMUSEUM\b|\bCEMETERY\b|\bLIBRARY\b|\bFOUNDATION\b|\bUNIVERSIT(Y|IES)\b|\bCOLLEGE\b|\bHOSPITAL\b|\bHEALTH(CARE)?\s*(SYSTEM|INC|CORP|GROUP|CENTER)\b|\bMEDICAL\s*CENTER\b|\bYMCA\b|\bYWCA\b|\bROTARY\b|\bLIONS\s*CLUB|\bELKS\b|\bVFW\b|\bAMERICAN\s*LEGION|\bSALVATION\s*ARMY|\bGOODWILL\b|\bHABITAT\b|\bRED\s*CROSS|\bBANK\b|\bCREDIT\s*UNION|\bMORTGAGE\b|\bLENDING\b|\bREAL ESTATE\b|\bREALTY\b|\bBROKERAGE\b/i;
 
 function isJunk(ownerName) {
-  return !ownerName || ownerName.length < 3 || JUNK_RX.test(ownerName);
+  if (!ownerName || ownerName.length < 3) return false; // blank names are NOT junk — real properties, unknown owner
+  return JUNK_RX.test(ownerName);
 }
 
 module.exports = {
