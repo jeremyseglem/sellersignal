@@ -184,7 +184,7 @@ async function processZip(zip, marketKey, marketContext) {
   
   // ========================================
   // LAYER 3: INVESTIGATION — run on act_today + outreach parcels
-  // Searches Zillow, LinkedIn, life events. Re-scores with findings.
+  // Checks cache first — only re-investigates if expired (30 days) or truth_hash changed
   // ========================================
   const skipInvestigation = process.argv.includes('--noinvest');
   
@@ -194,43 +194,104 @@ async function processZip(zip, marketKey, marketContext) {
     // Pull act_today + outreach parcels for this ZIP
     const { data: topParcels } = await supabase
       .from('seller_state_inference')
-      .select('parcel_id')
+      .select('parcel_id, truth_hash')
       .eq('zip_code', zip)
       .in('act_tier', ['act_today', 'outreach'])
       .order('briefing_rank', { ascending: false })
       .limit(200);
     
     if (topParcels && topParcels.length > 0) {
-      // Get parcel details for investigation
       const topIds = topParcels.map(p => p.parcel_id);
-      const { data: parcelDetails } = await supabase
-        .from('parcels')
-        .select('id, owner_name, address, city, state, zip_code, assessed_value, is_absentee, is_out_of_state, owner_state, mailing_state, tenure_years, prop_type')
-        .in('id', topIds);
+      const truthHashes = new Map(topParcels.map(p => [p.parcel_id, p.truth_hash]));
       
-      log(`  Layer 3: Investigating ${parcelDetails?.length || 0} top parcels...`);
+      // Check investigation cache — skip parcels with valid cache
+      const { data: cachedInvestigations } = await supabase
+        .from('investigation_cache')
+        .select('parcel_id, truth_hash_at_investigation, expires_at')
+        .in('parcel_id', topIds);
       
-      let investigated = 0;
+      const cacheMap = new Map((cachedInvestigations || []).map(c => [c.parcel_id, c]));
+      const now = new Date();
+      
+      const needsInvestigation = topIds.filter(id => {
+        const cached = cacheMap.get(id);
+        if (!cached) return true; // never investigated
+        if (new Date(cached.expires_at) < now) return true; // expired
+        if (cached.truth_hash_at_investigation !== truthHashes.get(id)) return true; // data changed
+        return false;
+      });
+      
+      const skipped = topIds.length - needsInvestigation.length;
+      log(`  Layer 3: ${topIds.length} top parcels — ${skipped} cached, ${needsInvestigation.length} need investigation`);
+      
       const enhanced = [];
+      let investigated = 0;
       
-      for (const p of (parcelDetails || [])) {
-        try {
-          const result = await investigateParcel(p);
-          investigated++;
-          
-          if (result.signals.length > 0) {
-            enhanced.push({ parcel: p, investigation: result });
+      if (needsInvestigation.length > 0) {
+        // Get parcel details for investigation
+        const { data: parcelDetails } = await supabase
+          .from('parcels')
+          .select('id, owner_name, address, city, state, zip_code, assessed_value, is_absentee, is_out_of_state, owner_state, mailing_state, tenure_years, prop_type')
+          .in('id', needsInvestigation);
+        
+        for (const p of (parcelDetails || [])) {
+          try {
+            const result = await investigateParcel(p);
+            investigated++;
+            
+            // Cache the result
+            await supabase.from('investigation_cache').upsert({
+              parcel_id: p.id,
+              zip_code: zip,
+              search_count: result.searchCount,
+              signal_count: result.signals.length,
+              signals: result.signals,
+              enhanced_claims: result.enhancedClaims,
+              summary: result.summary,
+              raw_result_count: result.rawResultCount || 0,
+              investigated_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              truth_hash_at_investigation: truthHashes.get(p.id) || null,
+            }, { onConflict: 'parcel_id' });
+            
+            if (result.signals.length > 0) {
+              enhanced.push({ parcel: p, investigation: result });
+            }
+            
+            if (investigated % 10 === 0) {
+              log(`    Investigated ${investigated}/${parcelDetails.length} — ${enhanced.length} with new signals`);
+            }
+          } catch (e) {
+            log(`    Investigation error on ${p.id}: ${e.message}`);
           }
+        }
+        
+        log(`  Layer 3: ${investigated} investigated, ${enhanced.length} have new signals`);
+      } // end if (needsInvestigation.length > 0)
+      
+      // Load cached investigation results for parcels we skipped
+      if (skipped > 0) {
+        const cachedIds = topIds.filter(id => !needsInvestigation.includes(id));
+        const { data: cachedResults } = await supabase
+          .from('investigation_cache')
+          .select('parcel_id, signals, enhanced_claims')
+          .in('parcel_id', cachedIds)
+          .gt('signal_count', 0);
+        
+        if (cachedResults) {
+          const { data: cachedParcelDetails } = await supabase
+            .from('parcels')
+            .select('id, owner_name, address, city, state, zip_code, assessed_value, is_absentee, is_out_of_state, owner_state, mailing_state, tenure_years, prop_type')
+            .in('id', cachedResults.map(c => c.parcel_id));
           
-          if (investigated % 10 === 0) {
-            log(`    Investigated ${investigated}/${parcelDetails.length} — ${enhanced.length} with new signals`);
+          const parcelMap = new Map((cachedParcelDetails || []).map(p => [p.id, p]));
+          for (const c of cachedResults) {
+            const p = parcelMap.get(c.parcel_id);
+            if (p) enhanced.push({ parcel: p, investigation: { signals: c.signals, enhancedClaims: c.enhanced_claims } });
           }
-        } catch (e) {
-          log(`    Investigation error on ${p.id}: ${e.message}`);
+          log(`  Layer 3: ${cachedResults.length} cached results included in re-scoring`);
         }
       }
-      
-      log(`  Layer 3: ${investigated} investigated, ${enhanced.length} have new signals`);
       
       // Re-score parcels that got new investigation signals
       if (enhanced.length > 0) {

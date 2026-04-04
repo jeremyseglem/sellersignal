@@ -98,3 +98,22 @@ SELECT
   s.computed_at AS inference_computed_at
 FROM parcels p
 LEFT JOIN seller_state_inference s ON s.parcel_id = p.id;
+
+-- Investigation cache — stores Layer 3 results per parcel
+CREATE TABLE IF NOT EXISTS investigation_cache (
+  parcel_id TEXT PRIMARY KEY REFERENCES parcels(id) ON DELETE CASCADE,
+  zip_code TEXT NOT NULL,
+  search_count INTEGER NOT NULL DEFAULT 0,
+  signal_count INTEGER NOT NULL DEFAULT 0,
+  signals JSONB NOT NULL DEFAULT '[]'::jsonb,
+  enhanced_claims JSONB NOT NULL DEFAULT '{}'::jsonb,
+  summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+  raw_result_count INTEGER NOT NULL DEFAULT 0,
+  investigated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+  truth_hash_at_investigation TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_inv_cache_zip ON investigation_cache(zip_code);
+CREATE INDEX IF NOT EXISTS idx_inv_cache_expires ON investigation_cache(expires_at);
+ALTER TABLE investigation_cache ENABLE ROW LEVEL SECURITY;
