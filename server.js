@@ -4410,6 +4410,106 @@ app.get('/api/batch/run', (req, res) => {
 });
 
 // ===================
+// V2 — FULL-UNIVERSE SELLER-STATE INFERENCE
+// ===================
+
+// GET /api/v2/batch/start — trigger v2 inference worker
+app.get('/api/v2/batch/start', (req, res) => {
+  const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
+  if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid batch key' });
+  
+  const args = [];
+  if (req.query.zip) args.push(req.query.zip);
+  else args.push('--all');
+  
+  const { spawn } = require('child_process');
+  const worker = spawn('node', ['batch/worker-v2.js', ...args], {
+    stdio: 'inherit',
+    env: process.env,
+    detached: true,
+  });
+  worker.unref();
+  worker.on('error', (err) => console.error(`V2 batch spawn error: ${err.message}`));
+  
+  res.json({
+    started: true,
+    command: `node batch/worker-v2.js ${args.join(' ')}`,
+    message: 'V2 inference started in background.',
+  });
+});
+
+// GET /api/v2/batch/run — run v2 inference with streaming output
+app.get('/api/v2/batch/run', (req, res) => {
+  const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
+  if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid batch key' });
+  
+  const args = [];
+  if (req.query.zip) args.push(req.query.zip);
+  else args.push('--all');
+  
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  
+  const { spawn } = require('child_process');
+  const worker = spawn('node', ['batch/worker-v2.js', ...args], {
+    env: process.env,
+  });
+  
+  worker.stdout.on('data', (d) => res.write(d));
+  worker.stderr.on('data', (d) => res.write(d));
+  worker.on('close', (code) => { res.write(`\nExit code: ${code}\n`); res.end(); });
+  worker.on('error', (err) => { res.write(`\nWorker error: ${err.message}\n`); res.end(); });
+  req.on('close', () => { worker.kill(); });
+});
+
+// GET /api/v2/briefing/:zip — read persisted inference results
+app.get('/api/v2/briefing/:zip', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+  
+  const { zip } = req.params;
+  const tier = req.query.tier;
+  const limit = Math.min(parseInt(req.query.limit) || 500, 2000);
+  
+  // Read from inference join with parcels
+  let query = supabase
+    .from('seller_state_inference')
+    .select('*, parcels(*)')
+    .eq('zip_code', zip)
+    .order('briefing_rank', { ascending: false })
+    .limit(limit);
+  
+  if (tier) query = query.eq('act_tier', tier);
+  
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  
+  // Get counts per tier
+  const { data: allTiers } = await supabase
+    .from('seller_state_inference')
+    .select('act_tier')
+    .eq('zip_code', zip);
+  
+  const tierCounts = {};
+  for (const r of (allTiers || [])) {
+    tierCounts[r.act_tier] = (tierCounts[r.act_tier] || 0) + 1;
+  }
+  
+  // Get deep signals
+  const { data: deepSignals } = await supabase
+    .from('deep_signals')
+    .select('*')
+    .eq('zip_code', zip);
+  
+  res.json({
+    leads: data || [],
+    tierCounts,
+    deepSignals: deepSignals || [],
+    total: (allTiers || []).length,
+    cached: true,
+  });
+});
+
+// ===================
 // STATIC FILES
 // ===================
 app.get('/', (req, res) => res.sendFile('index.html', { root: './public' }));

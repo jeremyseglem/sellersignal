@@ -1,0 +1,266 @@
+// SellerSignal v2 Worker — Full-Universe Seller-State Inference
+// Runs inference on ALL eligible parcels, not just a structural shortlist.
+
+const { createClient } = require('@supabase/supabase-js');
+const Anthropic = require('@anthropic-ai/sdk');
+const { buildTruthObject, runInferenceBatch, computeRanking, isJunk } = require('./inference');
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const MODEL_VERSION = 'seller_state_v1';
+const BATCH_SIZE = 40; // parcels per API call
+const CONCURRENCY = 2;  // parallel API calls
+
+function log(msg) { console.log(`[${new Date().toISOString().substring(11,19)}] ${msg}`); }
+
+async function loadParcels(zip) {
+  const all = [];
+  let offset = 0;
+  const pageSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from('parcels')
+      .select('*')
+      .eq('zip_code', zip)
+      .range(offset, offset + pageSize - 1);
+    
+    if (error) throw new Error(`Load parcels error: ${error.message}`);
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+  
+  return all;
+}
+
+async function loadExistingInference(zip) {
+  const all = [];
+  let offset = 0;
+  const pageSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from('seller_state_inference')
+      .select('parcel_id, truth_hash')
+      .eq('zip_code', zip)
+      .range(offset, offset + pageSize - 1);
+    
+    if (error) break;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+  
+  return new Map(all.map(r => [r.parcel_id, r.truth_hash]));
+}
+
+async function processZip(zip, marketKey, marketContext) {
+  log(`Processing ${zip}...`);
+  
+  // Load all parcels
+  const parcels = await loadParcels(zip);
+  log(`  ${parcels.length} parcels loaded`);
+  
+  // Filter junk (bouncer, not judge)
+  const eligible = parcels.filter(p => !isJunk(p.owner_name));
+  log(`  ${eligible.length} eligible (${parcels.length - eligible.length} junk removed)`);
+  
+  // Build truth objects for all eligible
+  const truthObjects = eligible.map(p => buildTruthObject(p, marketContext));
+  
+  // Check existing inference — skip if truth hash unchanged
+  const existing = await loadExistingInference(zip);
+  const needsInference = truthObjects.filter(t => {
+    const existingHash = existing.get(t.parcelId);
+    return existingHash !== t._truthHash;
+  });
+  
+  log(`  ${needsInference.length} need inference (${truthObjects.length - needsInference.length} cached)`);
+  
+  if (needsInference.length === 0) {
+    log(`  Skipping — all cached`);
+    return { parcels: parcels.length, eligible: eligible.length, inferred: 0, errors: 0 };
+  }
+  
+  // Batch inference
+  const batches = [];
+  for (let i = 0; i < needsInference.length; i += BATCH_SIZE) {
+    batches.push(needsInference.slice(i, i + BATCH_SIZE));
+  }
+  
+  log(`  ${batches.length} batches of ~${BATCH_SIZE}`);
+  
+  let totalInferred = 0;
+  let totalErrors = 0;
+  
+  // Process batches with limited concurrency
+  for (let i = 0; i < batches.length; i += CONCURRENCY) {
+    const chunk = batches.slice(i, i + CONCURRENCY);
+    
+    const results = await Promise.allSettled(
+      chunk.map(async (batch, idx) => {
+        const batchNum = i + idx + 1;
+        try {
+          // Strip internal fields before sending to AI
+          const cleanBatch = batch.map(t => {
+            const { _truthHash, ...clean } = t;
+            return clean;
+          });
+          
+          const inferences = await runInferenceBatch(anthropic, cleanBatch, marketKey, MODEL_VERSION);
+          
+          // Build rows for upsert
+          const rows = [];
+          for (const inf of inferences) {
+            const truth = batch.find(t => t.parcelId === inf.parcelId);
+            if (!truth) continue;
+            
+            const { briefingRank, actTier } = computeRanking(inf);
+            
+            rows.push({
+              parcel_id: inf.parcelId,
+              zip_code: zip,
+              market_key: marketKey,
+              model_version: MODEL_VERSION,
+              ownership_archetype: inf.ownershipArchetype || 'unknown',
+              seller_state: inf.sellerState || 'stable_hold',
+              pressure_sources: inf.pressureSources || [],
+              timeline_bucket: inf.timelineBucket || 'unclear',
+              preferred_outreach: inf.preferredOutreach || 'watch_only',
+              seller_intent_score: inf.sellerIntentScore || 0,
+              off_market_receptivity: inf.offMarketReceptivity || 0,
+              contactability: inf.contactability || 0,
+              false_positive_risk: inf.falsePositiveRisk || 1,
+              confidence: inf.confidence || 0,
+              top_reason: inf.topReason || null,
+              main_blocker: inf.mainBlocker || null,
+              evidence_keys: inf.evidenceKeys || [],
+              briefing_rank: briefingRank,
+              act_tier: actTier,
+              truth_hash: truth._truthHash,
+              computed_at: new Date().toISOString(),
+            });
+          }
+          
+          // Upsert to Supabase
+          if (rows.length > 0) {
+            const { error: uErr } = await supabase
+              .from('seller_state_inference')
+              .upsert(rows, { onConflict: 'parcel_id' });
+            
+            if (uErr) {
+              log(`    Batch ${batchNum}: upsert error — ${uErr.message}`);
+              return { inferred: 0, errors: batch.length };
+            }
+          }
+          
+          return { inferred: rows.length, errors: batch.length - rows.length };
+        } catch (e) {
+          log(`    Batch ${batchNum}: API error — ${e.message}`);
+          return { inferred: 0, errors: batch.length };
+        }
+      })
+    );
+    
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        totalInferred += r.value.inferred;
+        totalErrors += r.value.errors;
+      } else {
+        totalErrors += BATCH_SIZE;
+      }
+    }
+    
+    log(`  Progress: ${totalInferred}/${needsInference.length} inferred, ${totalErrors} errors`);
+  }
+  
+  // Update zip_briefings with act_today / outreach counts from inference
+  const { data: tierCounts } = await supabase
+    .from('seller_state_inference')
+    .select('act_tier')
+    .eq('zip_code', zip);
+  
+  if (tierCounts) {
+    const actToday = tierCounts.filter(r => r.act_tier === 'act_today').length;
+    const outreach = tierCounts.filter(r => r.act_tier === 'outreach').length;
+    const deepFirst = tierCounts.filter(r => r.act_tier === 'deep_signal_first').length;
+    
+    await supabase
+      .from('zip_briefings')
+      .update({
+        act_today_count: actToday,
+        outreach_queue_count: outreach,
+        computed_at: new Date().toISOString(),
+      })
+      .eq('zip_code', zip);
+    
+    log(`  Tiers: ${actToday} act_today, ${outreach} outreach, ${deepFirst} deep_signal_first`);
+  }
+  
+  log(`  DONE: ${totalInferred} inferred, ${totalErrors} errors`);
+  return { parcels: parcels.length, eligible: eligible.length, inferred: totalInferred, errors: totalErrors };
+}
+
+// ========================================
+// MAIN — run inference for all ZIPs or specific ZIP
+// ========================================
+async function main() {
+  const args = process.argv.slice(2);
+  const singleZip = args.find(a => /^\d{5}$/.test(a));
+  const runAll = args.includes('--all');
+  
+  log('=== SellerSignal v2 Inference Worker ===');
+  
+  // Load market configs
+  const MARKETS = require('./markets').MARKETS;
+  
+  // Build ZIP → market mapping
+  const zipToMarket = {};
+  for (const [key, market] of Object.entries(MARKETS)) {
+    for (const zip of (market.zips || [])) {
+      zipToMarket[zip] = { key: market.key, homeState: market.homeState };
+    }
+  }
+  
+  let zips;
+  if (singleZip) {
+    zips = [singleZip];
+  } else if (runAll) {
+    zips = Object.keys(zipToMarket);
+  } else {
+    log('Usage: node batch/worker-v2.js --all  OR  node batch/worker-v2.js 85253');
+    process.exit(1);
+  }
+  
+  log(`Processing ${zips.length} ZIPs`);
+  
+  let totalParcels = 0, totalInferred = 0, totalErrors = 0;
+  
+  for (const zip of zips) {
+    const market = zipToMarket[zip] || { key: 'unknown', homeState: '' };
+    
+    // Basic market context (can be enriched later)
+    const marketContext = {
+      homeState: market.homeState,
+      localTurnoverPercentile: null, // TODO: compute from actual sales data
+    };
+    
+    try {
+      const result = await processZip(zip, market.key, marketContext);
+      totalParcels += result.parcels;
+      totalInferred += result.inferred;
+      totalErrors += result.errors;
+    } catch (e) {
+      log(`  ERROR on ${zip}: ${e.message}`);
+      totalErrors++;
+    }
+  }
+  
+  log(`\n=== DONE: ${zips.length} ZIPs | ${totalParcels.toLocaleString()} parcels | ${totalInferred.toLocaleString()} inferred | ${totalErrors} errors ===`);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });
