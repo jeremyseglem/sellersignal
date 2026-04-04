@@ -485,6 +485,7 @@ body.demo-mode .feedback-tab{display:none}
             <div class="briefing-date" id="briefDate"></div>
         </div>
         <div class="briefing-title">Daily Briefing</div>
+        <div class="briefing-sub" style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:var(--text-secondary);margin-bottom:12px"></div>
         <div class="briefing-farm" id="briefFarm"></div>
         <div class="briefing-stats" id="briefStats"></div>
         <div class="briefing-map" id="briefMapWrap">
@@ -1607,22 +1608,31 @@ function scoreParcel(p, stats, cal) {
 // ========================
 function normalizeName(raw) {
     if (!raw) return '';
-    let n = raw.replace(/&.*$/,'').replace(/\+.*$/,'').trim(); // Remove "& SPOUSE..." or "+SPOUSE"
-    if (/LLC|TRUST|INC|CORP|RANCH|FARM|ESTATE|FOUNDATION|GROUP|HOLDINGS|PROPERTIES/i.test(n)) return n.trim();
+    let n = raw.replace(/&.*$/,'').replace(/\+.*$/,'').trim();
+    const toTitle = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    
+    // Entity names — title case them but preserve acronyms
+    if (/LLC|TRUST|INC|CORP|RANCH|FARM|ESTATE|FOUNDATION|GROUP|HOLDINGS|PROPERTIES/i.test(n)) {
+        return n.split(/\s+/).map(w => {
+            if (/^(LLC|INC|LP|LLP|CORP|II|III|IV|VI|VII|REV|TR|DTD)$/i.test(w)) return w.toUpperCase();
+            return toTitle(w);
+        }).join(' ');
+    }
     
     const words = n.split(/\s+/).filter(w => w.length > 1);
-    if (words.length < 2 || words.length > 4) return n.trim();
+    if (words.length < 2 || words.length > 4) {
+        return n.split(/\s+/).map(w => w.length <= 2 ? w.toUpperCase() : toTitle(w)).join(' ');
+    }
     
     // Only flip if ALL words are uppercase (assessor-style LAST FIRST MIDDLE)
     const allUpper = words.every(w => w === w.toUpperCase());
     if (allUpper) {
         const last = words[0];
         const first = words[1];
-        const toTitle = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-        return toTitle(first) + ' ' + toTitle(last);
+        const middle = words.slice(2).map(w => w.length <= 2 ? w.toUpperCase() : toTitle(w)).join(' ');
+        return toTitle(first) + (middle ? ' ' + middle : '') + ' ' + toTitle(last);
     }
     
-    // Already mixed case — return as-is with light cleanup
     return n.trim();
 }
 
@@ -3273,6 +3283,20 @@ async function startBriefing() {
                     window._investigationComplete = true;
                     window._backtestCalibration = preData.briefing?.calibration || null;
                     
+                    // Update briefing title with market name
+                    const zipMarketNames = {
+                        '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana','59716':'Big Sky, Montana','59730':'Livingston, Montana',
+                        '98004':'Bellevue, Washington','98112':'Capitol Hill, Seattle','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington','98074':'Sammamish, Washington','98103':'Fremont, Seattle','98109':'Queen Anne, Seattle','98105':'University District, Seattle','98199':'Magnolia, Seattle',
+                        '85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85262':'Rio Verde, Arizona','85377':'Carefree, Arizona','85331':'Cave Creek, Arizona','85258':'McCormick Ranch, Arizona','85260':'Central Scottsdale, Arizona','85266':'Pinnacle Peak, Arizona','85264':'Fort McDowell, Arizona',
+                        '28207':'Uptown Charlotte, NC','28209':'South Charlotte, NC','28211':'Myers Park, Charlotte, NC','28226':'SouthPark, Charlotte, NC',
+                        '33480':'Palm Beach, Florida',
+                    };
+                    const marketName = zipMarketNames[cleanQuery] || preData.briefing?.market_name || cleanQuery;
+                    const titleEl = document.querySelector('.briefing-title');
+                    if (titleEl) titleEl.textContent = marketName;
+                    const subEl = document.querySelector('.briefing-sub');
+                    if (subEl) subEl.textContent = `${totalParcels.toLocaleString()} properties · AI-scored against 47 seller indicators`;
+                    
                     // Render immediately
                     renderBriefing(prospects, totalParcels, 0, 0);
                     document.getElementById('briefingContent').classList.add('briefing-reveal');
@@ -4421,8 +4445,8 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                 <div class="prospect-info">
                     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
                         <div style="min-width:0">
-                            <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:var(--gold-border);border-radius:3px">NEW</span>' : ''}${name || p.address}${name ? ` <span style="color:var(--text-dim);font-weight:400;font-size:13px">— ${p.address}</span>` : ''}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
-                            <div style="font-size:12px;color:var(--text-secondary);margin-top:3px">${p.address} · ${val || 'N/A'} · ${ownerTypeLabel}</div>
+                            <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:var(--gold-border);border-radius:3px">NEW</span>' : ''}${name || p.address}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic;font-family:\'DM Sans\',sans-serif;font-weight:400">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
+                            <div style="font-size:12px;color:var(--text-secondary);margin-top:3px">${(p.address||'').split(' ').map(w => /^\d/.test(w) ? w : w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ')} · ${val || 'N/A'} · ${ownerTypeLabel}</div>
                             ${p.subdivision ? `<div style="font-size:10.5px;color:var(--text-dim);margin-top:4px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:5px;height:5px;border-radius:2px;background:${tier==='call'?'var(--green)':'var(--gold)'};opacity:0.5"></span>${p.subdivision}</div>` : ''}
                         </div>
                         <div class="prospect-score ${p.scoreClass}" style="width:48px;height:48px;border-radius:12px;font-size:19px">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:1px;color:var(--accent)">✓ DS</div>' : ''}</div>
