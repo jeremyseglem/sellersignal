@@ -182,6 +182,154 @@ async function processZip(zip, marketKey, marketContext) {
     log(`  Progress: ${totalInferred}/${needsInference.length} inferred, ${totalErrors} errors`);
   }
   
+  // ========================================
+  // LAYER 3: INVESTIGATION — run on act_today + outreach parcels
+  // Searches Zillow, LinkedIn, life events. Re-scores with findings.
+  // ========================================
+  const skipInvestigation = process.argv.includes('--noinvest');
+  
+  if (!skipInvestigation && process.env.SERPAPI_KEY) {
+    const { investigateParcel } = require('./investigate');
+    
+    // Pull act_today + outreach parcels for this ZIP
+    const { data: topParcels } = await supabase
+      .from('seller_state_inference')
+      .select('parcel_id')
+      .eq('zip_code', zip)
+      .in('act_tier', ['act_today', 'outreach'])
+      .order('briefing_rank', { ascending: false })
+      .limit(200);
+    
+    if (topParcels && topParcels.length > 0) {
+      // Get parcel details for investigation
+      const topIds = topParcels.map(p => p.parcel_id);
+      const { data: parcelDetails } = await supabase
+        .from('parcels')
+        .select('id, owner_name, address, city, state, zip_code, assessed_value, is_absentee, is_out_of_state, owner_state, mailing_state, tenure_years, prop_type')
+        .in('id', topIds);
+      
+      log(`  Layer 3: Investigating ${parcelDetails?.length || 0} top parcels...`);
+      
+      let investigated = 0;
+      const enhanced = [];
+      
+      for (const p of (parcelDetails || [])) {
+        try {
+          const result = await investigateParcel(p);
+          investigated++;
+          
+          if (result.signals.length > 0) {
+            enhanced.push({ parcel: p, investigation: result });
+          }
+          
+          if (investigated % 10 === 0) {
+            log(`    Investigated ${investigated}/${parcelDetails.length} — ${enhanced.length} with new signals`);
+          }
+        } catch (e) {
+          log(`    Investigation error on ${p.id}: ${e.message}`);
+        }
+      }
+      
+      log(`  Layer 3: ${investigated} investigated, ${enhanced.length} have new signals`);
+      
+      // Re-score parcels that got new investigation signals
+      if (enhanced.length > 0) {
+        log(`  Re-scoring ${enhanced.length} parcels with investigation data...`);
+        
+        // Build enhanced truth objects with investigation claims
+        const reScoreBatches = [];
+        for (let i = 0; i < enhanced.length; i += BATCH_SIZE) {
+          reScoreBatches.push(enhanced.slice(i, i + BATCH_SIZE));
+        }
+        
+        for (const batch of reScoreBatches) {
+          const enhancedTruths = batch.map(({ parcel, investigation }) => {
+            const truth = buildTruthObject(parcel, marketContext);
+            // Merge investigation findings into claims
+            if (investigation.enhancedClaims.listingSignals.length) {
+              truth.claims.transitionSignals.push(...investigation.enhancedClaims.listingSignals);
+            }
+            if (investigation.enhancedClaims.lifeEventSignals.length) {
+              truth.claims.transitionSignals.push(...investigation.enhancedClaims.lifeEventSignals);
+            }
+            if (investigation.enhancedClaims.identitySignals.length) {
+              truth.claims.contactSignals.push(...investigation.enhancedClaims.identitySignals);
+            }
+            if (investigation.enhancedClaims.blockerSignals.length) {
+              truth.claims.blockerSignals.push(...investigation.enhancedClaims.blockerSignals);
+            }
+            // Remove investigation gaps that are now filled
+            if (investigation.summary.hasListingHistory) {
+              truth.gaps = truth.gaps.filter(g => g !== 'no listing history');
+            }
+            if (investigation.summary.hasLinkedIn || investigation.summary.hasLifeEvent) {
+              truth.gaps = truth.gaps.filter(g => g !== 'no life-event data');
+            }
+            // Boost confidence for investigated parcels
+            truth.confidence.market = Math.min(0.9, (truth.confidence.market || 0.3) + 0.2);
+            
+            const { _truthHash, ...clean } = truth;
+            const compact = JSON.parse(JSON.stringify(clean, (k, v) =>
+              v === null || v === '' || v === 0 || v === false || (Array.isArray(v) && v.length === 0) ? undefined : v
+            ));
+            return { parcelId: truth.parcelId, _truthHash, compact };
+          });
+          
+          try {
+            const inferences = await runInferenceBatch(
+              anthropic, 
+              enhancedTruths.map(t => t.compact), 
+              market.key, 
+              MODEL_VERSION + '_investigated'
+            );
+            
+            const rows = [];
+            for (const inf of inferences) {
+              const truth = enhancedTruths.find(t => t.parcelId === inf.parcelId);
+              if (!truth) continue;
+              const { briefingRank, actTier } = computeRanking(inf);
+              
+              rows.push({
+                parcel_id: inf.parcelId,
+                zip_code: zip,
+                market_key: market.key,
+                model_version: MODEL_VERSION + '_investigated',
+                ownership_archetype: inf.ownershipArchetype || 'unknown',
+                seller_state: inf.sellerState || 'stable_hold',
+                pressure_sources: inf.pressureSources || [],
+                timeline_bucket: inf.timelineBucket || 'unclear',
+                preferred_outreach: inf.preferredOutreach || 'watch_only',
+                seller_intent_score: inf.sellerIntentScore || 0,
+                off_market_receptivity: inf.offMarketReceptivity || 0,
+                contactability: inf.contactability || 0,
+                false_positive_risk: inf.falsePositiveRisk || 1,
+                confidence: inf.confidence || 0,
+                top_reason: inf.topReason || null,
+                main_blocker: inf.mainBlocker || null,
+                evidence_keys: inf.evidenceKeys || [],
+                briefing_rank: briefingRank,
+                act_tier: actTier,
+                truth_hash: truth._truthHash + '_inv',
+                computed_at: new Date().toISOString(),
+              });
+            }
+            
+            if (rows.length > 0) {
+              await supabase.from('seller_state_inference').upsert(rows, { onConflict: 'parcel_id' });
+              log(`    Re-scored ${rows.length} parcels with investigation data`);
+            }
+          } catch (e) {
+            log(`    Re-score batch error: ${e.message}`);
+          }
+        }
+      }
+    }
+  } else if (skipInvestigation) {
+    log(`  Layer 3: Skipped (--noinvest flag)`);
+  } else {
+    log(`  Layer 3: Skipped (no SERPAPI_KEY)`);
+  }
+  
   // Update zip_briefings with act_today / outreach counts from inference
   const { data: tierCounts } = await supabase
     .from('seller_state_inference')
