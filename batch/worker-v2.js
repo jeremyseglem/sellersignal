@@ -86,10 +86,18 @@ async function processZip(zip, marketKey, marketContext) {
     return { parcels: parcels.length, eligible: eligible.length, inferred: 0, errors: 0 };
   }
   
+  // Chunk limit — process max N parcels per run to avoid Railway timeout
+  const CHUNK_LIMIT = parseInt(process.env.V2_CHUNK_LIMIT) || 2000;
+  const toProcess = needsInference.slice(0, CHUNK_LIMIT);
+  const remaining = needsInference.length - toProcess.length;
+  if (remaining > 0) {
+    log(`  Chunking: processing ${toProcess.length} of ${needsInference.length} (${remaining} deferred to next run)`);
+  }
+  
   // Batch inference
   const batches = [];
-  for (let i = 0; i < needsInference.length; i += BATCH_SIZE) {
-    batches.push(needsInference.slice(i, i + BATCH_SIZE));
+  for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
+    batches.push(toProcess.slice(i, i + BATCH_SIZE));
   }
   
   log(`  ${batches.length} batches of ~${BATCH_SIZE}`);
@@ -415,7 +423,7 @@ async function processZip(zip, marketKey, marketContext) {
   }
   
   log(`  DONE: ${totalInferred} inferred, ${totalErrors} errors`);
-  return { parcels: parcels.length, eligible: eligible.length, inferred: totalInferred, errors: totalErrors };
+  return { parcels: parcels.length, eligible: eligible.length, inferred: totalInferred, errors: totalErrors, remaining: remaining || 0 };
 }
 
 // ========================================
@@ -451,15 +459,14 @@ async function main() {
   
   log(`Processing ${zips.length} ZIPs`);
   
-  let totalParcels = 0, totalInferred = 0, totalErrors = 0;
+  let totalParcels = 0, totalInferred = 0, totalErrors = 0, totalRemaining = 0;
   
   for (const zip of zips) {
     const market = zipToMarket[zip] || { key: 'unknown', homeState: '' };
     
-    // Basic market context (can be enriched later)
     const marketContext = {
       homeState: market.homeState,
-      localTurnoverPercentile: null, // TODO: compute from actual sales data
+      localTurnoverPercentile: null,
     };
     
     try {
@@ -467,13 +474,20 @@ async function main() {
       totalParcels += result.parcels;
       totalInferred += result.inferred;
       totalErrors += result.errors;
+      totalRemaining += result.remaining || 0;
     } catch (e) {
       log(`  ERROR on ${zip}: ${e.message}`);
       totalErrors++;
     }
   }
   
-  log(`\n=== DONE: ${zips.length} ZIPs | ${totalParcels.toLocaleString()} parcels | ${totalInferred.toLocaleString()} inferred | ${totalErrors} errors ===`);
+  log(`\n=== DONE: ${zips.length} ZIPs | ${totalParcels.toLocaleString()} parcels | ${totalInferred.toLocaleString()} inferred | ${totalErrors} errors | ${totalRemaining} remaining ===`);
+  
+  // Exit code 2 = more work to do, triggers auto-restart
+  if (totalRemaining > 0) {
+    log(`Remaining work detected — exiting with code 2 for auto-restart`);
+    process.exit(2);
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

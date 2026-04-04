@@ -4413,7 +4413,7 @@ app.get('/api/batch/run', (req, res) => {
 // V2 — FULL-UNIVERSE SELLER-STATE INFERENCE
 // ===================
 
-// GET /api/v2/batch/start — trigger v2 inference worker
+// GET /api/v2/batch/start — trigger v2 inference worker with auto-restart
 app.get('/api/v2/batch/start', (req, res) => {
   const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
   if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid batch key' });
@@ -4421,20 +4421,43 @@ app.get('/api/v2/batch/start', (req, res) => {
   const args = [];
   if (req.query.zip) args.push(req.query.zip);
   else args.push('--all');
+  if (req.query.noinvest) args.push('--noinvest');
   
-  const { spawn } = require('child_process');
-  const worker = spawn('node', ['batch/worker-v2.js', ...args], {
-    stdio: 'inherit',
-    env: process.env,
-    detached: true,
-  });
-  worker.unref();
-  worker.on('error', (err) => console.error(`V2 batch spawn error: ${err.message}`));
+  const maxRestarts = parseInt(req.query.maxRestarts) || 20;
+  let restartCount = 0;
+  
+  function spawnWorker() {
+    const { spawn } = require('child_process');
+    const worker = spawn('node', ['batch/worker-v2.js', ...args], {
+      stdio: 'inherit',
+      env: { ...process.env, V2_CHUNK_LIMIT: req.query.chunk || '2000' },
+      detached: true,
+    });
+    worker.unref();
+    
+    worker.on('close', (code) => {
+      // Exit code 2 = more work to do, restart
+      // Exit code 0 = done
+      if (code === 2 && restartCount < maxRestarts) {
+        restartCount++;
+        console.log(`V2 worker chunk complete, restarting (${restartCount}/${maxRestarts})...`);
+        setTimeout(spawnWorker, 2000);
+      } else if (restartCount >= maxRestarts) {
+        console.log(`V2 worker hit max restarts (${maxRestarts})`);
+      }
+    });
+    
+    worker.on('error', (err) => console.error(`V2 batch spawn error: ${err.message}`));
+  }
+  
+  spawnWorker();
   
   res.json({
     started: true,
     command: `node batch/worker-v2.js ${args.join(' ')}`,
-    message: 'V2 inference started in background.',
+    chunkLimit: req.query.chunk || '2000',
+    maxRestarts,
+    message: 'V2 inference started with auto-restart. Will process in chunks until complete.',
   });
 });
 
