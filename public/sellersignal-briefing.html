@@ -3169,14 +3169,69 @@ async function startBriefing() {
     
     if (isZip) {
         // ========================================
-        // FAST PATH — try pre-computed briefing from batch pipeline
+        // FAST PATH — try v2 inference data first, fall back to v1
         // ========================================
         setStatus(`Loading briefing for ${cleanQuery}...`);
         try {
-            const preResp = await fetch(`/api/briefing/${cleanQuery}`);
-            if (preResp.ok) {
-                const preData = await preResp.json();
-                if (preData.parcels && preData.parcels.length > 0) {
+            // Try v2 first
+            let preData = null;
+            let isV2 = false;
+            
+            const v2Resp = await fetch(`/api/v2/briefing/${cleanQuery}`);
+            if (v2Resp.ok) {
+                const v2Data = await v2Resp.json();
+                if (v2Data.leads && v2Data.leads.length > 50) {
+                    isV2 = true;
+                    // Transform v2 data to match expected format
+                    preData = {
+                        parcels: v2Data.leads.map(s => {
+                            const p = s.parcels || {};
+                            return {
+                                parcel: p,
+                                parcel_id: s.parcel_id,
+                                // v2 inference fields
+                                seller_likelihood: Math.round((s.seller_intent_score || 0) * 100),
+                                off_market_receptivity: Math.round((s.off_market_receptivity || 0) * 100),
+                                contactability: Math.round((s.contactability || 0) * 100),
+                                confidence: Math.round((s.confidence || 0) * 100),
+                                briefing_rank: Math.round((s.briefing_rank || 0) * 100),
+                                score_class: s.seller_intent_score >= 0.55 ? 'high' : s.seller_intent_score >= 0.35 ? 'medium' : 'low',
+                                cohort: s.ownership_archetype || 'unknown',
+                                lite_score: Math.round((s.briefing_rank || 0) * 100),
+                                lite_headline: s.top_reason || '',
+                                signals: (s.pressure_sources || []).map(ps => ({ text: ps, type: 'neutral' })),
+                                // v2-specific fields
+                                _v2: true,
+                                _sellerState: s.seller_state,
+                                _timelineBucket: s.timeline_bucket,
+                                _preferredOutreach: s.preferred_outreach,
+                                _actTier: s.act_tier,
+                                _mainBlocker: s.main_blocker,
+                                _evidenceKeys: s.evidence_keys,
+                                _falsePositiveRisk: s.false_positive_risk,
+                            };
+                        }),
+                        briefing: {
+                            total_parcels: v2Data.total || v2Data.leads.length,
+                            act_today_count: v2Data.tierCounts?.act_today || 0,
+                            outreach_queue_count: v2Data.tierCounts?.outreach || 0,
+                            market_key: v2Data.leads[0]?.market_key || '',
+                        },
+                        deepSignals: v2Data.deepSignals || [],
+                    };
+                    console.log(`V2 briefing: ${v2Data.leads.length} leads, ${v2Data.tierCounts?.act_today || 0} act today`);
+                }
+            }
+            
+            // Fall back to v1 if v2 not available
+            if (!preData) {
+                const preResp = await fetch(`/api/briefing/${cleanQuery}`);
+                if (preResp.ok) {
+                    preData = await preResp.json();
+                }
+            }
+            
+            if (preData && preData.parcels && preData.parcels.length > 0) {
                     console.log(`Pre-computed briefing found: ${preData.parcels.length} scored parcels, ${preData.briefing?.act_today_count || 0} act today`);
                     
                     // Transform snake_case API data → camelCase for renderer
@@ -3223,6 +3278,16 @@ async function startBriefing() {
                             signals: (s.signals || []).map(sig => typeof sig === 'string' ? {text:sig,type:'neutral'} : sig),
                             _sourceKey: preData.briefing?.market_key || '',
                             _precomputed: true,
+                            // V2 inference fields (if present)
+                            _v2: !!s._v2,
+                            _sellerState: s._sellerState || null,
+                            _timelineBucket: s._timelineBucket || null,
+                            _preferredOutreach: s._preferredOutreach || null,
+                            _actTier: s._actTier || null,
+                            _mainBlocker: s._mainBlocker || null,
+                            _evidenceKeys: s._evidenceKeys || [],
+                            _falsePositiveRisk: s._falsePositiveRisk || null,
+                            _ownershipArchetype: s.cohort || null,
                         };
                     });
                     
