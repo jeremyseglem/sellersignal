@@ -4728,3 +4728,95 @@ app.get('/api/v2/batch/debug', async (req, res) => {
     res.status(500).json({ error: e.message, stack: e.stack });
   }
 });
+
+// GET /api/v2/backtest/:zip — compare v2 scores against recent sales (zero API calls)
+app.get('/api/v2/backtest/:zip', async (req, res) => {
+  const { zip } = req.params;
+  
+  // Get all v2 scores for this ZIP
+  const { data: inferences } = await supabase
+    .from('seller_state_inference')
+    .select('parcel_id, seller_intent_score, briefing_rank, act_tier, ownership_archetype')
+    .eq('zip_code', zip);
+  
+  if (!inferences || inferences.length < 50) return res.json({ error: 'Not enough data', count: inferences?.length || 0 });
+  
+  // Get parcels with transfer history
+  const { data: parcels } = await supabase
+    .from('parcels')
+    .select('id, last_transfer_date, sale_price, tenure_years, is_absentee, is_out_of_state, owner_name, prop_type')
+    .eq('zip_code', zip);
+  
+  const parcelMap = new Map((parcels || []).map(p => [p.id, p]));
+  const scoreMap = new Map(inferences.map(i => [i.parcel_id, i]));
+  
+  const now = Date.now();
+  const MS_24MO = 2 * 365.25 * 24 * 60 * 60 * 1000;
+  
+  let sold24 = 0, totalScored = inferences.length;
+  let soldScores = [], unsoldScores = [];
+  let recallCounts = { 25: 0, 35: 0, 45: 0, 55: 0 };
+  let featureSold = { absentee: 0, outOfState: 0, trust: 0, llc: 0, vacantLand: 0, individual: 0 };
+  let featureTotal = { absentee: 0, outOfState: 0, trust: 0, llc: 0, vacantLand: 0, individual: 0 };
+  
+  for (const inf of inferences) {
+    const p = parcelMap.get(inf.parcel_id);
+    if (!p) continue;
+    
+    const score = Math.round((inf.seller_intent_score || 0) * 100);
+    const sold = p.last_transfer_date && (now - new Date(p.last_transfer_date).getTime()) < MS_24MO;
+    
+    // Feature counts
+    if (p.is_absentee) { featureTotal.absentee++; if (sold) featureSold.absentee++; }
+    if (p.is_out_of_state) { featureTotal.outOfState++; if (sold) featureSold.outOfState++; }
+    const arch = inf.ownership_archetype || '';
+    if (/trust/.test(arch)) { featureTotal.trust++; if (sold) featureSold.trust++; }
+    if (/portfolio|llc/.test(arch)) { featureTotal.llc++; if (sold) featureSold.llc++; }
+    if (/vacant/.test(arch)) { featureTotal.vacantLand++; if (sold) featureSold.vacantLand++; }
+    if (/owner_occupant|individual/.test(arch)) { featureTotal.individual++; if (sold) featureSold.individual++; }
+    
+    if (sold) {
+      sold24++;
+      soldScores.push(score);
+      for (const t of [25, 35, 45, 55]) { if (score >= t) recallCounts[t]++; }
+    } else {
+      unsoldScores.push(score);
+    }
+  }
+  
+  if (sold24 === 0) return res.json({ error: 'No recent sales found', totalScored });
+  
+  const avgScoreSold = Math.round(soldScores.reduce((a, b) => a + b, 0) / soldScores.length);
+  const avgScoreNotSold = Math.round(unsoldScores.reduce((a, b) => a + b, 0) / (unsoldScores.length || 1));
+  const scoreGap = avgScoreSold - avgScoreNotSold;
+  const baseRate = sold24 / totalScored;
+  
+  const recall = {};
+  for (const t of [25, 35, 45, 55]) { recall[t] = Math.round((recallCounts[t] / sold24) * 100); }
+  
+  const rates = {};
+  const lifts = {};
+  const featureNames = { absentee: 'Absentee', outOfState: 'Out-of-State', trust: 'Trust/Estate', llc: 'LLC/Portfolio', vacantLand: 'Vacant Land', individual: 'Individual Owner' };
+  rates['All Properties'] = baseRate;
+  for (const [key, label] of Object.entries(featureNames)) {
+    if (featureTotal[key] > 10) {
+      const rate = featureSold[key] / featureTotal[key];
+      rates[label] = rate;
+      lifts[label] = baseRate > 0 ? rate / baseRate : 0;
+    }
+  }
+  
+  res.json({
+    version: 2,
+    sold24,
+    total: totalScored,
+    baseRate,
+    avgScoreSold,
+    avgScoreNotSold,
+    scoreGap,
+    recall,
+    rates,
+    lifts,
+    wouldHaveFlagged: recall[35] || 0,
+  });
+});

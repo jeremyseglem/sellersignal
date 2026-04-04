@@ -3214,6 +3214,7 @@ async function startBriefing() {
                         }),
                         briefing: {
                             total_parcels: v2Data.totalParcels || v2Data.totalScored || v2Data.leads.length,
+                            unique_owners: v2Data.totalScored || v2Data.leads.length,
                             prospects_scored: v2Data.totalScored || v2Data.leads.length,
                             act_today_count: v2Data.tierCounts?.act_today || 0,
                             outreach_queue_count: v2Data.tierCounts?.outreach || 0,
@@ -3347,10 +3348,22 @@ async function startBriefing() {
                     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                     console.log(`Pre-computed briefing rendered in ${elapsed}s`);
                     
-                    // Render historical accuracy from precomputed calibration (uses ALL parcels, not just top 100)
+                    // Render historical accuracy — fetch v2 backtest (pure DB lookup, no API calls)
                     const cal = preData.briefing?.calibration;
                     if (cal && cal.sold24 >= 10) {
                         try { renderPrecomputedBacktest(cal, preData.briefing.total_parcels); } catch(e) { console.log('Backtest render failed:', e.message); }
+                    } else if (preData.briefing?._v2) {
+                        // V2: fetch backtest from server
+                        try {
+                            const btResp = await fetch(`/api/v2/backtest/${cleanQuery}`);
+                            if (btResp.ok) {
+                                const btData = await btResp.json();
+                                if (btData.sold24 >= 5) {
+                                    window._backtestCalibration = btData;
+                                    renderPrecomputedBacktest(btData, preData.briefing.total_parcels);
+                                }
+                            }
+                        } catch(e) { console.log('V2 backtest failed:', e.message); }
                     }
                     
                     return; // DONE — skip live pipeline entirely
