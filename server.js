@@ -4491,7 +4491,7 @@ app.get('/api/v2/briefing/:zip', async (req, res) => {
   
   const { zip } = req.params;
   const tier = req.query.tier;
-  const limit = Math.min(parseInt(req.query.limit) || 500, 2000);
+  const limit = Math.min(parseInt(req.query.limit) || 1000, 2000);
   
   // Read from inference join with parcels
   let query = supabase
@@ -4523,11 +4523,18 @@ app.get('/api/v2/briefing/:zip', async (req, res) => {
     .select('*')
     .eq('zip_code', zip);
   
+  // Get total parcel count for this ZIP
+  const { count: totalParcels } = await supabase
+    .from('parcels')
+    .select('id', { count: 'exact', head: true })
+    .eq('zip_code', zip);
+
   res.json({
     leads: data || [],
     tierCounts,
     deepSignals: deepSignals || [],
-    total: (allTiers || []).length,
+    totalScored: (allTiers || []).length,
+    totalParcels: totalParcels || (allTiers || []).length,
     cached: true,
   });
 });

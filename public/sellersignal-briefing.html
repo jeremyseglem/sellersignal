@@ -3193,6 +3193,7 @@ async function startBriefing() {
                                 seller_likelihood: Math.round((s.seller_intent_score || 0) * 100),
                                 off_market_receptivity: Math.round((s.off_market_receptivity || 0) * 100),
                                 contactability: Math.round((s.contactability || 0) * 100),
+                                actionability: Math.round((s.contactability || 0) * 100),
                                 confidence: Math.round((s.confidence || 0) * 100),
                                 briefing_rank: Math.round((s.briefing_rank || 0) * 100),
                                 score_class: s.seller_intent_score >= 0.55 ? 'high' : s.seller_intent_score >= 0.35 ? 'medium' : 'low',
@@ -3212,10 +3213,14 @@ async function startBriefing() {
                             };
                         }),
                         briefing: {
-                            total_parcels: v2Data.total || v2Data.leads.length,
+                            total_parcels: v2Data.totalParcels || v2Data.totalScored || v2Data.leads.length,
+                            prospects_scored: v2Data.totalScored || v2Data.leads.length,
                             act_today_count: v2Data.tierCounts?.act_today || 0,
                             outreach_queue_count: v2Data.tierCounts?.outreach || 0,
+                            deep_signal_first_count: v2Data.tierCounts?.deep_signal_first || 0,
+                            watch_count: v2Data.tierCounts?.watch || 0,
                             market_key: v2Data.leads[0]?.market_key || '',
+                            _v2: true,
                         },
                         deepSignals: v2Data.deepSignals || [],
                     };
