@@ -459,35 +459,42 @@ async function main() {
   
   log(`Processing ${zips.length} ZIPs`);
   
-  let totalParcels = 0, totalInferred = 0, totalErrors = 0, totalRemaining = 0;
+  // Loop until all chunks are done — no exit-and-restart needed
+  let pass = 0;
+  const MAX_PASSES = 25;
   
-  for (const zip of zips) {
-    const market = zipToMarket[zip] || { key: 'unknown', homeState: '' };
+  while (pass < MAX_PASSES) {
+    pass++;
+    let totalParcels = 0, totalInferred = 0, totalErrors = 0, totalRemaining = 0;
     
-    const marketContext = {
-      homeState: market.homeState,
-      localTurnoverPercentile: null,
-    };
-    
-    try {
-      const result = await processZip(zip, market.key, marketContext);
-      totalParcels += result.parcels;
-      totalInferred += result.inferred;
-      totalErrors += result.errors;
-      totalRemaining += result.remaining || 0;
-    } catch (e) {
-      log(`  ERROR on ${zip}: ${e.message}`);
-      totalErrors++;
+    for (const zip of zips) {
+      const market = zipToMarket[zip] || { key: 'unknown', homeState: '' };
+      const marketContext = { homeState: market.homeState, localTurnoverPercentile: null };
+      
+      try {
+        const result = await processZip(zip, market.key, marketContext);
+        totalParcels += result.parcels;
+        totalInferred += result.inferred;
+        totalErrors += result.errors;
+        totalRemaining += result.remaining || 0;
+      } catch (e) {
+        log(`  ERROR on ${zip}: ${e.message}`);
+        totalErrors++;
+      }
     }
+    
+    log(`\n=== Pass ${pass}: ${totalInferred.toLocaleString()} inferred | ${totalErrors} errors | ${totalRemaining} remaining ===`);
+    
+    if (totalRemaining === 0) {
+      log(`All done.`);
+      break;
+    }
+    
+    log(`${totalRemaining} remaining — starting next pass in 2s...`);
+    await new Promise(r => setTimeout(r, 2000));
   }
   
-  log(`\n=== DONE: ${zips.length} ZIPs | ${totalParcels.toLocaleString()} parcels | ${totalInferred.toLocaleString()} inferred | ${totalErrors} errors | ${totalRemaining} remaining ===`);
-  
-  // Exit code 2 = more work to do, triggers auto-restart
-  if (totalRemaining > 0) {
-    log(`Remaining work detected — exiting with code 2 for auto-restart`);
-    process.exit(2);
-  }
+  if (pass >= MAX_PASSES) log(`Hit max passes (${MAX_PASSES})`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
