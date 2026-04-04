@@ -4699,3 +4699,25 @@ app.get('/api/v2/investigate-test', async (req, res) => {
   
   res.json(result);
 });
+
+// GET /api/v2/batch/debug — run worker inline for debugging
+app.get('/api/v2/batch/debug', async (req, res) => {
+  const BATCH_KEY = process.env.BATCH_SECRET || 'ss_batch_2026';
+  if (req.query.key !== BATCH_KEY) return res.status(403).json({ error: 'Invalid batch key' });
+  const zip = req.query.zip;
+  if (!zip) return res.status(400).json({ error: 'zip required' });
+  
+  try {
+    // Just check how many need inference
+    const { data: parcels } = await supabase.from('parcels').select('id').eq('zip_code', zip);
+    const { data: existing } = await supabase.from('seller_state_inference').select('parcel_id, truth_hash').eq('zip_code', zip);
+    
+    res.json({
+      totalParcels: parcels?.length || 0,
+      existingInference: existing?.length || 0,
+      needsWork: (parcels?.length || 0) - (existing?.length || 0),
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message, stack: e.stack });
+  }
+});
