@@ -139,6 +139,57 @@ async function processZip(zip, market) {
   // Rank
   let ranked = parcels.map((p,i) => ({p, s: scores[i]})).filter(x => x.s.briefingRank > 0).sort((a,b) => b.s.briefingRank - a.s.briefingRank);
 
+  // === LISTING HISTORY ENRICHMENT ===
+  // Search Zillow/Redfin for top prospects — boost score if previously listed
+  const skipListing = process.argv.includes('--nolisting');
+  if (!skipListing && process.env.SERPAPI_KEY) {
+    const { searchGoogle } = require('./investigate');
+    const listingCheckCount = Math.min(ranked.length, 150);
+    log(`  Listing check: ${listingCheckCount} parcels...`);
+    let boosted = 0;
+    
+    for (let i = 0; i < listingCheckCount; i++) {
+      const r = ranked[i];
+      const addr = (r.p.address || '').replace(/\s+(BOZEMAN|SCOTTSDALE|CHARLOTTE|SEATTLE|BELLEVUE|MT|AZ|NC|WA|FL|NY|\d{5}).*/i, '').trim();
+      if (!addr || addr.length < 5) continue;
+      
+      const city = r.p.ownerCity || r.p.city || 'Bozeman';
+      try {
+        const results = await searchGoogle(`"${addr}" "${city}" site:zillow.com`);
+        if (results && results.length > 0) {
+          const text = results.map(x => `${x.title} ${x.snippet}`).join(' ').toLowerCase();
+          
+          const wasListed = /off\s*market|removed|delisted|withdrawn|expired|cancelled|previously listed/.test(text);
+          const priceReduced = /price (cut|drop|reduced|change)|reduced by/.test(text);
+          const hasHistory = results.some(x => /zillow\.com/.test(x.link || ''));
+          
+          if (wasListed) {
+            r.s.briefingRank = Math.min(100, r.s.briefingRank + 20);
+            r.s._listingBoost = 20;
+            r.s._listingSignal = 'Previously listed — off market / withdrawn / expired';
+            boosted++;
+          } else if (priceReduced) {
+            r.s.briefingRank = Math.min(100, r.s.briefingRank + 15);
+            r.s._listingBoost = 15;
+            r.s._listingSignal = 'Price reductions in listing history';
+            boosted++;
+          } else if (hasHistory) {
+            r.s._listingSignal = 'Has Zillow listing page';
+          }
+        }
+      } catch(e) { /* skip */ }
+      
+      // Rate limit
+      if (i % 8 === 7) await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    // Re-sort after boosts
+    ranked.sort((a,b) => (b.s.lite_score || b.s.briefingRank) - (a.s.lite_score || a.s.briefingRank));
+    log(`  Listing: ${boosted} boosted out of ${listingCheckCount} checked`);
+  } else if (skipListing) {
+    log(`  Listing check: skipped (--nolisting)`);
+  }
+
   // === AI LITE SCORING ===
   if (!skipAI && anthropic) {
     const top = ranked.slice(0, 25);
@@ -225,6 +276,7 @@ PROSPECTS:\n${d}`}] });
       briefing_rank:r.s.briefingRank, score_class:r.s.scoreClass, cohort:r.s.cohort,
       calibrated_rank:r.s.briefingRank,
       ...(r.s.lite_score ? {lite_score:r.s.lite_score, lite_headline:r.s.lite_headline||''} : {}),
+      ...(r.s._listingSignal ? {signals: [{text: r.s._listingSignal, type: 'listing'}]} : {}),
       scored_at:new Date().toISOString(),
     }));
     const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
