@@ -103,7 +103,7 @@ body{font-family:'DM Sans','Helvetica Neue',sans-serif;background:var(--bg);colo
 /* Briefing Header */
 .briefing-header{margin-bottom:32px;animation:fadeUp 0.4s ease}
 .briefing-date{font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
-.briefing-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:4px}
+.briefing-title{font-family:'Playfair Display',Georgia,serif;font-size:32px;font-weight:600;color:var(--text);margin-bottom:4px}
 .briefing-farm{font-size:14px;color:var(--text-secondary)}
 .briefing-stats{display:flex;gap:24px;margin-top:20px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .bstat{display:flex;flex-direction:column;gap:2px}
@@ -119,28 +119,28 @@ body{font-family:'DM Sans','Helvetica Neue',sans-serif;background:var(--bg);colo
 .section-icon.fire{background:var(--green-dim);border:1px solid var(--green-border)}
 .section-icon.mail{background:var(--gold-dim);border:1px solid var(--gold-border)}
 .section-icon.watch{background:var(--red-dim);border:1px solid rgba(158,75,60,0.15)}
-.section-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--text)}
+.section-title{font-family:'Playfair Display',Georgia,serif;font-size:22px;font-weight:600;color:var(--text)}
 .section-count{font-size:12px;color:var(--text-dim);margin-left:auto}
 
 /* Prospect Card */
-.prospect{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;transition:all 0.2s;cursor:default}
+.prospect{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;transition:all 0.2s;cursor:pointer;box-shadow:0 1px 3px rgba(44,36,24,0.04)}
 .prospect:hover{border-color:var(--border-light);background:var(--bg-card-hover)}
 .prospect.contacted{opacity:0.5}
-.prospect-main{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 18px;align-items:center}
-.prospect-score{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:none;flex-shrink:0}
+.prospect-main{display:grid;grid-template-columns:130px 1fr;gap:16px;padding:18px 22px;align-items:start}
+.prospect-score{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;border:none;flex-shrink:0;box-shadow:0 2px 8px rgba(44,36,24,0.15)}
 .prospect-score.high{background:linear-gradient(135deg,#2C2418,#4A3D2A);color:#F5F0EB}
 .prospect-score.medium{background:linear-gradient(135deg,#4A3D2A,#5E4E38);color:#F5F0EB}
 .prospect-score.low{background:var(--bg-elevated);color:var(--text-dim);border:1px solid var(--border)}
 .prospect-score.blocker{background:var(--red-dim);color:var(--red);border:1px solid rgba(158,75,60,0.2)}
 .prospect-info{min-width:0}
-.prospect-addr{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prospect-addr{font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prospect-meta{display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap}
 .prospect-cohort{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
 .prospect-signal{font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
 .prospect-om{font-size:11px;color:var(--text-dim)}
 .prospect-why{font-size:12px;color:var(--accent);font-weight:500;margin-top:4px;line-height:1.4}
-.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em}
-.chip-channel{background:rgba(196,168,124,0.1);color:var(--accent);border:1px solid rgba(196,168,124,0.2)}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10.5px;font-weight:500;letter-spacing:0.01em}
+.chip-channel{background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)}
 .chip-contact{border:1px solid var(--border)}
 .chip-contact.high{color:var(--text);border-color:var(--border-light);background:rgba(240,237,232,0.06)}
 .chip-contact.medium{color:var(--text-secondary);border-color:var(--border-light);background:rgba(240,237,232,0.04)}
@@ -273,7 +273,7 @@ body.demo-mode .feedback-tab{display:none}
 
 /* Responsive */
 @media(max-width:640px){
-    .prospect-main{grid-template-columns:36px 1fr;gap:10px}
+    .prospect-main{grid-template-columns:1fr;gap:10px}
     .prospect-actions{display:none}
     .prospect-meta{gap:4px}
     .detail-grid{grid-template-columns:1fr}
@@ -4412,39 +4412,39 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         
         return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
-                <div class="prospect-score ${p.scoreClass}">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:2px;color:var(--accent)">✓ DS</div>' : tier === 'call' && p._tier === 'act_today' ? '<div style="font-size:7px;margin-top:2px;color:var(--green)">✓ V2A</div>' : ''}</div>
-                <div class="prospect-info">
-                    <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:var(--gold-border);border-radius:3px">NEW</span>' : ''}${name || p.address}${name ? ` <span style="color:var(--text-dim);font-weight:400">— ${p.address}</span>` : ''}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
-                    <div class="prospect-why">↗ ${p._batchDeepSignal && p._dsWhyNow ? p._dsWhyNow : p._deepSignalVerified && p._dsWhyNow ? p._dsWhyNow : p._liteReason ? p._liteReason : why}</div>
-                    <div class="prospect-meta">
-                        ${p._deepSignalVerified ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal verified</span>` : p._batchDeepSignal ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal</span>` : p._liteScored ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">Ranked by AI</span>` : ''}
-                        <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
-                        ${val ? `<span class="chip" style="color:var(--text-dim)">${val}</span>` : ''}
-                        ${ownerTypeLabel !== 'Unknown' ? `<span class="chip" style="color:var(--text-dim)">${ownerTypeLabel}</span>` : ''}
-                        ${(p._deepSignalVerified || p._batchDeepSignal) && p._dsTimeframe ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">${p._dsTimeframe}</span>` : ''}
-                        ${tier === 'call' && p._freshness !== undefined && p._freshness < 50 ? '<span class="chip" style="background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.2)">Previously contacted</span>' : ''}
-                        ${risk && tier !== 'call' ? '<span class="chip chip-risk">⚠ Risk flag</span>' : ''}
-                        <select id="crm-status-${safeId}" onclick="event.stopPropagation()" onchange="event.stopPropagation();onCrmStatusChange('${id}',this)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:10px;color:${crmStatus==='new'?'var(--text-dim)':crmStatus==='contacted'?'#60a5fa':crmStatus==='appointment'?'var(--gold)':crmStatus==='listed'?'var(--green)':crmStatus==='closed'?'var(--green)':'var(--red)'};font-family:'DM Sans',sans-serif;cursor:pointer">
-                            <option value="new" ${crmStatus==='new'?'selected':''}>New</option>
-                            <option value="contacted" ${crmStatus==='contacted'?'selected':''}>Contacted</option>
-                            <option value="appointment" ${crmStatus==='appointment'?'selected':''}>Appointment</option>
-                            <option value="listed" ${crmStatus==='listed'?'selected':''}>Listed</option>
-                            <option value="under_contract" ${crmStatus==='under_contract'?'selected':''}>Under Contract</option>
-                            <option value="closed" ${crmStatus==='closed'?'selected':''}>Closed</option>
-                            <option value="dead" ${crmStatus==='dead'?'selected':''}>Dead</option>
-                        </select>
+                <div style="width:130px;height:90px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;background:linear-gradient(145deg,hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+25},18%,75%),hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+33},14%,65%));border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center">
+                    <svg width="36" height="30" viewBox="0 0 36 30" fill="none" style="opacity:0.25"><path d="M18 2L2 16H7V28H15V20H21V28H29V16H34L18 2Z" fill="#2C2418"/></svg>
+                    <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(44,36,24,0.55));padding:8px 8px 4px">
+                        <div style="font-size:9px;color:rgba(255,255,255,0.85);letter-spacing:0.02em;font-family:'DM Sans',sans-serif">${p.sqft ? p.sqft.toLocaleString() + ' sf' : ''} ${p.yearBuilt ? '· ' + p.yearBuilt : ''} ${p.acres ? '· ' + p.acres + ' ac' : ''}</div>
                     </div>
                 </div>
-                <div class="prospect-actions">
-                    ${tier === 'call' ? `
-                        <button class="action-btn primary" onclick="event.stopPropagation();openCallModal('${id}')">📞 Call</button>
-                        <button class="action-btn" onclick="event.stopPropagation();openMailModal('${id}')">✉ Mail</button>
-                        <button class="action-btn" style="padding:8px;font-size:11px" onclick="event.stopPropagation();flyToOnMap(${p.lat},${p.lng},'${id}')" title="Show on map">📍</button>
-                    ` : `
-                        <button class="action-btn primary" style="font-size:10px" onclick="event.stopPropagation();runDeepSignalForCard('${id}')">🔍 Deep Signal</button>
-                        <button class="action-btn" onclick="event.stopPropagation();markAction('${id}','watching')">Track</button>
-                        <button class="action-btn" style="padding:8px;font-size:11px" onclick="event.stopPropagation();flyToOnMap(${p.lat},${p.lng},'${id}')" title="Show on map">📍</button>
-                    `}
+                <div class="prospect-info">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+                        <div style="min-width:0">
+                            <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:var(--gold-border);border-radius:3px">NEW</span>' : ''}${name || p.address}${name ? ` <span style="color:var(--text-dim);font-weight:400;font-size:13px">— ${p.address}</span>` : ''}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
+                            <div style="font-size:12px;color:var(--text-secondary);margin-top:3px">${p.address} · ${val || 'N/A'} · ${ownerTypeLabel}</div>
+                            ${p.subdivision ? `<div style="font-size:10.5px;color:var(--text-dim);margin-top:4px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:5px;height:5px;border-radius:2px;background:${tier==='call'?'var(--green)':'var(--gold)'};opacity:0.5"></span>${p.subdivision}</div>` : ''}
+                        </div>
+                        <div class="prospect-score ${p.scoreClass}" style="width:48px;height:48px;border-radius:12px;font-size:19px">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:1px;color:var(--accent)">✓ DS</div>' : ''}</div>
+                    </div>
+                    <div style="font-family:'Source Serif 4',Georgia,serif;font-size:13px;line-height:1.7;color:var(--text-secondary);margin-top:10px;padding:9px 13px;border-left:3px solid var(--accent);background:rgba(139,105,20,0.04);border-radius:0 6px 6px 0">${p._batchDeepSignal && p._dsWhyNow ? p._dsWhyNow : p._deepSignalVerified && p._dsWhyNow ? p._dsWhyNow : p._liteReason ? p._liteReason : why}</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px">
+                        <div style="display:flex;gap:5px;flex-wrap:wrap">
+                            ${p._deepSignalVerified ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal</span>` : p._batchDeepSignal ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal</span>` : p._liteScored ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">Ranked by AI</span>` : ''}
+                            <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
+                            ${(p._deepSignalVerified || p._batchDeepSignal) && p._dsTimeframe ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">${p._dsTimeframe}</span>` : ''}
+                            ${risk && tier !== 'call' ? '<span class="chip chip-risk">⚠ Risk</span>' : ''}
+                        </div>
+                        <div style="display:flex;gap:6px;flex-shrink:0">
+                            ${tier === 'call' ? `
+                                <button class="action-btn primary" onclick="event.stopPropagation();openCallModal('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
+                                <button class="action-btn" onclick="event.stopPropagation();openMailModal('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Mail</button>
+                            ` : `
+                                <button class="action-btn primary" onclick="event.stopPropagation();runDeepSignalForCard('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
+                                <button class="action-btn" onclick="event.stopPropagation();openMailModal('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Mail</button>
+                            `}
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="prospect-detail" id="detail-${id}">
