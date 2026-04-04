@@ -480,13 +480,27 @@ body.demo-mode .feedback-tab{display:none}
 <!-- Dashboard -->
 <div class="dashboard" id="dashboard">
     <div class="briefing-header">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-            <button onclick="document.getElementById('dashboard').classList.remove('active');document.getElementById('farmSetup').style.display='';document.getElementById('briefingContent').innerHTML=''" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">← New Search</button>
-            <div class="briefing-date" id="briefDate"></div>
+        <!-- Atmospheric Hero -->
+        <div id="atmosphericHero" style="display:none;height:200px;position:relative;overflow:hidden;border-radius:12px;margin-bottom:20px">
+            <div id="heroGradient" style="position:absolute;inset:0"></div>
+            <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(44,36,24,0.15) 0%,rgba(44,36,24,0.55) 100%)"></div>
+            <div style="position:absolute;left:0;right:0;top:45%;height:1px;background:linear-gradient(90deg,transparent 5%,rgba(245,240,235,0.1) 30%,rgba(245,240,235,0.15) 50%,rgba(245,240,235,0.1) 70%,transparent 95%)"></div>
+            <div style="position:relative;height:100%;padding:0 28px;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:24px">
+                <button onclick="document.getElementById('dashboard').classList.remove('active');document.getElementById('farmSetup').style.display='';document.getElementById('briefingContent').innerHTML=''" style="position:absolute;top:16px;left:20px;padding:5px 12px;background:rgba(245,240,235,0.15);border:1px solid rgba(245,240,235,0.25);border-radius:6px;color:rgba(245,240,235,0.7);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;backdrop-filter:blur(4px)">← New Search</button>
+                <div style="font-family:'DM Sans',sans-serif;font-size:10px;color:rgba(245,240,235,0.45);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:8px" id="heroDate">Market Briefing · Updated Today</div>
+                <div style="font-family:'Playfair Display',Georgia,serif;font-size:34px;font-weight:600;color:#F5F0EB;text-shadow:0 2px 16px rgba(0,0,0,0.2)" id="heroTitle"></div>
+                <div style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:rgba(245,240,235,0.55);margin-top:6px" id="heroSub"></div>
+            </div>
         </div>
-        <div class="briefing-title">Daily Briefing</div>
-        <div class="briefing-sub" style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:var(--text-secondary);margin-bottom:12px"></div>
-        <div class="briefing-farm" id="briefFarm"></div>
+        <div id="plainHeader" style="display:none">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                <button onclick="document.getElementById('dashboard').classList.remove('active');document.getElementById('farmSetup').style.display='';document.getElementById('briefingContent').innerHTML=''" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">← New Search</button>
+                <div class="briefing-date" id="briefDate"></div>
+            </div>
+            <div class="briefing-title">Daily Briefing</div>
+            <div class="briefing-sub" style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:var(--text-secondary);margin-bottom:12px"></div>
+        </div>
+        <div class="briefing-farm" id="briefFarm" style="display:none"></div>
         <div class="briefing-stats" id="briefStats"></div>
         <div class="briefing-map" id="briefMapWrap">
             <div id="briefMap" style="width:100%;height:100%"></div>
@@ -4294,17 +4308,44 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     const avgSL = collapsed.length ? Math.round(collapsed.reduce((s,p) => s + (p.sellerLikelihood||0), 0) / collapsed.length) : 0;
     const withMarketSig = collapsed.filter(p => p._marketSignal).length;
     
-    // Update header with market name
+    // Update header with market name and atmospheric hero
     const zipNames = {'59715':'Bozeman, Montana','59718':'Bozeman, Montana','98004':'Bellevue, Washington','85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85331':'Cave Creek, Arizona','85258':'McCormick Ranch, Arizona','85260':'Central Scottsdale, Arizona','33480':'Palm Beach, Florida','28211':'Myers Park, Charlotte','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington'};
-    const zipCode = window._currentZip || (collapsed[0]?._sourceKey ? '' : '');
+    const zipAtmospheres = {
+        '59715':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)',
+        '59718':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)',
+        '98004':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
+        '98033':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
+        '98040':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
+        '98039':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
+        '85253':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        '85254':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        '85255':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        '85331':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        '85258':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        '85260':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        '33480':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)',
+        '28211':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)',
+    };
     const farmEl = document.getElementById('briefFarm');
     const farmZip = farmEl?.textContent?.trim() || '';
     const marketName = zipNames[farmZip] || farmZip;
-    const titleEl = document.querySelector('.briefing-title');
-    if (titleEl && marketName) titleEl.textContent = marketName;
+    const atmosphere = zipAtmospheres[farmZip] || 'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A7A58 60%,#7A9A72 100%)';
     if (farmEl) farmEl.style.display = 'none';
-    const subEl = document.querySelector('.briefing-sub');
-    if (subEl) subEl.textContent = `${totalAnalyzed.toLocaleString()} properties · AI-scored against 47 seller indicators`;
+    
+    // Show atmospheric hero
+    const heroEl = document.getElementById('atmosphericHero');
+    const plainEl = document.getElementById('plainHeader');
+    if (heroEl && marketName) {
+        heroEl.style.display = '';
+        if (plainEl) plainEl.style.display = 'none';
+        document.getElementById('heroGradient').style.background = atmosphere;
+        document.getElementById('heroTitle').textContent = marketName;
+        document.getElementById('heroSub').textContent = totalAnalyzed.toLocaleString() + ' properties · AI-scored against 47 seller indicators';
+        const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const now = new Date();
+        document.getElementById('heroDate').textContent = `Market Briefing · ${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+    }
 
     document.getElementById('briefStats').innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(44,36,24,0.06)">
@@ -4450,8 +4491,8 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         
         return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
-                <div style="width:130px;height:90px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;background:linear-gradient(145deg,hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+25},18%,75%),hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+33},14%,65%));border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center">
-                    <svg width="36" height="30" viewBox="0 0 36 30" fill="none" style="opacity:0.25"><path d="M18 2L2 16H7V28H15V20H21V28H29V16H34L18 2Z" fill="#2C2418"/></svg>
+                <div style="width:130px;height:90px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;background:linear-gradient(145deg,hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+25},22%,62%),hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+33},18%,52%));border:1px solid var(--border);display:flex;align-items:center;justify-content:center">
+                    <svg width="36" height="30" viewBox="0 0 36 30" fill="none" style="opacity:0.4"><path d="M18 2L2 16H7V28H15V20H21V28H29V16H34L18 2Z" fill="#F5F0EB"/></svg>
                     <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(44,36,24,0.55));padding:8px 8px 4px">
                         <div style="font-size:9px;color:rgba(255,255,255,0.85);letter-spacing:0.02em;font-family:'DM Sans',sans-serif">${p.sqft ? p.sqft.toLocaleString() + ' sf' : ''} ${p.yearBuilt ? '· ' + p.yearBuilt : ''} ${p.acres ? '· ' + p.acres + ' ac' : ''}</div>
                     </div>
