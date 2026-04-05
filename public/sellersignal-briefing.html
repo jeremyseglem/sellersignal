@@ -3297,20 +3297,6 @@ async function startBriefing() {
                     window._investigationComplete = true;
                     window._backtestCalibration = preData.briefing?.calibration || null;
                     
-                    // Update briefing title with market name
-                    const zipMarketNames = {
-                        '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana','59716':'Big Sky, Montana','59730':'Livingston, Montana',
-                        '98004':'Bellevue, Washington','98112':'Capitol Hill, Seattle','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington','98074':'Sammamish, Washington','98103':'Fremont, Seattle','98109':'Queen Anne, Seattle','98105':'University District, Seattle','98199':'Magnolia, Seattle',
-                        '85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85262':'Rio Verde, Arizona','85377':'Carefree, Arizona','85331':'Cave Creek, Arizona','85258':'McCormick Ranch, Arizona','85260':'Central Scottsdale, Arizona','85266':'Pinnacle Peak, Arizona','85264':'Fort McDowell, Arizona',
-                        '28207':'Uptown Charlotte, NC','28209':'South Charlotte, NC','28211':'Myers Park, Charlotte, NC','28226':'SouthPark, Charlotte, NC',
-                        '33480':'Palm Beach, Florida',
-                    };
-                    const marketName = zipMarketNames[cleanQuery] || preData.briefing?.market_name || cleanQuery;
-                    const titleEl = document.querySelector('.briefing-title');
-                    if (titleEl) titleEl.textContent = marketName;
-                    const subEl = document.querySelector('.briefing-sub');
-                    if (subEl) subEl.textContent = `${totalParcels.toLocaleString()} properties · AI-scored against 47 seller indicators`;
-                    
                     // Render immediately
                     renderBriefing(prospects, totalParcels, 0, 0);
                     document.getElementById('briefingContent').classList.add('briefing-reveal');
@@ -4309,22 +4295,41 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     const withMarketSig = collapsed.filter(p => p._marketSignal).length;
     
     // Update header with market name and atmospheric hero
-    const zipNames = {'59715':'Bozeman, Montana','59718':'Bozeman, Montana','98004':'Bellevue, Washington','85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85331':'Cave Creek, Arizona','85258':'McCormick Ranch, Arizona','85260':'Central Scottsdale, Arizona','33480':'Palm Beach, Florida','28211':'Myers Park, Charlotte','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington'};
+    const zipNames = {
+        // Montana
+        '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana','59716':'Big Sky, Montana','59730':'Livingston, Montana',
+        // King County WA
+        '98004':'Bellevue, Washington','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington','98074':'Sammamish, Washington','98103':'Fremont, Seattle','98109':'Queen Anne, Seattle','98105':'University District, Seattle','98112':'Capitol Hill, Seattle','98199':'Magnolia, Seattle',
+        // Arizona
+        '85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85258':'McCormick Ranch, Arizona','85260':'Central Scottsdale, Arizona','85262':'Rio Verde, Arizona','85331':'Cave Creek, Arizona','85251':'Old Town Scottsdale, Arizona','85268':'Fountain Hills, Arizona','85206':'East Mesa, Arizona','85224':'Chandler, Arizona','85281':'Tempe, Arizona','85295':'Gilbert, Arizona',
+        // Charlotte NC
+        '28211':'Myers Park, Charlotte','28209':'South Charlotte, NC','28207':'Uptown Charlotte, NC','28226':'SouthPark, Charlotte','28202':'Center City, Charlotte','28105':'Matthews, NC','28270':'South Charlotte, NC','28277':'Ballantyne, Charlotte',
+        // Raleigh-Durham NC
+        '27517':'Chapel Hill, NC','27613':'North Raleigh, NC','27707':'Durham, NC',
+        // Florida — Palm Beach
+        '33480':'Palm Beach, Florida','33432':'Boca Raton, Florida','33433':'Boca Raton, Florida','33434':'Boca Raton, Florida','33486':'Boca Raton, Florida','33487':'Boca Raton, Florida','33496':'Boca Raton, Florida','33408':'North Palm Beach, Florida','33458':'Jupiter, Florida','33462':'Lake Worth, Florida',
+        // Florida — Miami
+        '33131':'Brickell, Miami','33133':'Coconut Grove, Miami','33134':'Coral Gables, Florida','33139':'South Beach, Miami','33140':'Miami Beach, Florida','33143':'South Miami, Florida','33149':'Key Biscayne, Florida','33156':'Pinecrest, Florida',
+        // New York
+        '10013':'Tribeca, New York','10014':'West Village, New York','10021':'Upper East Side, New York','10024':'Upper West Side, New York','10583':'Scarsdale, New York','11201':'Brooklyn Heights, New York',
+        // Oregon
+        '97701':'Bend, Oregon','97702':'South Bend, Oregon','97703':'Tumalo, Oregon','97707':'Sunriver, Oregon','97756':'Redmond, Oregon','97759':'Sisters, Oregon',
+    };
     const zipAtmospheres = {
-        '59715':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)',
-        '59718':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)',
-        '98004':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
-        '98033':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
-        '98040':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
-        '98039':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
-        '85253':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
-        '85254':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
-        '85255':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
-        '85331':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
-        '85258':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
-        '85260':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
-        '33480':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)',
-        '28211':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)',
+        // Montana — mountain green
+        '59715':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)','59718':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)','59714':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)','59711':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)','59716':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)','59730':'linear-gradient(135deg,#4A5E6E 0%,#5A7068 35%,#6A8A78 65%,#3A5040 100%)',
+        // Washington — steel blue
+        '98004':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98033':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98040':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98039':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98074':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98103':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98109':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98105':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98112':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)','98199':'linear-gradient(135deg,#2A3D4A 0%,#3B5566 30%,#4A6B7A 60%,#6A8E9A 100%)',
+        // Arizona — desert gold
+        '85253':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85254':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85255':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85258':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85260':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85262':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85331':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85251':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85268':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85206':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85224':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85281':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)','85295':'linear-gradient(135deg,#5C4A38 0%,#7A6248 30%,#9A7D5A 60%,#C4A87A 100%)',
+        // Florida — tropical teal
+        '33480':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33432':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33433':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33434':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33486':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33487':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33496':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33408':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33458':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33462':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33131':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33133':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33134':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33139':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33140':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33143':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33149':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)','33156':'linear-gradient(135deg,#1A3A4A 0%,#2A5A6A 30%,#3A7A8A 60%,#5AABB8 100%)',
+        // North Carolina — southern green
+        '28211':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28209':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28207':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28226':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28202':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28105':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28270':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','28277':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','27517':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','27613':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)','27707':'linear-gradient(135deg,#3A4A3A 0%,#4A6A4A 30%,#5A8258 60%,#7AAA72 100%)',
+        // New York — urban slate
+        '10013':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10014':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10021':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10024':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10583':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','11201':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)',
+        // Oregon — pine forest
+        '97701':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97702':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97703':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97707':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97756':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97759':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)',
     };
     const farmEl = document.getElementById('briefFarm');
     const farmZip = farmEl?.textContent?.trim() || '';
