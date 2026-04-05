@@ -9,19 +9,19 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-:root{--bg:#0a0f14;--bg-card:#111921;--bg-elevated:#162430;--bg-input:#1a2a3a;--text:#FDFCFA;--text-secondary:#8a9aa8;--text-dim:#5a6a78;--accent:#c4a87c;--accent-hover:#d4b88c;--green:#4ade80;--green-dim:rgba(74,222,128,0.08);--red:#f87171;--border:#1e2a36;--gold-dim:rgba(196,168,124,0.08);--gold-border:rgba(196,168,124,0.2)}
+:root{--bg:#F5F0EB;--bg-card:#FFFFFF;--bg-elevated:#EDE7DF;--bg-input:#EDE7DF;--text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;--accent:#8B6914;--accent-hover:#6A5010;--green:#5A7247;--green-dim:rgba(90,114,71,0.08);--red:#9E4B3C;--border:#D9CEBF;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18)}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 .header{padding:14px 28px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg);z-index:1000;flex-shrink:0}
 .logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none}
-.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
-.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
 .logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
-.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.logo-text{font-family:"DM Serif Display",serif;font-size:18px;color:#F5F0EB}
 .header-nav{display:flex;gap:8px}
 .header-nav a{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);transition:all 0.2s}
 .header-nav a:hover{color:var(--text);border-color:var(--accent)}
-.header-nav a.active{background:var(--accent);color:#0a0f14;border-color:var(--accent);font-weight:600}
+.header-nav a.active{background:var(--accent);color:#F5F0EB;border-color:var(--accent);font-weight:600}
 .main{flex:1;display:flex;overflow:hidden}
 #map{flex:1;z-index:1}
 .panel{width:420px;background:var(--bg-card);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:2;flex-shrink:0;overflow-y:auto}
@@ -31,7 +31,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .price-tag{font-size:42px;font-weight:700;color:var(--accent)}
 .price-tag span{font-size:16px;font-weight:400;color:var(--text-dim)}
 .price-sub{font-size:11px;color:var(--text-dim);margin-top:4px;letter-spacing:0.05em}
-.exclusive-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(196,168,124,0.1);border:1px solid var(--gold-border);border-radius:20px;font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.04em}
+.exclusive-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:20px;font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.04em}
 .market-chip{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all 0.2s}
 .market-chip:hover{border-color:var(--accent);background:rgba(196,168,124,0.04)}
 .back-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer;margin-bottom:16px;transition:all 0.2s;font-family:'Inter',sans-serif}
@@ -40,11 +40,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .zip-stat .val{font-size:20px;font-weight:700}
 .zip-stat .label{font-size:9px;color:var(--text-dim);letter-spacing:0.06em;margin-top:2px}
 .btn{padding:12px 24px;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;width:100%}
-.btn-primary{background:var(--accent);color:#0a0f14}
+.btn-primary{background:var(--accent);color:#F5F0EB}
 .btn-primary:hover{background:var(--accent-hover);transform:translateY(-1px)}
 .btn-waitlist{background:transparent;border:1px solid var(--accent);color:var(--accent)}
 .btn-waitlist:hover{background:var(--gold-dim)}
-.btn-checkout{background:var(--green);color:#0a0f14;font-size:14px;padding:14px}
+.btn-checkout{background:var(--green);color:#F5F0EB;font-size:14px;padding:14px}
 .btn-checkout:hover{filter:brightness(1.1);transform:translateY(-1px)}
 .btn-remove{background:transparent;border:1px solid rgba(248,113,113,0.3);color:var(--red);padding:6px 12px;font-size:10px;border-radius:4px;cursor:pointer}
 .cart-item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
@@ -56,7 +56,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .panel-tabs{display:flex;border-bottom:1px solid var(--border)}
 .panel-tab{flex:1;padding:12px;text-align:center;font-size:12px;font-weight:500;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
 .panel-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:var(--accent);color:#0a0f14;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:var(--accent);color:#F5F0EB;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px}
 .leaflet-container{background:var(--bg)!important}
 .leaflet-zoom-box{display:none!important}
 .leaflet-control-zoom a{background:var(--bg-card)!important;color:var(--text)!important;border-color:var(--border)!important}
@@ -120,7 +120,7 @@ function addMarketMarkers(){
         const mz=territories.filter(t=>t.marketKey===key);
         const av=mz.filter(t=>t.status==='available').length;
         if(!mz.length)continue;
-        const icon=L.divIcon({className:'',html:`<div style="background:${av>0?'var(--accent)':'var(--text-dim)'};color:#0a0f14;padding:6px 12px;border-radius:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;border:2px solid rgba(255,255,255,0.15)">${m.name} · ${av}/${mz.length}</div>`,iconSize:null,iconAnchor:[80,15]});
+        const icon=L.divIcon({className:'',html:`<div style="background:${av>0?'var(--accent)':'var(--text-dim)'};color:#F5F0EB;padding:6px 12px;border-radius:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;border:2px solid rgba(255,255,255,0.15)">${m.name} · ${av}/${mz.length}</div>`,iconSize:null,iconAnchor:[80,15]});
         L.marker(m.center,{icon}).addTo(map).on('click',()=>zoomToMarket(key));
     }
 }
@@ -139,7 +139,7 @@ function showZipBoundaries(mk){
     boundaryLayer=L.geoJSON({type:'FeatureCollection',features:feats},{
         style:f=>{
             const z=f.properties.zip,t=territories.find(t=>t.zip===z),inC=cart.includes(z),cl=t?.status==='claimed';
-            return{fillColor:inC?'#4ade80':cl?'#f87171':'#c4a87c',fillOpacity:inC?0.35:cl?0.15:0.2,color:inC?'#4ade80':cl?'#f87171':'#c4a87c',weight:inC?2:1.5,opacity:0.8};
+            return{fillColor:inC?'#5A7247':cl?'#9E4B3C':'#8B6914',fillOpacity:inC?0.35:cl?0.15:0.2,color:inC?'#5A7247':cl?'#9E4B3C':'#8B6914',weight:inC?2:1.5,opacity:0.8};
         },
         onEachFeature:(f,layer)=>{
             const z=f.properties.zip;
@@ -212,7 +212,7 @@ function showPanel(view,data){
             <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">${zs.length} ZIP codes · Click a zone on the map</p>
             ${zs.sort((a,b)=>a.zip.localeCompare(b.zip)).map(t=>{
                 const inC=cart.includes(t.zip);
-                return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-elevated);border:1px solid ${inC?'rgba(74,222,128,0.3)':t.status==='claimed'?'rgba(248,113,113,0.2)':'var(--border)'};border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="showPanel('zip','${t.zip}')"><div><span style="font-weight:600;font-size:13px">${t.zip}</span><span style="font-size:11px;color:var(--text-dim);margin-left:8px">${t.parcels?.toLocaleString()} properties</span></div><div style="text-align:right"><div style="font-size:11px;font-weight:500;color:${inC?'var(--green)':t.status==='claimed'?'var(--red)':'var(--accent)'}">${inC?'✓ In Cart':t.status==='claimed'?'Claimed':'$'+(t.price||997).toLocaleString()+'/mo'}</div>${!inC&&t.status!=='claimed'&&t.tierLabel?'<div style="font-size:9px;color:var(--text-dim)">'+t.tierLabel+'</div>':''}</div></div>`;
+                return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-elevated);border:1px solid ${inC?'var(--green-border)':t.status==='claimed'?'rgba(248,113,113,0.2)':'var(--border)'};border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="showPanel('zip','${t.zip}')"><div><span style="font-weight:600;font-size:13px">${t.zip}</span><span style="font-size:11px;color:var(--text-dim);margin-left:8px">${t.parcels?.toLocaleString()} properties</span></div><div style="text-align:right"><div style="font-size:11px;font-weight:500;color:${inC?'var(--green)':t.status==='claimed'?'var(--red)':'var(--accent)'}">${inC?'✓ In Cart':t.status==='claimed'?'Claimed':'$'+(t.price||997).toLocaleString()+'/mo'}</div>${!inC&&t.status!=='claimed'&&t.tierLabel?'<div style="font-size:9px;color:var(--text-dim)">'+t.tierLabel+'</div>':''}</div></div>`;
             }).join('')}
         </div>`;
         return;
@@ -231,7 +231,7 @@ function showPanel(view,data){
                     <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-top:2px">PROPERTIES MONITORED DAILY</div>
                 </div>
             </div>
-            <div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:500;${t.status==='claimed'?'background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);color:var(--red)':'background:var(--green-dim);border:1px solid rgba(74,222,128,0.2);color:var(--green)'}">
+            <div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:500;${t.status==='claimed'?'background:var(--red-dim);border:1px solid rgba(248,113,113,0.2);color:var(--red)':'background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)'}">
                 ${t.status==='claimed'?`🔒 Claimed${t.waitlistCount>0?' · '+t.waitlistCount+' on waitlist':''}`:'✓ Available — exclusive to one agent'}
             </div>
             <div style="padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
@@ -252,7 +252,7 @@ function showPanel(view,data){
                         <div style="font-size:9px;color:var(--text-dim)">MONTHLY</div>
                         <div style="font-size:18px;font-weight:700;color:var(--text-secondary)">$${zipPrice(t,'monthly').toLocaleString()}</div>
                     </div>
-                    <div onclick="selectedPlan='6month';showPanel('zip','${t.zip}')" style="flex:1;padding:10px 6px;background:${selectedPlan==='6month'?'rgba(196,168,124,0.08)':'var(--bg)'};border:1px solid ${selectedPlan==='6month'?'var(--accent)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer;position:relative">
+                    <div onclick="selectedPlan='6month';showPanel('zip','${t.zip}')" style="flex:1;padding:10px 6px;background:${selectedPlan==='6month'?'var(--gold-dim)':'var(--bg)'};border:1px solid ${selectedPlan==='6month'?'var(--accent)':'var(--border)'};border-radius:6px;text-align:center;cursor:pointer;position:relative">
                         <div style="font-size:9px;color:var(--accent);font-weight:600">6 MONTHS</div>
                         <div style="font-size:18px;font-weight:700;color:var(--accent)">$${zipPrice(t,'6month').toLocaleString()}</div>
                     </div>

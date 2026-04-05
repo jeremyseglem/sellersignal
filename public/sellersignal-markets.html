@@ -6,27 +6,27 @@
 <title>SellerSignal — Claim Your Territory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&libraries=marker"></script>
 <style>
 :root{
-    --bg:#070b10;--bg-card:#0e1419;--bg-card-hover:#141c24;--bg-elevated:#111921;
-    --text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;
-    --gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);--accent:#c4a87c;
-    --green:#4ade80;--green-dim:rgba(74,222,128,0.1);--green-border:rgba(74,222,128,0.2);
-    --red:#f87171;--red-dim:rgba(248,113,113,0.08);
-    --border:#172030;--border-light:#1e2d3d;
+    --bg:#F5F0EB;--bg-card:#FFFFFF;--bg-card-hover:#FAF7F3;--bg-elevated:#EDE7DF;
+    --text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;
+    --gold:#8B6914;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18);--accent:#8B6914;
+    --green:#5A7247;--green-dim:rgba(90,114,71,0.08);--green-border:rgba(90,114,71,0.20);
+    --red:#9E4B3C;--red-dim:rgba(158,75,60,0.06);
+    --border:#D9CEBF;--border-light:#E8E0D4;
     --radius:10px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-::selection{background:var(--gold);color:var(--bg)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::selection{background:#2C2418;color:#F5F0EB}
 .header{padding:20px 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
-.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
-.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
 .logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
-.logo-text{font-family:'DM Serif Display',serif;font-size:20px}
+.logo-text{font-family:"DM Serif Display",serif;font-size:18px;color:#F5F0EB}
 .header-nav{display:flex;gap:20px;align-items:center}
 .header-nav a{font-size:12px;color:var(--text-dim);text-decoration:none;font-weight:500;letter-spacing:0.03em;transition:color 0.2s}
 .header-nav a:hover{color:var(--gold)}.header-nav a.active{color:var(--gold)}
@@ -45,7 +45,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .stat{text-align:center}.stat-val{font-size:22px;font-weight:700;color:var(--gold)}
 .stat-label{font-size:10px;color:var(--text-dim);font-weight:500;letter-spacing:0.05em;margin-top:2px}
 .panel-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
-.back-btn{padding:5px 10px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all 0.2s}
+.back-btn{padding:5px 10px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s}
 .back-btn:hover{border-color:var(--gold);color:var(--gold)}
 .panel-header h3{font-family:'DM Serif Display',serif;font-size:17px;flex:1}
 .panel-header .avail{font-size:11px;color:var(--green);font-weight:500}
@@ -66,9 +66,9 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .cart-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .cart-count{font-size:12px;color:var(--text-secondary)}
 .cart-total{font-size:22px;font-weight:700;color:var(--gold)}.cart-total span{font-size:12px;color:var(--text-dim);font-weight:400}
-.claim-btn{width:100%;padding:14px;background:var(--gold);color:var(--bg);border:none;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;opacity:0.25;pointer-events:none;letter-spacing:0.02em}
+.claim-btn{width:100%;padding:14px;background:#2C2418;color:#F5F0EB;border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;opacity:0.25;pointer-events:none;letter-spacing:0.02em}
 .claim-btn.active{opacity:1;pointer-events:auto}
-.claim-btn.active:hover{background:#d4b88c;transform:translateY(-1px);box-shadow:0 6px 24px rgba(196,168,124,0.2)}
+.claim-btn.active:hover{background:#d4b88c;transform:translateY(-1px);box-shadow:0 6px 24px var(--gold-border)}
 </style>
 </head>
 <body>
@@ -135,18 +135,18 @@ const CLAIMED=new Set(['98004','85253','10021','33480','28209']);
 let selected=new Set(), activeMarket=null, map=null, markers=[];
 
 const DARK_STYLE = [
-    {elementType:'geometry',stylers:[{color:'#0e1419'}]},
-    {elementType:'labels.text.stroke',stylers:[{color:'#0e1419'}]},
+    {elementType:'geometry',stylers:[{color:'#EDE7DF'}]},
+    {elementType:'labels.text.stroke',stylers:[{color:'#EDE7DF'}]},
     {elementType:'labels.text.fill',stylers:[{color:'#4a5768'}]},
     {featureType:'administrative',elementType:'geometry.stroke',stylers:[{color:'#172030'}]},
     {featureType:'road',elementType:'geometry',stylers:[{color:'#172030'}]},
     {featureType:'road',elementType:'labels',stylers:[{visibility:'off'}]},
-    {featureType:'water',elementType:'geometry',stylers:[{color:'#070b10'}]},
+    {featureType:'water',elementType:'geometry',stylers:[{color:'#C8D8D8'}]},
     {featureType:'water',elementType:'labels',stylers:[{visibility:'off'}]},
     {featureType:'poi',stylers:[{visibility:'off'}]},
     {featureType:'transit',stylers:[{visibility:'off'}]},
     {featureType:'road.highway',elementType:'geometry',stylers:[{color:'#1e2d3d'}]},
-    {featureType:'landscape',elementType:'geometry',stylers:[{color:'#0e1419'}]},
+    {featureType:'landscape',elementType:'geometry',stylers:[{color:'#E8E0D4'}]},
 ];
 
 function initMap() {
@@ -157,7 +157,7 @@ function initMap() {
         disableDefaultUI: true,
         zoomControl: true,
         zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
-        backgroundColor: '#070b10',
+        backgroundColor: '#F5F0EB',
         gestureHandling: 'greedy',
     });
 
@@ -170,9 +170,9 @@ function initMap() {
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 10,
-                fillColor: '#c4a87c',
+                fillColor: '#8B6914',
                 fillOpacity: 0.9,
-                strokeColor: '#c4a87c',
+                strokeColor: '#8B6914',
                 strokeWeight: 2,
                 strokeOpacity: 0.3,
             },
@@ -180,7 +180,7 @@ function initMap() {
 
         // Label
         const label = new google.maps.InfoWindow({
-            content: '<div style="font-family:Outfit,sans-serif;font-size:12px;font-weight:600;color:#0e1419;padding:2px 4px">' + m.name + '</div>',
+            content: '<div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:#2C2418;padding:2px 4px">' + m.name + '</div>',
             disableAutoPan: true,
         });
 
@@ -201,9 +201,9 @@ function selectMarket(key) {
         m.marker.setIcon({
             path: google.maps.SymbolPath.CIRCLE,
             scale: m.key === key ? 12 : 8,
-            fillColor: m.key === key ? '#4ade80' : '#c4a87c',
+            fillColor: m.key === key ? '#5A7247' : '#8B6914',
             fillOpacity: m.key === key ? 1 : 0.7,
-            strokeColor: m.key === key ? '#4ade80' : '#c4a87c',
+            strokeColor: m.key === key ? '#5A7247' : '#8B6914',
             strokeWeight: 2, strokeOpacity: 0.3,
         });
     });
@@ -225,7 +225,7 @@ function clearMarket() {
     activeMarket = null;
     markers.forEach(m => m.marker.setIcon({
         path: google.maps.SymbolPath.CIRCLE, scale: 10,
-        fillColor: '#c4a87c', fillOpacity: 0.9, strokeColor: '#c4a87c', strokeWeight: 2, strokeOpacity: 0.3,
+        fillColor: '#8B6914', fillOpacity: 0.9, strokeColor: '#8B6914', strokeWeight: 2, strokeOpacity: 0.3,
     }));
     document.getElementById('panelEmpty').style.display = 'flex';
     document.getElementById('panelContent').style.display = 'none';

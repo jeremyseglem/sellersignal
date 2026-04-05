@@ -4,22 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SellerSignal — Mail Campaigns</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#070b10;--bg-card:#0e1419;--bg-hover:#141c24;--bg-elevated:#111921;--text:#f0ede8;--text-secondary:#7e8d9c;--text-dim:#4a5768;--gold:#c4a87c;--gold-dim:rgba(196,168,124,0.12);--gold-border:rgba(196,168,124,0.25);--green:#4ade80;--green-dim:rgba(74,222,128,0.1);--blue:#60a5fa;--red:#f87171;--border:#172030;--radius:10px}
+:root{--bg:#F5F0EB;--bg-card:#FFFFFF;--bg-hover:#FAF7F3;--bg-elevated:#EDE7DF;--text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;--gold:#8B6914;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18);--green:#5A7247;--green-dim:rgba(90,114,71,0.08);--blue:#60a5fa;--red:#9E4B3C;--border:#D9CEBF;--radius:10px}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-::selection{background:var(--gold);color:var(--bg)}
-.header{padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(7,11,16,0.92);backdrop-filter:blur(20px);z-index:100}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+::selection{background:#2C2418;color:#F5F0EB}
+.header{padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(44,36,24,0.95);backdrop-filter:blur(20px);z-index:100}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
-.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
-.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
 .logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
-.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.logo-text{font-family:"DM Serif Display",serif;font-size:18px;color:#F5F0EB}
 .header-nav{display:flex;gap:8px}
 .nav-btn{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);transition:all 0.2s}
 .nav-btn:hover{color:var(--text);border-color:var(--gold)}
-.nav-btn.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
+.nav-btn.active{background:rgba(139,105,20,0.15);border-color:rgba(139,105,20,0.4);color:#C9A84C}
 .page{max-width:960px;margin:0 auto;padding:28px 24px 80px}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
 .stat{padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);text-align:center}
@@ -39,7 +39,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .progress .dot.sent{background:var(--green)}
 .progress .dot.next{background:var(--gold)}
 .badge{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600}
-.badge-active{background:var(--green-dim);color:var(--green);border:1px solid rgba(74,222,128,0.2)}
+.badge-active{background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)}
 .badge-completed{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)}
 .badge-paused{background:rgba(255,255,255,0.04);color:var(--text-dim);border:1px solid var(--border)}
 /* Letter preview modal */
@@ -51,15 +51,15 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .letter-nav{display:flex;gap:4px;padding:12px 24px;border-bottom:1px solid var(--border)}
 .letter-tab{padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border);color:var(--text-dim);background:transparent}
 .letter-tab.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold)}
-.letter-tab.sent{color:var(--green);border-color:rgba(74,222,128,0.2)}
+.letter-tab.sent{color:var(--green);border-color:var(--green-border)}
 .letter-body{padding:24px;font-family:Georgia,serif;font-size:14px;line-height:1.7;color:var(--text-secondary);white-space:pre-wrap}
 /* Profile form */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .field{margin-bottom:0}
 .field label{display:block;font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:4px}
-.field input{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;outline:none}
+.field input{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none}
 .field input:focus{border-color:var(--gold)}
-.btn{padding:10px 24px;background:var(--gold);color:var(--bg);border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif}
+.btn{padding:10px 24px;background:#2C2418;color:#F5F0EB;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
 .btn:hover{background:#d4b88c}
 .empty{text-align:center;padding:48px 20px;color:var(--text-dim);font-size:13px}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}

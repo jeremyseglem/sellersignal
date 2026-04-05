@@ -10,17 +10,17 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-:root{--bg:#0a0f14;--bg-card:#111921;--bg-card-hover:#162430;--bg-input:#1a2a3a;--text:#FDFCFA;--text-secondary:#8a9aa8;--text-tertiary:#5a6a78;--accent:#c4a87c;--accent-hover:#d4b88c;--border:#1e2a36;--score-high:#4ade80;--score-medium:#fbbf24;--score-low:#f87171}
+:root{--bg:#F5F0EB;--bg-card:#FFFFFF;--bg-card-hover:#FAF7F3;--bg-input:#EDE7DF;--text:#2C2418;--text-secondary:#7A6E5D;--text-tertiary:#A89B8A;--accent:#8B6914;--accent-hover:#6A5010;--border:#D9CEBF;--score-high:#5A7247;--score-medium:#8B6914;--score-low:#9E4B3C}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 .header{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--bg);z-index:1000;flex-shrink:0}
 .logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none}
-.logo-mark{width:28px;height:28px;border:2px solid var(--text);border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
-.logo-mark .bar{width:2.5px;background:var(--text);border-radius:1px}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
 .logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
-.logo-text{font-family:'DM Serif Display',serif;font-size:18px}
+.logo-text{font-family:"DM Serif Display",serif;font-size:18px;color:#F5F0EB}
 .header-right{display:flex;align-items:center;gap:12px}
-.state-badge{padding:5px 12px;background:rgba(196,168,124,0.12);border:1px solid rgba(196,168,124,0.25);border-radius:6px;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.05em}
+.state-badge{padding:5px 12px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:6px;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.05em}
 .usage-badge{font-size:12px;color:var(--text-secondary);padding:5px 10px;background:var(--bg-card);border-radius:6px}
 .usage-badge strong{color:var(--accent)}
 .map-container{flex:1;position:relative;display:flex}
@@ -48,11 +48,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .prospect-card-owner{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prospect-card-addr{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prospect-card-signals{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.prospect-card-signal{font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(196,168,124,0.1);color:var(--accent);border:1px solid rgba(196,168,124,0.15);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.prospect-card-signal{font-size:9px;padding:2px 6px;border-radius:3px;background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
 .sidebar-empty{padding:24px 20px;text-align:center;color:var(--text-tertiary);font-size:13px;line-height:1.6}
 .sidebar-collapse{display:none;position:absolute;right:16px;top:50%;transform:translateY(-50%);z-index:901;width:32px;height:64px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px 0 0 8px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:14px}
 .sidebar-collapse:hover{background:var(--bg-card-hover);color:var(--text)}
-.leaflet-container{background:#0a0f14}
+.leaflet-container{background:#EDE7DF}
 .leaflet-control-zoom a{background:var(--bg-card)!important;color:var(--text)!important;border-color:var(--border)!important}
 .leaflet-control-zoom a:hover{background:var(--bg-card-hover)!important}
 .leaflet-control-attribution{background:rgba(10,15,20,0.8)!important;color:var(--text-tertiary)!important;font-size:10px!important}
@@ -78,7 +78,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .quick-jump{padding:6px 14px;background:rgba(17,25,33,0.9);border:1px solid var(--border);border-radius:20px;color:var(--text-secondary);font-size:11px;cursor:pointer;transition:all 0.2s;backdrop-filter:blur(8px)}
 .quick-jump:hover{border-color:var(--accent);color:var(--accent)}
 .cohort-filters{display:flex;gap:5px;margin-top:8px;justify-content:center;flex-wrap:wrap}
-.cohort-btn{padding:5px 12px;background:rgba(17,25,33,0.85);border:1px solid var(--border);border-radius:4px;color:var(--text-tertiary);font-size:10px;font-weight:600;letter-spacing:0.03em;cursor:pointer;transition:all 0.2s;backdrop-filter:blur(8px);text-transform:uppercase}
+.cohort-btn{padding:5px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;color:var(--text-tertiary);font-size:10px;font-weight:600;letter-spacing:0.03em;cursor:pointer;transition:all 0.2s;backdrop-filter:blur(8px);text-transform:uppercase}
 .cohort-btn:hover{border-color:var(--accent);color:var(--accent)}
 .cohort-btn.active{background:var(--accent);border-color:var(--accent);color:var(--bg)}
 .popup-card{padding:16px}.popup-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
@@ -86,7 +86,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .popup-redacted{font-size:11px;color:var(--accent);font-weight:500;margin-top:4px;display:flex;align-items:center;gap:4px}
 .popup-type{font-size:10px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-tertiary);margin-top:3px}
 .popup-score{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0}
-.popup-score.high{color:var(--score-high);background:rgba(74,222,128,0.12);border:1.5px solid rgba(74,222,128,0.3)}
+.popup-score.high{color:var(--score-high);background:rgba(74,222,128,0.12);border:1.5px solid var(--green-border)}
 .popup-score.medium{color:var(--score-medium);background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3)}
 .popup-score.low{color:var(--score-low);background:rgba(248,113,113,0.12);border:1.5px solid rgba(248,113,113,0.3)}
 .popup-address{font-size:12px;color:var(--text-secondary);margin-bottom:12px}
@@ -94,7 +94,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .popup-metric-label{font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-tertiary)}
 .popup-metric-value{font-size:13px;font-weight:600;color:var(--accent)}.popup-metric-value.plain{color:var(--text)}
 .popup-signals{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
-.popup-signal{font-size:10px;padding:3px 8px;border-radius:3px;background:rgba(196,168,124,0.1);color:var(--accent);border:1px solid rgba(196,168,124,0.2)}
+.popup-signal{font-size:10px;padding:3px 8px;border-radius:3px;background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)}
 .popup-deep-btn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--accent);border-radius:6px;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s}
 .popup-deep-btn:hover{background:var(--accent);color:var(--bg)}
 .stats-bar{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;display:none;gap:24px;align-items:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-size:12px}
@@ -169,7 +169,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 <header class="header">
     <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
     <div class="header-right">
-        <a href="sellersignal-briefing.html?resume" style="padding:6px 14px;background:rgba(196,168,124,0.12);border:1px solid rgba(196,168,124,0.25);border-radius:6px;font-size:11px;font-weight:600;color:#c4a87c;text-decoration:none;letter-spacing:0.03em">← Briefing</a>
+        <a href="sellersignal-briefing.html?resume" style="padding:6px 14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:6px;font-size:11px;font-weight:600;color:#8B6914;text-decoration:none;letter-spacing:0.03em">← Briefing</a>
         <a href="sellersignal-crm.html" style="padding:6px 14px;background:transparent;border:1px solid #172030;border-radius:6px;font-size:11px;font-weight:600;color:#7e8d9c;text-decoration:none;letter-spacing:0.03em">Pipeline</a>
         <div class="state-badge" id="stateBadge">LOADING...</div>
         <div class="usage-badge"><strong>47</strong> signals remaining</div>
@@ -1001,7 +1001,7 @@ function getSource(lat,lng){for(const[k,s]of Object.entries(SOURCES)){const b=s.
 const map=L.map('map',{center:[46.8, -110.4],zoom:7});
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OSM &copy; CARTO',subdomains:'abcd',maxZoom:20}).addTo(map);
 let markers=[],isLoading=false;const MIN_ZOOM=15;
-const colors={high:'#4ade80',medium:'#fbbf24',low:'#f87171'};
+const colors={high:'#5A7247',medium:'#8B6914',low:'#9E4B3C'};
 const glows={high:'rgba(74,222,128,0.4)',medium:'rgba(251,191,36,0.3)',low:'rgba(248,113,113,0.2)'};
 
 
@@ -1015,8 +1015,8 @@ async function loadParcels(){
     if(zoom<MIN_ZOOM){document.getElementById('zoomMessage').style.display='block';document.getElementById('statsBar').style.display='none';return}
     document.getElementById('zoomMessage').style.display='none';
     const c=map.getCenter();const match=getSource(c.lat,c.lng);
-    if(!match){document.getElementById('stateBadge').textContent='COVERAGE COMING SOON';document.getElementById('stateBadge').style.color='#f87171';return}
-    const{source}=match;document.getElementById('stateBadge').textContent=source.name.toUpperCase();document.getElementById('stateBadge').style.color='#c4a87c';
+    if(!match){document.getElementById('stateBadge').textContent='COVERAGE COMING SOON';document.getElementById('stateBadge').style.color='#9E4B3C';return}
+    const{source}=match;document.getElementById('stateBadge').textContent=source.name.toUpperCase();document.getElementById('stateBadge').style.color='#8B6914';
     isLoading=true;document.getElementById('loadingText').textContent=`Loading ${source.name} parcels...`;document.getElementById('mapLoading').classList.add('active');
     try{const b=map.getBounds();const sw=latlngToMerc(b.getSouth(),b.getWest());const ne=latlngToMerc(b.getNorth(),b.getEast());
     const params=new URLSearchParams({
@@ -1090,7 +1090,7 @@ function popup(p){
         <div style="padding:16px">
         <div class="popup-header"><div>${ownerHtml}<div class="popup-type">${p.propType||'Property'}</div></div></div>
         <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
-            <span style="padding:3px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;background:rgba(196,168,124,0.15);color:var(--accent);border:1px solid rgba(196,168,124,0.3)">${p.cohortLabel||'Residential'}</span>
+            <span style="padding:3px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;background:var(--gold-border);color:var(--accent);border:1px solid rgba(196,168,124,0.3)">${p.cohortLabel||'Residential'}</span>
             <span style="font-size:11px;color:var(--text-tertiary)">Sell: <strong style="color:${p.scoreClass==='high'?'var(--score-high)':p.scoreClass==='medium'?'var(--score-medium)':'var(--score-low)'}">${p.score}</strong></span>
             <span style="font-size:11px;color:var(--text-tertiary)">Off-Mkt: <strong style="color:${p.omFit>=60?'var(--score-high)':p.omFit>=40?'var(--score-medium)':'var(--text-tertiary)'}">${p.omFit}</strong></span>
         </div>
@@ -1148,7 +1148,7 @@ function updateSidebar(){
                 <div class="prospect-card-owner">${owner}</div>
                 <div class="prospect-card-addr">${p.address}</div>
                 <div style="display:flex;gap:6px;align-items:center;margin:4px 0">
-                    <span style="padding:2px 6px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;background:rgba(196,168,124,0.15);color:var(--accent)">${p.cohortLabel||'Residential'}</span>
+                    <span style="padding:2px 6px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;background:var(--gold-border);color:var(--accent)">${p.cohortLabel||'Residential'}</span>
                     <span style="font-size:10px;color:var(--text-tertiary)">OM: <strong style="color:${p.omFit>=60?'var(--score-high)':p.omFit>=40?'var(--score-medium)':'var(--text-tertiary)'}">${p.omFit}</strong></span>
                 </div>
                 <div class="prospect-card-signals">${topSignals}</div>
@@ -1224,7 +1224,7 @@ async function runDeep(address,csz,score,scoreClass,totalVal,bldgVal,landVal,own
                     el.textContent = d.message || '';
                     el.style.opacity = '1';
                     // Flash effect on update
-                    el.style.color = '#c4a87c';
+                    el.style.color = '#8B6914';
                     setTimeout(() => { if (el) el.style.color = ''; }, 300);
                 }
             } catch(err) {}
@@ -1395,7 +1395,7 @@ function renderRealDeepSignal(d, fullAddr, fallbackScoreClass) {
         </div>
     </div>
     <div class="deep-card">
-        <div style="padding:20px 24px;border-bottom:2px solid var(--accent);background:linear-gradient(135deg,rgba(196,168,124,0.06) 0%,transparent 100%)">
+        <div style="padding:20px 24px;border-bottom:2px solid var(--accent);background:linear-gradient(135deg,var(--gold-dim) 0%,transparent 100%)">
             <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px">Quick Brief</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
                 <div>
@@ -1425,7 +1425,7 @@ function renderRealDeepSignal(d, fullAddr, fallbackScoreClass) {
                     <div style="font-size:22px;font-weight:800;color:var(--text)">${d.confidenceScore||'?'}<span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">/100</span></div>
                 </div>
             </div>
-            ${(d.redFlags && d.redFlags.length > 0 && d.redFlags[0] !== 'None identified' && d.redFlags[0] !== 'None') ? `<div style="padding:8px 12px;background:rgba(248,113,113,0.08);border-left:3px solid var(--score-low);border-radius:4px;font-size:12px;color:var(--score-low)"><strong>Risk:</strong> ${d.redFlags[0]}</div>` : ''}
+            ${(d.redFlags && d.redFlags.length > 0 && d.redFlags[0] !== 'None identified' && d.redFlags[0] !== 'None') ? `<div style="padding:8px 12px;background:var(--red-dim);border-left:3px solid var(--score-low);border-radius:4px;font-size:12px;color:var(--score-low)"><strong>Risk:</strong> ${d.redFlags[0]}</div>` : ''}
         </div>
         <div style="padding:16px 24px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary);line-height:1.5">
             <strong style="color:var(--accent)">Score basis:</strong> ${d.scoreBasis || 'Based on preliminary parcel data analysis'}
@@ -1442,13 +1442,13 @@ function renderRealDeepSignal(d, fullAddr, fallbackScoreClass) {
         </div>
         </div>
         <div style="padding:24px;border-bottom:1px solid var(--border)">
-            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-high);margin-bottom:12px">Confirmed Facts <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(74,222,128,0.15);color:var(--score-high);font-weight:600;margin-left:4px">VERIFIED</span></h4>
+            <h4 style="font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--score-high);margin-bottom:12px">Confirmed Facts <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--green-dim);color:var(--score-high);font-weight:600;margin-left:4px">VERIFIED</span></h4>
             ${factsHtml}
         </div>
         ${contactHtml}
         ${entityHtml}
         <div class="deep-grid">
-            <div class="deep-block"><h4>Who They Are <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(74,222,128,0.15);color:var(--score-high);font-weight:600;margin-left:8px;vertical-align:middle">SOURCED</span></h4>
+            <div class="deep-block"><h4>Who They Are <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--green-dim);color:var(--score-high);font-weight:600;margin-left:8px;vertical-align:middle">SOURCED</span></h4>
                 <div class="deep-row"><span class="deep-row-label">Name</span><span class="deep-row-value">${name}</span></div>
                 <div class="deep-row"><span class="deep-row-label">Spouse</span><span class="deep-row-value">${d.whoTheyAre?.spouse||'Not found'}</span></div>
                 <div class="deep-row"><span class="deep-row-label">Occupation</span><span class="deep-row-value">${d.whoTheyAre?.occupation||'Not found'}</span></div>
@@ -1476,8 +1476,8 @@ function renderRealDeepSignal(d, fullAddr, fallbackScoreClass) {
             <div class="deep-signals-header"><h4>Selling Signals</h4><span style="font-size:12px;color:var(--text-tertiary)">${(d.signals||[]).length} signals</span></div>
             <div class="deep-signal-tags">${sigsHtml||'<div style="font-size:12px;color:var(--text-tertiary)">No signals detected beyond parcel data</div>'}</div>
         </div>
-        <div class="deep-approach"><h4>Recommended Approach <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(196,168,124,0.2);color:var(--accent);font-weight:600;margin-left:8px;vertical-align:middle">ADVISORY</span></h4>
-            ${d.approach?.angle ? `<div style="margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg,rgba(196,168,124,0.1) 0%,transparent 100%);border-radius:8px;border-left:3px solid var(--accent)"><span style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent)">Primary Angle:</span> <span style="font-size:13px;color:var(--text)">${d.approach.angle}</span></div>` : ''}
+        <div class="deep-approach"><h4>Recommended Approach <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--gold-border);color:var(--accent);font-weight:600;margin-left:8px;vertical-align:middle">ADVISORY</span></h4>
+            ${d.approach?.angle ? `<div style="margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg,var(--gold-dim) 0%,transparent 100%);border-radius:8px;border-left:3px solid var(--accent)"><span style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent)">Primary Angle:</span> <span style="font-size:13px;color:var(--text)">${d.approach.angle}</span></div>` : ''}
             <div class="deep-approach-grid">
                 <div class="deep-approach-block"><h5>Opening</h5><p>${d.approach?.opening||'Not enough data for personalized approach'}</p></div>
                 <div class="deep-approach-block"><h5>Key Messages</h5><p>${d.approach?.keyMessages||'Not enough data'}</p></div>
