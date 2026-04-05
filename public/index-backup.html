@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — Know Who's Going to Sell Before They List</title>
+<meta name="description" content="AI-powered seller intelligence for luxury real estate agents. Exclusive ZIP code access with daily briefings, personalized outreach, and Deep Signal analysis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F0EB;--bg-card:#FFFFFF;--bg-elevated:#EDE7DF;--text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;--gold:#8B6914;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18);--green:#5A7247;--green-dim:rgba(90,114,71,0.08);--red:#9E4B3C;--border:#D9CEBF}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+::selection{background:#2C2418;color:#F5F0EB}
+.header{padding:20px 40px;display:flex;justify-content:space-between;align-items:center;position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(44,36,24,0.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(23,32,48,0.5)}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:"DM Serif Display",serif;font-size:18px;color:#F5F0EB}
+.header-r{display:flex;gap:10px}
+.btn-g{padding:8px 20px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;text-decoration:none}
+.btn-g:hover{border-color:var(--gold);color:var(--gold)}
+.btn-p{padding:8px 24px;background:var(--gold);border:none;border-radius:6px;color:var(--bg);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;text-decoration:none;display:inline-block}
+.btn-p:hover{background:#d4b88c}
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:140px 40px 100px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 50% 20%, rgba(196,168,124,0.05) 0%, transparent 60%)}
+.hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:200px;background:linear-gradient(to top,var(--bg),transparent)}
+.hero-inner{max-width:800px;text-align:center;position:relative;z-index:1}
+.hero h1{font-family:'DM Serif Display',serif;font-size:clamp(38px,5.5vw,64px);line-height:1.1;margin-bottom:24px;letter-spacing:-0.02em}
+.hero h1 em{font-style:italic;color:var(--gold)}
+.hero-sub{font-size:18px;color:var(--text-secondary);line-height:1.7;max-width:560px;margin:0 auto 40px}
+.hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:32px}
+.hero-cta .btn-p{padding:16px 40px;font-size:15px;border-radius:8px}
+.hero-cta .btn-g{padding:16px 32px;font-size:15px;border-radius:8px}
+.hero-avail{font-size:12px;color:var(--text-dim);letter-spacing:0.04em}
+.hero-avail strong{color:var(--gold)}
+.grid-bg{position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.03;background-image:linear-gradient(var(--text-dim) 1px,transparent 1px),linear-gradient(90deg,var(--text-dim) 1px,transparent 1px);background-size:60px 60px}
+.s{padding:100px 40px;max-width:1000px;margin:0 auto}
+.s-wide{max-width:1100px}
+.s-label{font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.1em;margin-bottom:14px}
+.s h2{font-family:'DM Serif Display',serif;font-size:clamp(28px,3vw,38px);margin-bottom:16px;line-height:1.2}
+.s p.desc{color:var(--text-secondary);font-size:15px;line-height:1.7;max-width:600px}
+.divider{width:60px;height:1px;background:var(--gold-border);margin:0 auto}
+.mockup{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:40px}
+.mockup-header{padding:24px 28px;border-bottom:1px solid var(--border)}
+.mockup-row{display:flex;gap:28px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.mockup-stat .num{font-size:22px;font-weight:700}
+.mockup-stat .lbl{font-size:10px;color:var(--text-dim);letter-spacing:0.04em}
+.mockup-card{padding:18px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;margin:16px 28px}
+.score-circle{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0}
+.mail-compare{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px}
+.mail-card{padding:28px;border-radius:12px;font-size:14px;line-height:1.8}
+.mail-card.old{background:var(--bg-card);border:1px solid var(--border);color:var(--text-dim)}
+.mail-card.new{background:var(--bg-card);border:1px solid var(--gold-border);color:var(--text-secondary)}
+.mail-card .tag{font-size:10px;font-weight:600;letter-spacing:0.08em;margin-bottom:12px}
+.origin{background:var(--bg-card);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:80px 40px}
+.origin-inner{max-width:700px;margin:0 auto;text-align:center}
+.origin blockquote{font-family:'DM Serif Display',serif;font-size:clamp(20px,2.5vw,28px);line-height:1.5;color:var(--text);font-style:italic;margin:24px 0}
+.origin .attr{font-size:13px;color:var(--text-dim)}
+.avail-bar{display:flex;justify-content:center;gap:40px;padding:40px;flex-wrap:wrap}
+.avail-item{text-align:center}
+.avail-item .num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--gold)}
+.avail-item .lbl{font-size:11px;color:var(--text-dim);letter-spacing:0.06em;margin-top:4px}
+.final-cta{padding:100px 40px;text-align:center}
+.final-cta h2{font-family:'DM Serif Display',serif;font-size:clamp(28px,3.5vw,42px);margin-bottom:16px}
+.final-cta p{color:var(--text-secondary);font-size:15px;max-width:500px;margin:0 auto 32px;line-height:1.6}
+.footer{padding:40px;text-align:center;border-top:1px solid var(--border);font-size:12px;color:var(--text-dim)}
+.fi{opacity:0;transform:translateY(24px);transition:opacity 0.7s ease,transform 0.7s ease}
+.fi.v{opacity:1;transform:translateY(0)}
+@media(max-width:768px){
+.header{padding:16px 20px}.hero{padding:120px 20px 80px}.s{padding:60px 20px}.mail-compare{grid-template-columns:1fr}.mockup-row{flex-wrap:wrap;gap:16px}.hero-cta{flex-direction:column;align-items:center}.avail-bar{gap:24px}
+}
+</style>
+</head>
+<body>
+<header class="header">
+    <a href="/" class="logo">
+        <div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="logo-text">SellerSignal</span>
+    </a>
+    <div class="header-r">
+        <a href="/sellersignal-briefing.html" class="btn-g">Demo</a>
+        <a href="/territories.html" class="btn-p">Claim Your ZIP Code</a>
+    </div>
+</header>
+<section class="hero">
+    <div class="grid-bg"></div>
+    <div class="hero-inner">
+        <h1>Know who's going to sell<br><em>before they list.</em></h1>
+        <p class="hero-sub">AI-powered seller intelligence that identifies likely sellers in your ZIP code, analyzes their psychology, and runs personalized outreach campaigns — exclusively for you.</p>
+        <div class="hero-cta">
+            <a href="/territories.html" class="btn-p">Claim Your ZIP Code</a>
+            <a href="#briefing" class="btn-g">See It Work</a>
+        </div>
+        <div class="hero-avail"><strong id="availCount">76</strong> ZIP codes available across 8 markets&nbsp; · &nbsp;<strong>One agent per ZIP code</strong></div>
+    </div>
+</section>
+<section class="s s-wide fi" id="briefing">
+    <div class="s-label">DAILY INTELLIGENCE</div>
+    <h2>Your briefing generates overnight. You wake up to this.</h2>
+    <p class="desc">Every morning, SellerSignal scans every property in your ZIP code. Scores every owner. Delivers the ones most likely to sell — with the intelligence to act on it.</p>
+    <div class="mockup">
+        <div class="mockup-header">
+            <div style="font-size:11px;color:var(--gold);letter-spacing:0.06em;font-weight:600">THURSDAY, APRIL 2</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:26px;margin:4px 0">Daily Briefing</div>
+            <div style="font-size:13px;color:var(--text-secondary)">ZIP 98112 · Seattle, WA</div>
+            <div class="mockup-row">
+                <div class="mockup-stat"><div class="num">6,737</div><div class="lbl">PROPERTIES</div></div>
+                <div class="mockup-stat"><div class="num" style="color:var(--green)">12</div><div class="lbl">ACT TODAY</div></div>
+                <div class="mockup-stat"><div class="num" style="color:var(--gold)">847</div><div class="lbl">OUTREACH QUEUE</div></div>
+                <div class="mockup-stat"><div class="num">91%</div><div class="lbl">RECALL ACCURACY</div></div>
+            </div>
+        </div>
+        <div style="padding:16px 28px 8px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">🔥</span>
+            <span style="font-weight:600;font-size:15px">Act Today</span>
+            <span style="font-size:11px;color:var(--text-dim);margin-left:auto">Deep Signal verified</span>
+        </div>
+        <div class="mockup-card">
+            <div style="display:flex;align-items:flex-start;gap:14px">
+                <div class="score-circle" style="background:var(--green-dim);border:2px solid var(--green-border);color:var(--green)">78</div>
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:14px"><span style="background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-right:8px">NEW</span>Harrington Family Trust — 1847 Broadmoor Dr E</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:6px">↗ Trust established 2019 with out-of-state trustees managing from San Francisco. Property vacant 8+ months — utility records suggest non-occupancy. High-value waterfront lot assessed at $3.2M with deferred maintenance signals consistent with succession planning or portfolio simplification.</div>
+                    <div style="display:flex;gap:8px;margin-top:12px">
+                        <span style="padding:4px 10px;background:var(--green-dim);border:1px solid var(--green-dim);border-radius:4px;font-size:10px;font-weight:600;color:var(--green)">✓ Deep Signal</span>
+                        <span style="padding:4px 10px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:4px;font-size:10px;color:var(--gold)">Letter + Phone</span>
+                        <span style="padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text-dim)">6-12 months</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mockup-card" style="margin-bottom:24px">
+            <div style="display:flex;align-items:flex-start;gap:14px">
+                <div class="score-circle" style="background:var(--green-dim);border:2px solid var(--green-border);color:var(--green)">72</div>
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:14px"><span style="background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-right:8px">NEW</span>Whitfield, Robert & Jean — 2203 E Madison St</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:6px">↗ 28-year tenure, individual ownership. Mailing address recently changed to assisted living facility in Bellevue. Property assessed at $2.1M with no recent permits — classic estate transition pattern. Adult children likely managing decisions.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<div class="divider"></div>
+<section class="s fi">
+    <div class="s-label">DEEP SIGNAL</div>
+    <h2>Other tools show you data. We show you the person.</h2>
+    <p class="desc">Every prospecting platform gives you the same public records. Deep Signal analyzes the person behind the property — their motivation, their psychology, their timeline, and exactly how to approach them.</p>
+    <div style="background:var(--bg-card);border:1px solid var(--gold-border);border-radius:12px;padding:28px;margin-top:36px">
+        <div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:0.08em;margin-bottom:16px">DEEP SIGNAL ANALYSIS — HARRINGTON FAMILY TRUST · 1847 BROADMOOR DR E</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:13px;color:var(--text-secondary);line-height:1.7">
+            <div>
+                <div style="font-weight:600;color:var(--text);margin-bottom:6px">Seller Psychology</div>
+                This is a succession-planning scenario, not a financial distress situation. The Harrington trustees are managing a dispersed portfolio from San Francisco — 800 miles away. Decision-making is likely committee-based with multiple family members. The key emotional barrier is attachment to a family property — frame any conversation around legacy preservation, not transaction.
+            </div>
+            <div>
+                <div style="font-weight:600;color:var(--text);margin-bottom:6px">Recommended Approach</div>
+                Lead with discretion. The Harrington family values privacy above all. Position yourself as a Broadmoor specialist who can provide a confidential market perspective. Offer a private valuation with no obligation. First touch should be a handwritten-style letter to the San Francisco mailing address — not a phone call. Expect a 4-6 month decision cycle with multiple family members involved.
+            </div>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:13px;color:var(--text-secondary)">
+            <span style="font-weight:600;color:var(--text)">What NOT to say:</span> Don't mention the out-of-state management, the vacancy, or the trust structure. The Harringtons will feel surveilled and shut down. Position yourself as a Broadmoor neighborhood specialist, not someone who researched their ownership.
+        </div>
+    </div>
+</section>
+<div class="divider"></div>
+<section class="s fi">
+    <div class="s-label">AUTOMATED DIRECT MAIL</div>
+    <h2>Every other mailer goes in the trash. This one gets read.</h2>
+    <p class="desc">Six AI-written letters over six months, each one advancing the relationship. Not templates with a name swapped in — letters that reference who the seller actually is.</p>
+    <div class="mail-compare">
+        <div class="mail-card old">
+            <div class="tag" style="color:var(--text-dim)">EVERY OTHER SERVICE</div>
+            <div style="font-family:Georgia,serif;font-style:italic;line-height:1.9">
+                Dear Homeowner,<br><br>
+                Are you thinking about selling your home? Now is a great time! The market in your area is hot and buyers are ready. I specialize in homes like yours and would love to help you get top dollar.<br><br>
+                Call me today for a free home valuation!<br><br>
+                — Your Local Agent
+            </div>
+            <div style="margin-top:16px;font-size:11px;color:var(--text-dim)">→ Straight in the trash. Every agent sends this.</div>
+        </div>
+        <div class="mail-card new">
+            <div class="tag" style="color:var(--gold)">SELLERSIGNAL</div>
+            <div style="font-family:Georgia,serif;font-style:italic;line-height:1.9;color:var(--text)">
+                Dr. Smith,<br><br>
+                I noticed your property on East Ironwood — it's one of the more striking lots backing up to the Pinnacle Peak preserve. I work exclusively in North Scottsdale and I've been watching how the market has shifted for properties with that kind of desert privacy.<br><br>
+                Most of my clients in Paradise Valley are physicians like yourself who value discretion above all else in a real estate relationship...
+            </div>
+            <div style="margin-top:16px;font-size:11px;color:var(--gold)">→ This gets opened. Read. And remembered.</div>
+        </div>
+    </div>
+</section>
+<section class="origin fi">
+    <div class="origin-inner">
+        <div class="s-label" style="text-align:center">WHY WE BUILT THIS</div>
+        <blockquote>"We spent tens of thousands on interns and assistants to research sellers and hand-write prospecting letters. It was slow, expensive, and barely personalized. We closed hundreds of thousands in commissions from those letters anyway. Imagine what happens when every letter is written by an AI that actually knows who the seller is, why they might sell, and what matters to them."</blockquote>
+        <div class="attr">Created by luxury brokers with hundreds of millions of dollars in sales.</div>
+    </div>
+</section>
+<section class="s fi" style="text-align:center;padding-bottom:40px">
+    <div class="s-label" style="text-align:center">EXCLUSIVITY</div>
+    <h2>One agent per ZIP code. Once it's claimed, it's gone.</h2>
+    <p class="desc" style="margin:0 auto 40px">No sharing intelligence with competitors. No watered-down leads. Your ZIP code, your sellers, your advantage.</p>
+    <div class="avail-bar">
+        <div class="avail-item"><div class="num" id="availNum">76</div><div class="lbl">ZIP CODES AVAILABLE</div></div>
+        <div class="avail-item"><div class="num">8</div><div class="lbl">MARKETS LIVE</div></div>
+        <div class="avail-item"><div class="num">670K+</div><div class="lbl">PROPERTIES MONITORED</div></div>
+        <div class="avail-item"><div class="num">Daily</div><div class="lbl">BRIEFING CADENCE</div></div>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);max-width:500px;margin:0 auto">Montana · King County, WA · Phoenix / Scottsdale · Bend, OR · Charlotte, NC · Palm Beach · Miami-Dade · New York</p>
+</section>
+<section class="final-cta fi">
+    <h2>Your ZIP code is still available.<br><em style="font-family:'DM Serif Display',serif;color:var(--gold)">For now.</em></h2>
+    <p>Starting at $997/month. Every day you wait is a day another agent could lock in your market.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+        <a href="/territories.html" class="btn-p" style="padding:16px 44px;font-size:16px;border-radius:8px">Claim Your ZIP Code</a>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:16px">Limited beta · Dynamic pricing by market value · 6-month commitment recommended</div>
+</section>
+<footer class="footer">
+    <div style="margin-bottom:8px"><a href="/" class="logo" style="display:inline-flex"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a></div>
+    © 2026 SellerSignal. Seller intelligence for real estate.
+</footer>
+<script>
+const obs=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('v')})},{threshold:0.1});
+document.querySelectorAll('.fi').forEach(el=>obs.observe(el));
+fetch('/api/territories').then(r=>r.json()).then(d=>{
+    const a=(d.territories||[]).filter(t=>t.status==='available').length;
+    document.getElementById('availCount').textContent=a;
+    document.getElementById('availNum').textContent=a;
+}).catch(()=>{});
+</script>
+</body>
+</html>
