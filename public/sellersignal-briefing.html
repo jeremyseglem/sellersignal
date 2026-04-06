@@ -546,6 +546,20 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let sb = null;
 let currentUser = null;
+let userTerritories = [];
+
+const ZIP_NAMES = {
+    '59715':'Bozeman','59718':'Bozeman W','59937':'Whitefish','59716':'Big Sky','59801':'Missoula','59711':'Anaconda',
+    '85253':'Paradise Valley','85254':'N Scottsdale','85262':'Scottsdale Ranch','85255':'DC Ranch','85268':'Fountain Hills','85331':'Cave Creek',
+    '85251':'Old Town Scottsdale','85258':'S Scottsdale','85260':'N Scottsdale','85281':'Tempe','85224':'Chandler','85295':'Gilbert','85206':'Mesa',
+    '33480':'Palm Beach','33486':'Boca Raton','33496':'Boca W','33432':'Boca E','33433':'Boca S','33487':'Boca Beach','33458':'Jupiter','33408':'N Palm Beach','33462':'Lantana','33434':'W Boca',
+    '33139':'Miami Beach','33140':'N Miami Beach','33131':'Brickell','33133':'Coconut Grove','33134':'Coral Gables','33149':'Key Biscayne','33156':'Pinecrest','33143':'South Miami',
+    '28202':'Uptown','28207':'Elizabeth','28209':'Myers Park','28211':'SouthPark','28226':'Ballantyne','28277':'Ballantyne W','28270':'Providence','28105':'Matthews',
+    '27609':'N Raleigh','27615':'N Hills','27613':'W Raleigh','27517':'Chapel Hill','27707':'Durham','28803':'S Asheville','28804':'N Asheville','28401':'Wilmington',
+    '98112':'Capitol Hill','98004':'Bellevue','98033':'Kirkland','98040':'Mercer Island','98039':'Medina','98074':'Sammamish','98103':'Fremont','98109':'Queen Anne','98105':'U District','98199':'Magnolia',
+    '10021':'Upper East','10024':'Upper West','10014':'West Village','10013':'Tribeca','11201':'Brooklyn Hts','10583':'Scarsdale',
+    '97701':'Bend Central','97702':'Bend SW','97703':'Bend W','97707':'Sunriver','97756':'Redmond','97759':'Sisters'
+};
 
 (async function checkAuth() {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -557,37 +571,72 @@ let currentUser = null;
         return;
     }
     currentUser = session.user;
-    const name = currentUser.user_metadata?.first_name || currentUser.email?.split('@')[0] || 'Agent';
+    const name = currentUser.user_metadata?.full_name || currentUser.user_metadata?.first_name || currentUser.email?.split('@')[0] || 'Agent';
     const userEl = document.getElementById('userInfo');
     if (userEl) userEl.innerHTML = `<span style="color:var(--text-secondary);font-size:12px">${name}</span><button onclick="signOut()" style="padding:4px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">Sign Out</button>`;
     
     sb.auth.onAuthStateChange((event, session) => {
         if (!session) window.location.href = 'index.html';
     });
+
+    // Load user's territories and replace the ZIP selector
+    const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
+    if (!isDemo) {
+        const { data: claims } = await sb.from('territory_claims')
+            .select('zip_code')
+            .eq('user_id', currentUser.id)
+            .in('status', ['active', 'trial', 'pending']);
+        userTerritories = (claims || []).map(c => c.zip_code);
+        buildTerritorySelector();
+    }
+
+    // Auto-load from ?zip= URL parameter
+    const params = new URLSearchParams(window.location.search);
+    const zip = params.get('zip');
+    if (zip && /^\d{5}$/.test(zip)) {
+        document.getElementById('farmInput').value = zip;
+        startBriefing();
+    } else if (!isDemo && userTerritories.length === 1) {
+        // Auto-load single territory
+        document.getElementById('farmInput').value = userTerritories[0];
+        startBriefing();
+    }
 })();
+
+function buildTerritorySelector() {
+    const farmSetup = document.getElementById('farmSetup');
+    if (!farmSetup || userTerritories.length === 0) {
+        // No territories — show prompt to claim
+        if (farmSetup) farmSetup.innerHTML = `
+            <h1>Your Daily Briefing</h1>
+            <p style="margin-bottom:24px">You don't have any territories yet. Claim a ZIP code to start receiving daily seller intelligence.</p>
+            <a href="/territories.html" style="display:inline-block;padding:14px 32px;background:var(--gold);color:#F5F0EB;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Claim Your Territory</a>`;
+        return;
+    }
+    // Replace with user's territories only
+    const buttons = userTerritories.map(zip => {
+        const label = ZIP_NAMES[zip] || zip;
+        return `<button class="quick-btn" onclick="document.getElementById('farmInput').value='${zip}';startBriefing()" style="padding:12px 20px;font-size:14px">${zip} · ${label}</button>`;
+    }).join('');
+    farmSetup.innerHTML = `
+        <h1>Your Daily Briefing</h1>
+        <p>Select a territory to see today's highest-priority prospects — ranked, scored, and ready to contact.</p>
+        <div class="farm-input-row" style="display:none">
+            <input class="farm-input" id="farmInput" type="text" placeholder="ZIP code">
+            <button class="farm-go" onclick="startBriefing()">Run Briefing</button>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+            ${buttons}
+        </div>
+        <div style="margin-top:16px;text-align:center">
+            <a href="/dashboard.html" style="font-size:12px;color:var(--text-dim)">← Back to Dashboard</a>
+        </div>`;
+}
 
 async function signOut() {
     if (sb) await sb.auth.signOut();
     window.location.href = 'index.html';
 }
-
-// Auto-load from ?zip= URL parameter
-(function autoLoadZip() {
-    const params = new URLSearchParams(window.location.search);
-    const zip = params.get('zip');
-    if (zip && /^\d{5}$/.test(zip)) {
-        // Wait for auth to complete, then auto-start
-        const interval = setInterval(() => {
-            if (currentUser) {
-                clearInterval(interval);
-                document.getElementById('farmInput').value = zip;
-                startBriefing();
-            }
-        }, 100);
-        // Timeout after 5s
-        setTimeout(() => clearInterval(interval), 5000);
-    }
-})();
 
 // ========================
 // DATA SOURCES

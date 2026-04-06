@@ -1409,6 +1409,52 @@ app.post('/api/territories/checkout', async (req, res) => {
   }
 });
 
+// POST /api/territories/beta-claim — claim territory without payment (beta mode)
+app.post('/api/territories/beta-claim', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const { zipCodes, agentName, agentEmail, agentPhone, agentBrokerage } = req.body;
+  if (!zipCodes?.length || !agentEmail) return res.status(400).json({ error: 'ZIP codes and email required' });
+  
+  // Authenticate via Supabase token
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: 'Not authenticated. Please sign in first.' });
+  
+  try {
+    // Check availability
+    const { data: existing } = await supabase.from('territory_claims')
+      .select('zip_code').in('zip_code', zipCodes).eq('status', 'active');
+    const taken = (existing || []).map(e => e.zip_code);
+    const available = zipCodes.filter(z => !taken.includes(z));
+    
+    if (available.length === 0) {
+      return res.json({ error: 'All selected ZIPs are already claimed', taken });
+    }
+    
+    // Create claims directly (no Stripe)
+    for (const zip of available) {
+      await supabase.from('territory_claims').upsert({
+        zip_code: zip,
+        user_id: user.id,
+        status: 'active',
+        stripe_subscription_id: 'beta_' + Date.now(),
+        agent_name: agentName || '',
+        agent_email: agentEmail,
+        agent_phone: agentPhone || '',
+        agent_brokerage: agentBrokerage || '',
+        claimed_at: new Date().toISOString(),
+      }, { onConflict: 'zip_code', ignoreDuplicates: false });
+      console.log(`[BETA] Territory claimed: ZIP ${zip} by ${agentEmail} (user: ${user.id})`);
+    }
+    
+    res.json({ success: true, claimed: available, taken });
+  } catch(e) {
+    console.error('Beta claim error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/territories/waitlist — join waitlist for a claimed ZIP
 app.post('/api/territories/waitlist', async (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
