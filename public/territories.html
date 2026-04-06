@@ -334,6 +334,12 @@ async function checkout(){
         window.location.href = '/?auth=login';
         return;
     }
+    if (!accessToken) {
+        // Re-fetch session
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) accessToken = session.access_token;
+        if (!accessToken) { alert('Session expired. Please sign in again.'); window.location.href = '/?auth=login'; return; }
+    }
     const name=document.getElementById('agentName')?.value,email=document.getElementById('agentEmail')?.value,phone=document.getElementById('agentPhone')?.value,brokerage=document.getElementById('agentBrokerage')?.value;
     if(!email){alert('Please enter your email');return;}
     if(!name){alert('Please enter your name');return;}
@@ -341,10 +347,11 @@ async function checkout(){
     try{
         const r=await fetch('/api/territories/beta-claim',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+accessToken},body:JSON.stringify({zipCodes:cart,plan:selectedPlan,agentName:name,agentEmail:email,agentPhone:phone,agentBrokerage:brokerage})});
         const d=await r.json();
+        console.log('Beta claim response:', d);
         if(d.success){window.location.href='/territories.html?success=true&zips='+d.claimed.join(',');}
         else if(d.taken?.length){alert('These ZIPs were claimed: '+d.taken.join(', '));cart=cart.filter(z=>!d.taken.includes(z));showPanel('cart');}
-        else{alert(d.error||'Claim failed');btn.textContent='Try Again';btn.disabled=false;}
-    }catch(e){alert('Connection error');btn.textContent='Try Again';btn.disabled=false;}
+        else{alert(d.error||'Claim failed — check console');btn.textContent='Try Again';btn.disabled=false;}
+    }catch(e){console.error('Checkout error:', e);alert('Connection error: '+e.message);btn.textContent='Try Again';btn.disabled=false;}
 }
 
 async function joinWaitlist(zip){

@@ -581,7 +581,9 @@ const ZIP_NAMES = {
 
     // Load user's territories and replace the ZIP selector
     const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
-    if (!isDemo) {
+    const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com'];
+    const isAdmin = ADMIN_EMAILS.includes(currentUser.email?.toLowerCase());
+    if (!isDemo && !isAdmin) {
         const { data: claims } = await sb.from('territory_claims')
             .select('zip_code')
             .eq('user_id', currentUser.id)

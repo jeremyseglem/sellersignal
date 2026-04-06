@@ -1434,7 +1434,13 @@ app.post('/api/territories/beta-claim', async (req, res) => {
     
     // Create claims directly (no Stripe)
     for (const zip of available) {
-      await supabase.from('territory_claims').upsert({
+      // Delete any existing inactive claims for this ZIP first
+      await supabase.from('territory_claims')
+        .delete()
+        .eq('zip_code', zip)
+        .neq('status', 'active');
+      
+      const { error: insertErr } = await supabase.from('territory_claims').insert({
         zip_code: zip,
         user_id: user.id,
         status: 'active',
@@ -1444,7 +1450,14 @@ app.post('/api/territories/beta-claim', async (req, res) => {
         agent_phone: agentPhone || '',
         agent_brokerage: agentBrokerage || '',
         claimed_at: new Date().toISOString(),
-      }, { onConflict: 'zip_code', ignoreDuplicates: false });
+      });
+      if (insertErr) {
+        console.error(`[BETA] Insert error for ZIP ${zip}:`, insertErr);
+        // Try update if insert fails (ZIP might exist as inactive)
+        await supabase.from('territory_claims')
+          .update({ user_id: user.id, status: 'active', agent_name: agentName || '', agent_email: agentEmail, agent_phone: agentPhone || '', agent_brokerage: agentBrokerage || '', claimed_at: new Date().toISOString(), stripe_subscription_id: 'beta_' + Date.now() })
+          .eq('zip_code', zip);
+      }
       console.log(`[BETA] Territory claimed: ZIP ${zip} by ${agentEmail} (user: ${user.id})`);
     }
     
