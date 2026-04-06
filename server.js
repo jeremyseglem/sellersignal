@@ -887,6 +887,53 @@ app.get('/api/profile', async (req, res) => {
 });
 
 // ===================
+// MY TERRITORIES (bypasses RLS via service role)
+// ===================
+const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com', 'jmseglem@gmail.com', 'brian.hawkins@theagencyre.com'];
+
+app.get('/api/my-territories', async (req, res) => {
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  try {
+    const isAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase());
+    
+    let claims;
+    if (isAdmin) {
+      // Admins see all active territories
+      const { data, error } = await supabase.from('territory_claims')
+        .select('*')
+        .eq('status', 'active');
+      if (error) throw error;
+      claims = data || [];
+    } else {
+      const { data, error } = await supabase.from('territory_claims')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trial', 'pending']);
+      if (error) throw error;
+      claims = data || [];
+    }
+    
+    // Also fetch briefing stats for their ZIPs
+    const zips = claims.map(c => c.zip_code);
+    let briefings = {};
+    if (zips.length > 0) {
+      const { data: bData } = await supabase.from('zip_briefings')
+        .select('zip_code, total_parcels, act_today_count, outreach_queue_count, watch_list_count, updated_at')
+        .in('zip_code', zips);
+      for (const b of (bData || [])) briefings[b.zip_code] = b;
+    }
+    
+    res.json({ claims, briefings, isAdmin });
+  } catch(e) {
+    console.error('My territories error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===================
 // HISTORY
 // ===================
 app.get('/api/history', async (req, res) => {

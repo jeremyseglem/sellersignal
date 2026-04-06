@@ -581,15 +581,18 @@ const ZIP_NAMES = {
 
     // Load user's territories and replace the ZIP selector
     const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
-    const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com', 'jmseglem@gmail.com', 'brian.hawkins@theagencyre.com'];
-    const isAdmin = ADMIN_EMAILS.includes(currentUser.email?.toLowerCase());
-    if (!isDemo && !isAdmin) {
-        const { data: claims } = await sb.from('territory_claims')
-            .select('zip_code')
-            .eq('user_id', currentUser.id)
-            .in('status', ['active', 'trial', 'pending']);
-        userTerritories = (claims || []).map(c => c.zip_code);
-        buildTerritorySelector();
+    const accessToken = session.access_token;
+    let isAdmin = false;
+    if (!isDemo) {
+        try {
+            const resp = await fetch('/api/my-territories', { headers: { 'Authorization': 'Bearer ' + accessToken } });
+            const data = await resp.json();
+            isAdmin = data.isAdmin || false;
+            if (!isAdmin) {
+                userTerritories = (data.claims || []).map(c => c.zip_code);
+                buildTerritorySelector();
+            }
+        } catch(e) { console.error('Failed to load territories:', e); }
     }
 
     // Auto-load from ?zip= URL parameter

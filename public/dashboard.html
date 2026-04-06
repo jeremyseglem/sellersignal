@@ -124,34 +124,16 @@ function getState(zip) {
     document.getElementById('greetingDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
     document.getElementById('greetingName').textContent = `Welcome back, ${firstName}`;
     
-    // Fetch user's territories (admins see all)
-    const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com', 'jmseglem@gmail.com', 'brian.hawkins@theagencyre.com'];
-    const isAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase());
-    
-    let claims;
-    if (isAdmin) {
-        // Admins see all active territories
-        const { data } = await sb.from('territory_claims')
-            .select('*')
-            .eq('status', 'active');
-        claims = data;
-    } else {
-        const { data } = await sb.from('territory_claims')
-            .select('*')
-            .eq('user_id', user.id)
-            .in('status', ['active', 'trial', 'pending']);
-        claims = data;
-    }
-    
-    // Fetch briefing data for their ZIPs
-    const userZips = (claims || []).map(c => c.zip_code);
-    let briefings = {};
-    if (userZips.length > 0) {
-        const { data: bData } = await sb.from('zip_briefings')
-            .select('zip_code, total_parcels, act_today_count, outreach_queue_count, watch_list_count, updated_at')
-            .in('zip_code', userZips);
-        for (const b of (bData || [])) briefings[b.zip_code] = b;
-    }
+    // Fetch user's territories via server (bypasses RLS)
+    const token = session.access_token;
+    let claims = [], briefings = {}, isAdmin = false;
+    try {
+        const resp = await fetch('/api/my-territories', { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = await resp.json();
+        claims = data.claims || [];
+        briefings = data.briefings || {};
+        isAdmin = data.isAdmin || false;
+    } catch(e) { console.error('Failed to load territories:', e); }
     
     if (!claims || claims.length === 0) {
         // No territories — show empty state
