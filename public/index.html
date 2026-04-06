@@ -295,7 +295,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);ove
     <a href="/territories.html" class="final-btn">Claim Your ZIP Code</a>
     <div style="font-size:11px;color:var(--text-dim);margin-top:16px">Limited beta · Dynamic pricing by market value · 6-month commitment recommended</div>
 </section>
-<div class="auth-overlay" id="authOverlay" onclick="if(event.target===this)closeAuth()">
+<div class="auth-overlay" id="authOverlay" style="display:none" onclick="if(event.target===this)closeAuth()">
     <div class="auth-modal" style="position:relative">
         <button class="auth-close" onclick="closeAuth()">&times;</button>
         <div class="auth-header">
@@ -386,14 +386,18 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 })();
 
 function openAuth(tab = 'login') {
-    document.getElementById('authOverlay').classList.add('open');
+    const el = document.getElementById('authOverlay');
+    el.style.display = 'flex';
+    requestAnimationFrame(() => el.classList.add('open'));
     document.body.style.overflow = 'hidden';
     switchTab(tab);
     clearMessages();
 }
 
 function closeAuth() {
-    document.getElementById('authOverlay').classList.remove('open');
+    const el = document.getElementById('authOverlay');
+    el.classList.remove('open');
+    setTimeout(() => { el.style.display = 'none'; }, 300);
     document.body.style.overflow = '';
     clearMessages();
 }

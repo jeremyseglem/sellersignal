@@ -124,11 +124,24 @@ function getState(zip) {
     document.getElementById('greetingDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
     document.getElementById('greetingName').textContent = `Welcome back, ${firstName}`;
     
-    // Fetch user's territories
-    const { data: claims } = await sb.from('territory_claims')
-        .select('*')
-        .eq('user_id', user.id)
-        .in('status', ['active', 'trial', 'pending']);
+    // Fetch user's territories (admins see all)
+    const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com', 'jmseglem@gmail.com', 'brian.hawkins@theagencyre.com'];
+    const isAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase());
+    
+    let claims;
+    if (isAdmin) {
+        // Admins see all active territories
+        const { data } = await sb.from('territory_claims')
+            .select('*')
+            .eq('status', 'active');
+        claims = data;
+    } else {
+        const { data } = await sb.from('territory_claims')
+            .select('*')
+            .eq('user_id', user.id)
+            .in('status', ['active', 'trial', 'pending']);
+        claims = data;
+    }
     
     // Fetch briefing data for their ZIPs
     const userZips = (claims || []).map(c => c.zip_code);
