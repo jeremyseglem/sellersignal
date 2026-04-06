@@ -896,8 +896,11 @@ app.get('/api/my-territories', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
   if (!supabase) return res.status(503).json({ error: 'Not configured' });
   
+  console.log(`[MY-TERRITORIES] user: ${user.email}, id: ${user.id}`);
+  
   try {
     const isAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase());
+    console.log(`[MY-TERRITORIES] isAdmin: ${isAdmin}, email check: "${user.email?.toLowerCase()}"`);
     
     let claims;
     if (isAdmin) {
@@ -939,6 +942,18 @@ app.get('/api/my-territories', async (req, res) => {
     console.error('My territories error:', e);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ===================
+// TEMP DEBUG - remove after fixing
+// ===================
+app.get('/api/debug-territories', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('zip_briefings')
+      .select('zip_code, market_key, total_parcels')
+      .limit(5);
+    res.json({ count: data?.length || 0, sample: data, error: error?.message || null, adminEmails: ADMIN_EMAILS });
+  } catch(e) { res.json({ error: e.message }); }
 });
 
 // ===================
