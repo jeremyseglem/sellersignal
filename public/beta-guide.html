@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — Beta Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F0EB;--bg-card:#FFFFFF;--text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;--gold:#8B6914;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18);--green:#5A7247;--red:#9E4B3C;--border:#D9CEBF}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Source Serif 4',serif;background:var(--bg);color:var(--text);line-height:1.7}
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 40px;height:56px;display:flex;align-items:center;justify-content:space-between;background:#2C2418}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px;color:#F5F0EB}
+.badge{background:var(--gold);color:#F5F0EB;font-size:9px;font-weight:700;letter-spacing:0.08em;padding:2px 8px;border-radius:3px;font-family:'DM Sans',sans-serif}
+.container{max-width:680px;margin:0 auto;padding:96px 24px 60px}
+.hero-label{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.1em;color:var(--gold);margin-bottom:12px}
+h1{font-family:'Playfair Display',serif;font-size:36px;font-weight:600;line-height:1.2;margin-bottom:16px}
+h2{font-family:'Playfair Display',serif;font-size:22px;font-weight:600;margin:48px 0 16px;padding-top:32px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0;margin-top:32px}
+.subtitle{font-size:16px;color:var(--text-secondary);margin-bottom:40px}
+p{font-size:15px;margin-bottom:16px}
+.step-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin-bottom:16px}
+.step-num{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--gold);margin-bottom:8px}
+.step-title{font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;margin-bottom:8px}
+.step-desc{font-size:14px;color:var(--text-secondary);line-height:1.6}
+.key-box{background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;padding:20px 24px;margin:20px 0}
+.key-box strong{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.04em;display:block;margin-bottom:8px}
+.key-box p{font-size:13px;color:var(--text-secondary);margin-bottom:0}
+.score-explain{display:flex;gap:16px;margin:16px 0}
+.score-ex{flex:1;text-align:center;padding:16px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px}
+.score-ex .num{font-family:'DM Sans',sans-serif;font-size:28px;font-weight:700;background:#2C2418;color:#F5F0EB;width:48px;height:48px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px}
+.score-ex .label{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.04em}
+.tier-row{display:flex;gap:12px;margin:16px 0}
+.tier{flex:1;padding:14px 16px;border-radius:8px;text-align:center}
+.tier.hot{background:rgba(158,75,60,0.08);border:1px solid rgba(158,75,60,0.15)}
+.tier.warm{background:var(--gold-dim);border:1px solid var(--gold-border)}
+.tier.cool{background:rgba(90,114,71,0.06);border:1px solid rgba(90,114,71,0.15)}
+.tier strong{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;display:block;margin-bottom:4px}
+.tier span{font-size:12px;color:var(--text-secondary)}
+.feedback-note{background:rgba(90,114,71,0.06);border:1px solid rgba(90,114,71,0.15);border-radius:8px;padding:20px 24px;margin:24px 0}
+.feedback-note strong{font-family:'DM Sans',sans-serif;color:var(--green)}
+.feedback-note p{margin-bottom:0;font-size:13px;color:var(--text-secondary)}
+.footer{text-align:center;padding:40px 24px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-dim)}
+@media(max-width:600px){
+h1{font-size:28px}
+.container{padding:80px 18px 40px}
+.score-explain,.tier-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+    <a href="/dashboard.html" class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <span class="badge">BETA</span>
+</nav>
+<div class="container">
+    <div class="hero-label">BETA TESTER GUIDE</div>
+    <h1>Welcome to SellerSignal</h1>
+    <p class="subtitle">Everything you need to know to get started with your exclusive ZIP code territory. This guide takes about 3 minutes to read.</p>
+
+    <h2>Getting Started</h2>
+
+    <div class="step-card">
+        <div class="step-num">STEP 1</div>
+        <div class="step-title">Sign In</div>
+        <div class="step-desc">Go to <strong>sellersignal.co</strong> and click <strong>Sign In</strong> in the top right. Use the email and password you set up after your onboarding call. You'll land on your Dashboard.</div>
+    </div>
+    <div class="step-card">
+        <div class="step-num">STEP 2</div>
+        <div class="step-title">Open Your Briefing</div>
+        <div class="step-desc">Your Dashboard shows your claimed ZIP code territory. Click the territory card to launch your daily briefing — a ranked list of every property owner in your ZIP, scored by likelihood to sell.</div>
+    </div>
+    <div class="step-card">
+        <div class="step-num">STEP 3</div>
+        <div class="step-title">Work Your List</div>
+        <div class="step-desc">Start with your Act Today prospects. Click "Deep Signal" on any card to see the full psychological profile, approach scripts, and what NOT to say. Use CRM buttons to track your outreach.</div>
+    </div>
+
+    <h2>Understanding Your Briefing</h2>
+
+    <p>Every morning, SellerSignal scans every property in your ZIP code against 47 seller indicators. Owners are scored and sorted into three tiers:</p>
+
+    <div class="tier-row">
+        <div class="tier hot">
+            <strong>Act Today</strong>
+            <span>Highest probability. These owners match your market's actual monthly seller turnover rate.</span>
+        </div>
+        <div class="tier warm">
+            <strong>Outreach</strong>
+            <span>3-6 month horizon. Worth a letter or early relationship, not a cold call yet.</span>
+        </div>
+        <div class="tier cool">
+            <strong>Watch</strong>
+            <span>Some elevated signals but not enough convergence. Can move up as new data arrives.</span>
+        </div>
+    </div>
+
+    <p>Each prospect card shows the owner name, property address, a Street View photo, key signals (owner type, absentee status, equity indicators), and a composite score.</p>
+
+    <div class="score-explain">
+        <div class="score-ex"><div class="num">92</div><div class="label">VERY HIGH</div></div>
+        <div class="score-ex"><div class="num">74</div><div class="label">ELEVATED</div></div>
+        <div class="score-ex"><div class="num">51</div><div class="label">MODERATE</div></div>
+    </div>
+
+    <div class="key-box">
+        <strong>WHAT MAKES SELLERSIGNAL DIFFERENT</strong>
+        <p>Every prospecting tool gives you the same public records. SellerSignal adds the layer nobody else has: Deep Signal — an AI analysis of the person behind the property. Their likely motivation, psychology, timeline, and exactly how to approach them. This is the difference between knocking on a door and knowing what to say when it opens.</p>
+    </div>
+
+    <h2>Deep Signal</h2>
+    <p>Click the "Deep Signal" button on any prospect card to generate a full intelligence profile. This runs a real-time AI analysis that takes about 15-30 seconds and includes:</p>
+    <p><strong>Seller Psychology</strong> — why this person might sell, what's driving their decision, and their likely emotional state around the transaction.</p>
+    <p><strong>Recommended Approach</strong> — whether to lead with empathy, data, urgency, or relationship-building based on their profile.</p>
+    <p><strong>Personalized Scripts</strong> — ready-to-use language for phone, mail, and door, tailored specifically to this seller's situation.</p>
+    <p><strong>What NOT to Say</strong> — the red warning section. Specific phrases and approaches that would backfire with this particular owner.</p>
+
+    <h2>CRM & Pipeline</h2>
+    <p>Every prospect card has pipeline buttons: Not Interested, Contacted, Nurturing, Meeting Set, Listed. Click to track your progress. Your pipeline persists across sessions and syncs to the server.</p>
+
+    <h2>Mail Campaigns</h2>
+    <p>Your subscription includes 10 mail credits. Each credit sends one AI-written letter through USPS — personalized to the specific seller's situation. You can purchase additional credits in packs of 25, 50, or 100 from your account.</p>
+    <p>Each letter in a campaign is unique. Letter 1 introduces you. Letter 2 builds on the first. By Letter 6, it's a direct, relationship-based ask. Every letter references the seller's specific property and circumstances.</p>
+
+    <h2>Giving Feedback</h2>
+    <div class="feedback-note">
+        <strong>Your feedback shapes the product.</strong>
+        <p>Click the gold "Feedback" tab on the right side of your briefing page anytime. Rate the briefing, tell us what's working, what's confusing, and what you'd want added. Every submission goes directly to the founding team. You can also text or call Jeremy directly.</p>
+    </div>
+
+    <h2>Quick Reference</h2>
+    <div class="step-card">
+        <div class="step-title">Key URLs</div>
+        <div class="step-desc">
+            <strong>Dashboard:</strong> sellersignal.co/dashboard.html<br>
+            <strong>Briefing:</strong> sellersignal.co/sellersignal-briefing.html?zip=YOUR_ZIP<br>
+            <strong>CRM:</strong> sellersignal.co/sellersignal-crm.html<br>
+            <strong>Map:</strong> sellersignal.co/sellersignal-map.html<br>
+            <strong>This Guide:</strong> sellersignal.co/beta-guide.html
+        </div>
+    </div>
+
+    <div class="key-box">
+        <strong>BETA TERMS</strong>
+        <p>You have exclusive access to your ZIP code — no other agent can claim it while you hold it. Your briefing updates nightly with fresh scoring. During the beta period, we're focused on accuracy, usability, and making sure the intelligence actually helps you win listings. Everything you see is real data from county assessor records, scored by our proprietary models.</p>
+    </div>
+</div>
+<div class="footer">
+    © 2026 SellerSignal · Beta Program · Questions? Text Jeremy directly.
+</div>
+</body>
+</html>
