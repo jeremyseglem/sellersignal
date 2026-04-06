@@ -4590,10 +4590,10 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                         <div style="display:flex;gap:6px;flex-shrink:0">
                             ${tier === 'call' ? `
                                 <button class="action-btn primary" onclick="event.stopPropagation();openCallModal('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
-                                <button class="action-btn" onclick="event.stopPropagation();openMailModal('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Mail</button>
+                                <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Preview Letters</button>
                             ` : `
                                 <button class="action-btn primary" onclick="event.stopPropagation();runDeepSignalForCard('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
-                                <button class="action-btn" onclick="event.stopPropagation();openMailModal('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Mail</button>
+                                <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Preview Letters</button>
                             `}
                         </div>
                     </div>
@@ -5035,56 +5035,79 @@ function openCallModal(id) {
     document.getElementById('actionModal').classList.add('active');
 }
 
-function openMailModal(id) {
+function previewLetters(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
     if (!p) return;
     const name = normalizeName(p.ownerName) || p.address;
-    document.getElementById('modalTitle').textContent = `✉ Mail ${name}`;
+    const addr = p.address || 'the property';
+    document.getElementById('modalTitle').textContent = `✉ Letter Preview — ${name}`;
     document.getElementById('modalTabs').innerHTML = '';
     
     const hasDS = p._deepSignalVerified && p._dsScripts?.letter;
-    const fullLetter = hasDS ? p._dsScripts.letter : generateScript(p, p.cohort);
-    
-    // Show first 2-3 lines as preview
-    const lines = fullLetter.split(/[.\n]/).filter(Boolean);
-    const preview = lines.slice(0, 2).join('. ') + '.';
+    const letter1 = hasDS ? p._dsScripts.letter : generateScript(p, p.cohort);
     
     const mailAddr = p.ownerAddress 
         ? `${p.ownerAddress}${p.ownerCity ? ', '+p.ownerCity : ''}${p.ownerState ? ' '+p.ownerState : ''} ${p.ownerZip||''}`
-        : null;
+        : p.address;
+    
+    // Letter timeline descriptions
+    const letterSteps = [
+        { num: 1, title: 'Introduction', desc: 'Personalized first touch — references their specific property and situation', active: true },
+        { num: 2, title: 'Market Context', desc: 'Local market data specific to their neighborhood and price range' },
+        { num: 3, title: 'Social Proof', desc: 'Recent success stories from their area — builds credibility' },
+        { num: 4, title: 'Value Add', desc: 'Free home valuation offer — moves from awareness to action' },
+        { num: 5, title: 'Urgency', desc: 'Market timing and buyer demand — creates natural urgency' },
+        { num: 6, title: 'Direct Ask', desc: 'Relationship-based close — references all prior letters' },
+    ];
+    
+    const timelineHtml = letterSteps.map(s => `
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;${s.active?'':'opacity:0.5'}">
+            <div style="width:28px;height:28px;border-radius:50%;background:${s.active?'var(--gold)':'var(--border)'};color:${s.active?'#F5F0EB':'var(--text-dim)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${s.num}</div>
+            <div>
+                <div style="font-size:12px;font-weight:600;${s.active?'color:var(--gold)':''}">${s.title}${s.num===1?' — shown below':''}</div>
+                <div style="font-size:11px;color:var(--text-dim);line-height:1.4">${s.desc}</div>
+            </div>
+        </div>
+    `).join('');
     
     document.getElementById('modalScript').innerHTML = `
-        ${mailAddr ? `
-            <div style="margin-bottom:16px">
-                <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:6px">MAIL TO</div>
-                <div style="padding:10px 14px;background:var(--bg);border-radius:6px;border:1px solid var(--border);font-size:12px;color:var(--text-secondary)">📬 ${mailAddr}</div>
-            </div>
-        ` : `
-            <div style="margin-bottom:16px;padding:10px 14px;background:var(--red-dim);border-radius:6px;border:1px solid rgba(248,113,113,0.2);font-size:11px;color:var(--red)">No mailing address on file — Deep Signal may resolve this</div>
-        `}
-        <div>
-            <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:8px">LETTER PREVIEW</div>
-            <div style="color:var(--text-secondary);font-size:13px;line-height:1.7;font-style:italic">${preview}</div>
-            <div style="height:40px;background:linear-gradient(to bottom, transparent, var(--bg-elevated));margin-top:-40px;position:relative"></div>
+        <div style="margin-bottom:20px">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:10px">6-LETTER CAMPAIGN SEQUENCE</div>
+            ${timelineHtml}
         </div>
         
-        ${!hasDS ? `
-            <div style="padding:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center;margin-top:16px">
-                <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px">Unlock personalized letter</div>
-                <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Deep Signal writes a letter tailored to this seller's situation and psychology</div>
-                <button class="modal-btn primary" onclick="closeModal();runDeepSignalForCard('${id}')">Run Deep Signal — $15</button>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:10px">LETTER 1 — INTRODUCTION</div>
+        <div style="background:#FFFDF8;border:1px solid #E8E0D0;border-radius:8px;padding:28px 32px;font-family:'Source Serif 4',Georgia,serif;position:relative;box-shadow:0 2px 12px rgba(44,36,24,0.06)">
+            <div style="border-bottom:1px solid #E8E0D0;padding-bottom:14px;margin-bottom:18px">
+                <div style="font-size:10px;color:#A89B8A;letter-spacing:0.06em;margin-bottom:4px">TO</div>
+                <div style="font-size:13px;color:#2C2418;font-weight:500">${name}</div>
+                <div style="font-size:12px;color:#7A6E5D">${mailAddr}</div>
+            </div>
+            <div style="font-size:14px;line-height:1.8;color:#2C2418;white-space:pre-wrap">${letter1.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+            <div style="border-top:1px solid #E8E0D0;padding-top:14px;margin-top:18px;font-size:11px;color:#A89B8A">
+                <em>Your name, brokerage, and contact info appear here</em>
+            </div>
+        </div>
+        
+        ${hasDS ? `
+            <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="modal-btn secondary" onclick="copyFullLetter('${id}')">Copy Letter Text</button>
             </div>
         ` : `
-            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-                <button class="modal-btn primary" onclick="revealFullLetter('${id}')">View Full Letter</button>
-                <button class="modal-btn secondary" onclick="copyFullLetter('${id}')">Copy Letter</button>
-                <button class="modal-btn" style="background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)" onclick="enrollInMailCampaign('${id}')">✉ Enroll in 6-Letter Campaign</button>
+            <div style="padding:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center;margin-top:16px">
+                <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px">Want an even more personalized letter?</div>
+                <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Run Deep Signal to generate letters based on this seller's psychology and motivation.</div>
+                <button class="modal-btn primary" onclick="closeModal();runDeepSignalForCard('${id}')">Run Deep Signal</button>
             </div>
-            <div style="font-size:10px;color:var(--text-dim);margin-top:8px;text-align:center">Uses 6 mail credits · AI writes 6 personalized letters · Mailed monthly via USPS</div>
         `}
+        
+        <div style="margin-top:20px;padding:14px 16px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">HOW IT WORKS</div>
+            <div style="font-size:12px;color:var(--text-dim);line-height:1.6">When subscribed, SellerSignal generates all 6 letters using AI — each one unique to this seller's situation. Letters are printed and mailed monthly via USPS. Each letter builds on the last, progressing from introduction to direct ask over 6 months.</div>
+        </div>
     `;
     
-    if (hasDS) window._tempFullLetter = fullLetter;
+    if (hasDS) window._tempFullLetter = letter1;
     
     document.getElementById('modalActions').innerHTML = `
         <button class="modal-btn secondary" onclick="closeModal()">Close</button>
@@ -5356,7 +5379,7 @@ function showMapPanel(p, isAct, isOut) {
     document.getElementById('mapPanelBody').innerHTML = bodyHtml;
     
     document.getElementById('mapPanelActions').innerHTML = `
-        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="openMailModal('${id}')">✉ Mail</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="openMailModal('${id}')">✉ Mail</button>`}
+        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Letters</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Letters</button>`}
     `;
     
     document.getElementById('mapPanel').classList.add('open');
