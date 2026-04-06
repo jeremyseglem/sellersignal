@@ -581,7 +581,7 @@ const ZIP_NAMES = {
 
     // Load user's territories and replace the ZIP selector
     const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
-    const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com'];
+    const ADMIN_EMAILS = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com', 'jmseglem@gmail.com', 'brian.hawkins@theagencyre.com'];
     const isAdmin = ADMIN_EMAILS.includes(currentUser.email?.toLowerCase());
     if (!isDemo && !isAdmin) {
         const { data: claims } = await sb.from('territory_claims')
@@ -635,10 +635,11 @@ function buildTerritorySelector() {
         </div>`;
 }
 
-async function signOut() {
-    if (sb) await sb.auth.signOut();
-    window.location.href = 'index.html';
-}
+window.signOut = async function() {
+    try { if (sb) await sb.auth.signOut(); } catch(e) { console.error('Sign out error:', e); }
+    localStorage.clear();
+    window.location.href = '/';
+};
 
 // ========================
 // DATA SOURCES

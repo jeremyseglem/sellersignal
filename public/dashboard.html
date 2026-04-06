@@ -213,7 +213,7 @@ function getState(zip) {
     
     document.getElementById('main').innerHTML = cardsHtml;
     
-    window.signOut = async () => { await sb.auth.signOut(); window.location.href = '/'; };
+    window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} localStorage.clear(); window.location.href = '/'; };
 })();
 </script>
 </body>
