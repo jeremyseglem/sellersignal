@@ -351,7 +351,7 @@ body.demo-mode .feedback-tab{display:none}
 </div>
 
 <header class="header">
-    <a class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <a href="/dashboard.html" class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
     <div class="header-actions">
         <a class="nav-btn active" id="navBriefing" onclick="showView('briefing')">Briefing</a>
         <a class="nav-btn" href="sellersignal-crm.html" target="_blank">Pipeline ↗</a>
@@ -486,7 +486,7 @@ body.demo-mode .feedback-tab{display:none}
             <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(44,36,24,0.15) 0%,rgba(44,36,24,0.55) 100%)"></div>
             <div style="position:absolute;left:0;right:0;top:45%;height:1px;background:linear-gradient(90deg,transparent 5%,rgba(245,240,235,0.1) 30%,rgba(245,240,235,0.15) 50%,rgba(245,240,235,0.1) 70%,transparent 95%)"></div>
             <div style="position:relative;height:100%;padding:0 28px;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:24px">
-                <button onclick="document.getElementById('dashboard').classList.remove('active');document.getElementById('farmSetup').style.display='';document.getElementById('briefingContent').innerHTML=''" style="position:absolute;top:16px;left:20px;padding:5px 12px;background:rgba(245,240,235,0.15);border:1px solid rgba(245,240,235,0.25);border-radius:6px;color:rgba(245,240,235,0.7);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;backdrop-filter:blur(4px)">← New Search</button>
+                <button onclick="window.location.href='/dashboard.html'" style="position:absolute;top:16px;left:20px;padding:5px 12px;background:rgba(245,240,235,0.15);border:1px solid rgba(245,240,235,0.25);border-radius:6px;color:rgba(245,240,235,0.7);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;backdrop-filter:blur(4px)">← Dashboard</button>
                 <div style="font-family:'DM Sans',sans-serif;font-size:10px;color:rgba(245,240,235,0.45);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:8px" id="heroDate">Market Briefing · Updated Today</div>
                 <div style="font-family:'Playfair Display',Georgia,serif;font-size:34px;font-weight:600;color:#F5F0EB;text-shadow:0 2px 16px rgba(0,0,0,0.2)" id="heroTitle"></div>
                 <div style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:rgba(245,240,235,0.55);margin-top:6px" id="heroSub"></div>
@@ -494,7 +494,7 @@ body.demo-mode .feedback-tab{display:none}
         </div>
         <div id="plainHeader" style="display:none">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                <button onclick="document.getElementById('dashboard').classList.remove('active');document.getElementById('farmSetup').style.display='';document.getElementById('briefingContent').innerHTML=''" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">← New Search</button>
+                <button onclick="window.location.href='/dashboard.html'" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">← Dashboard</button>
                 <div class="briefing-date" id="briefDate"></div>
             </div>
             <div class="briefing-title">Daily Briefing</div>
@@ -570,6 +570,24 @@ async function signOut() {
     if (sb) await sb.auth.signOut();
     window.location.href = 'index.html';
 }
+
+// Auto-load from ?zip= URL parameter
+(function autoLoadZip() {
+    const params = new URLSearchParams(window.location.search);
+    const zip = params.get('zip');
+    if (zip && /^\d{5}$/.test(zip)) {
+        // Wait for auth to complete, then auto-start
+        const interval = setInterval(() => {
+            if (currentUser) {
+                clearInterval(interval);
+                document.getElementById('farmInput').value = zip;
+                startBriefing();
+            }
+        }, 100);
+        // Timeout after 5s
+        setTimeout(() => clearInterval(interval), 5000);
+    }
+})();
 
 // ========================
 // DATA SOURCES
@@ -4496,9 +4514,9 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         
         return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
-                <div style="width:130px;height:90px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;border:1px solid var(--border);background:var(--bg-elevated)">
-                    <img src="https://maps.googleapis.com/maps/api/streetview?size=260x180&location=${encodeURIComponent((p.address||'') + ' ' + (p.cityStateZip||''))}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-                    <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:linear-gradient(145deg,hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+25},22%,62%),hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+33},18%,52%))"><svg width="36" height="30" viewBox="0 0 36 30" fill="none" style="opacity:0.4"><path d="M18 2L2 16H7V28H15V20H21V28H29V16H34L18 2Z" fill="#F5F0EB"/></svg></div>
+                <div style="width:130px;height:90px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;border:1px solid var(--border);background:linear-gradient(145deg,hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+25},22%,62%),hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+33},18%,52%))">
+                    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><svg width="36" height="30" viewBox="0 0 36 30" fill="none" style="opacity:0.35"><path d="M18 2L2 16H7V28H15V20H21V28H29V16H34L18 2Z" fill="#F5F0EB"/></svg></div>
+                    <img src="https://maps.googleapis.com/maps/api/streetview?size=260x180&location=${encodeURIComponent((p.address||'') + ' ' + (p.cityStateZip||''))}&key=AIzaSyB4m-NdYD6t_3AVdy23i8up5CE0yo9uT0o&return_error_code=true" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()"/>
                     <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(44,36,24,0.55));padding:8px 8px 4px">
                         <div style="font-size:9px;color:rgba(255,255,255,0.85);letter-spacing:0.02em;font-family:'DM Sans',sans-serif">${p.sqft ? p.sqft.toLocaleString() + ' sf' : ''} ${p.yearBuilt ? '· ' + p.yearBuilt : ''} ${p.acres ? '· ' + p.acres + ' ac' : ''}</div>
                     </div>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellerSignal — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#F5F0EB;--bg-card:#FFFFFF;--bg-elevated:#EDE7DF;--text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;--gold:#8B6914;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18);--green:#5A7247;--green-dim:rgba(90,114,71,0.08);--green-border:rgba(90,114,71,0.20);--red:#9E4B3C;--border:#D9CEBF;--border-light:#E8E0D4}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.nav{position:sticky;top:0;z-index:100;padding:0 40px;height:56px;display:flex;align-items:center;justify-content:space-between;background:#2C2418}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:28px;height:28px;border:2px solid #F5F0EB;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:6px}
+.logo-mark .bar{width:2.5px;background:#F5F0EB;border-radius:1px}
+.logo-mark .bar:nth-child(1){height:4px}.logo-mark .bar:nth-child(2){height:7px}.logo-mark .bar:nth-child(3){height:11px}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px;color:#F5F0EB}
+.nav-right{display:flex;gap:10px;align-items:center}
+.nav-user{color:rgba(245,240,235,0.5);font-size:12px}
+.nav-btn{padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:none;transition:all 0.2s;background:transparent;border:1px solid rgba(245,240,235,0.2);color:rgba(245,240,235,0.5)}
+.nav-btn:hover{border-color:rgba(245,240,235,0.4);color:#F5F0EB}
+
+.content{max-width:960px;margin:0 auto;padding:40px 24px 80px}
+.greeting{margin-bottom:36px}
+.greeting-date{font-size:10px;color:var(--text-dim);letter-spacing:0.14em;text-transform:uppercase;margin-bottom:8px}
+.greeting h1{font-family:'Playfair Display',Georgia,serif;font-size:32px;font-weight:600;margin-bottom:6px}
+.greeting-sub{font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:var(--text-secondary)}
+
+.territories{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:40px}
+.territory-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all 0.2s;text-decoration:none;color:var(--text)}
+.territory-card:hover{border-color:var(--gold-border);box-shadow:0 4px 16px rgba(44,36,24,0.08)}
+.territory-hero{height:100px;position:relative;overflow:hidden}
+.territory-hero-content{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:14px 18px}
+.territory-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(44,36,24,0.1) 0%,rgba(44,36,24,0.6) 100%)}
+.territory-name{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:600;color:#F5F0EB;position:relative}
+.territory-zip{font-size:11px;color:rgba(245,240,235,0.5);position:relative;margin-top:2px}
+.territory-body{padding:16px 18px}
+.territory-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.territory-stat{background:var(--bg-card);padding:10px 6px;text-align:center}
+.territory-stat .num{font-size:16px;font-weight:700}
+.territory-stat .lbl{font-size:7px;color:var(--text-dim);letter-spacing:0.06em;margin-top:1px}
+.territory-updated{font-size:11px;color:var(--text-dim)}
+.territory-btn{display:block;padding:10px;text-align:center;background:#2C2418;color:#F5F0EB;font-size:12px;font-weight:600;border-radius:8px;margin-top:12px;text-decoration:none;transition:all 0.2s}
+.territory-btn:hover{background:#4A3D2A}
+
+.quick-nav{display:flex;gap:12px;margin-bottom:40px;flex-wrap:wrap}
+.quick-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:18px 22px;flex:1;min-width:140px;text-decoration:none;color:var(--text);transition:all 0.2s;display:flex;align-items:center;gap:12px}
+.quick-card:hover{border-color:var(--gold-border);background:var(--bg-card)}
+.quick-icon{font-size:20px}
+.quick-label{font-size:13px;font-weight:500}
+.quick-desc{font-size:11px;color:var(--text-dim);margin-top:2px}
+
+.empty-state{text-align:center;padding:80px 40px}
+.empty-state h2{font-family:'Playfair Display',Georgia,serif;font-size:24px;margin-bottom:12px}
+.empty-state p{font-family:'Source Serif 4',Georgia,serif;font-size:14px;color:var(--text-secondary);margin-bottom:28px;max-width:400px;margin-left:auto;margin-right:auto;line-height:1.7}
+.empty-btn{display:inline-block;padding:14px 36px;background:#2C2418;color:#F5F0EB;font-size:14px;font-weight:600;border-radius:8px;text-decoration:none}
+.loading{text-align:center;padding:80px;color:var(--text-dim);font-size:14px}
+</style>
+</head>
+<body>
+<nav class="nav">
+    <a href="/dashboard.html" class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
+    <div class="nav-right" id="navRight"></div>
+</nav>
+<div class="content">
+    <div class="greeting" id="greeting">
+        <div class="greeting-date" id="greetingDate"></div>
+        <h1 id="greetingName">Welcome back</h1>
+        <div class="greeting-sub" id="greetingSub">Loading your territories...</div>
+    </div>
+    <div id="main"><div class="loading">Loading...</div></div>
+</div>
+<script>
+const SUPABASE_URL = 'https://eeqsbvizgpuehphiaslo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlcXNidml6Z3B1ZWhwaGlhc2xvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyODcyMjQsImV4cCI6MjA4NDg2MzIyNH0.dtK2_DN2xqaR6KZQh6-DgshuhgZcKadyZLJPJ-rOgVQ';
+
+const zipNames = {
+    '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana',
+    '98004':'Bellevue, Washington','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington','98074':'Sammamish, Washington','98103':'Fremont, Seattle','98112':'Capitol Hill, Seattle',
+    '85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85331':'Cave Creek, Arizona','85258':'McCormick Ranch, Arizona',
+    '28211':'Myers Park, Charlotte','28209':'South Charlotte, NC','28226':'SouthPark, Charlotte',
+    '33480':'Palm Beach, Florida','33432':'Boca Raton, Florida','33433':'Boca Raton, Florida','33496':'Boca Raton, Florida',
+    '33131':'Brickell, Miami','33139':'South Beach, Miami','33134':'Coral Gables, Florida',
+    '10013':'Tribeca, New York','10021':'Upper East Side, New York','10024':'Upper West Side, New York',
+    '97701':'Bend, Oregon','97702':'South Bend, Oregon',
+};
+const zipGradients = {
+    'MT':'linear-gradient(135deg,#4A5E6E,#6A8A78)','WA':'linear-gradient(135deg,#2A3D4A,#6A8E9A)',
+    'AZ':'linear-gradient(135deg,#5C4A38,#C4A87A)','FL':'linear-gradient(135deg,#1A3A4A,#5AABB8)',
+    'NC':'linear-gradient(135deg,#3A4A3A,#7AAA72)','NY':'linear-gradient(135deg,#3A3A42,#7A7A8A)',
+    'OR':'linear-gradient(135deg,#3A4A3A,#5A7058)',
+};
+
+function getState(zip) {
+    if (/^59/.test(zip)) return 'MT'; if (/^98/.test(zip)) return 'WA';
+    if (/^85/.test(zip)) return 'AZ'; if (/^33/.test(zip)) return 'FL';
+    if (/^28|^27/.test(zip)) return 'NC'; if (/^1[01]/.test(zip)) return 'NY';
+    if (/^97/.test(zip)) return 'OR'; return 'MT';
+}
+
+(async function init() {
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+    });
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { window.location.href = 'index.html?auth=login'; return; }
+    
+    const user = session.user;
+    const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'Agent';
+    
+    // Nav
+    document.getElementById('navRight').innerHTML = `
+        <span class="nav-user">${firstName}</span>
+        <button class="nav-btn" onclick="signOut()">Sign Out</button>
+    `;
+    
+    // Greeting
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const now = new Date();
+    document.getElementById('greetingDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+    document.getElementById('greetingName').textContent = `Welcome back, ${firstName}`;
+    
+    // Fetch user's territories
+    const { data: claims } = await sb.from('territory_claims')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trial', 'pending']);
+    
+    // Fetch briefing data for their ZIPs
+    const userZips = (claims || []).map(c => c.zip_code);
+    let briefings = {};
+    if (userZips.length > 0) {
+        const { data: bData } = await sb.from('zip_briefings')
+            .select('zip_code, total_parcels, act_today_count, outreach_queue_count, watch_list_count, updated_at')
+            .in('zip_code', userZips);
+        for (const b of (bData || [])) briefings[b.zip_code] = b;
+    }
+    
+    if (!claims || claims.length === 0) {
+        // No territories — show empty state
+        document.getElementById('greetingSub').textContent = 'Claim your first territory to get started.';
+        document.getElementById('main').innerHTML = `
+            <div class="empty-state">
+                <h2>No territories claimed yet</h2>
+                <p>Select a ZIP code to receive daily seller intelligence briefings, Deep Signal analysis, and personalized outreach campaigns — exclusively for your market.</p>
+                <a href="/territories.html" class="empty-btn">Browse Available Territories</a>
+            </div>
+        `;
+        return;
+    }
+    
+    document.getElementById('greetingSub').textContent = `${claims.length} territor${claims.length === 1 ? 'y' : 'ies'} active · Your briefings updated daily`;
+    
+    // Render territory cards
+    let cardsHtml = '<div class="territories">';
+    for (const claim of claims) {
+        const zip = claim.zip_code;
+        const name = zipNames[zip] || zip;
+        const state = getState(zip);
+        const grad = zipGradients[state] || zipGradients['MT'];
+        const b = briefings[zip] || {};
+        const updated = b.updated_at ? new Date(b.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not yet';
+        
+        cardsHtml += `
+            <a href="/sellersignal-briefing.html?zip=${zip}" class="territory-card">
+                <div class="territory-hero" style="background:${grad}">
+                    <div class="territory-hero-overlay"></div>
+                    <div class="territory-hero-content">
+                        <div class="territory-name">${name}</div>
+                        <div class="territory-zip">ZIP ${zip}</div>
+                    </div>
+                </div>
+                <div class="territory-body">
+                    <div class="territory-stats">
+                        <div class="territory-stat"><div class="num">${(b.total_parcels || 0).toLocaleString()}</div><div class="lbl">PARCELS</div></div>
+                        <div class="territory-stat"><div class="num" style="color:var(--green)">${b.act_today_count || 0}</div><div class="lbl">ACT TODAY</div></div>
+                        <div class="territory-stat"><div class="num" style="color:var(--gold)">${b.outreach_queue_count || 0}</div><div class="lbl">OUTREACH</div></div>
+                        <div class="territory-stat"><div class="num" style="color:var(--text-dim)">${b.watch_list_count || 0}</div><div class="lbl">WATCH</div></div>
+                    </div>
+                    <div class="territory-updated">Last updated: ${updated}</div>
+                    <div class="territory-btn">Open Briefing →</div>
+                </div>
+            </a>
+        `;
+    }
+    cardsHtml += '</div>';
+    
+    // Quick nav
+    cardsHtml += `
+        <div class="quick-nav">
+            <a href="/sellersignal-crm.html" class="quick-card">
+                <div class="quick-icon">📋</div>
+                <div><div class="quick-label">Pipeline</div><div class="quick-desc">Track prospects</div></div>
+            </a>
+            <a href="/sellersignal-mail.html" class="quick-card">
+                <div class="quick-icon">✉️</div>
+                <div><div class="quick-label">Direct Mail</div><div class="quick-desc">Outreach campaigns</div></div>
+            </a>
+            <a href="/sellersignal-map.html" class="quick-card">
+                <div class="quick-icon">🗺️</div>
+                <div><div class="quick-label">Map</div><div class="quick-desc">Visual intelligence</div></div>
+            </a>
+            <a href="/territories.html" class="quick-card">
+                <div class="quick-icon">🏷️</div>
+                <div><div class="quick-label">Territories</div><div class="quick-desc">Claim more ZIPs</div></div>
+            </a>
+        </div>
+    `;
+    
+    document.getElementById('main').innerHTML = cardsHtml;
+    
+    window.signOut = async () => { await sb.auth.signOut(); window.location.href = '/'; };
+})();
+</script>
+</body>
+</html>
