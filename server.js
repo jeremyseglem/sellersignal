@@ -1503,6 +1503,14 @@ app.post('/api/territories/beta-claim', async (req, res) => {
     }
     
     // Create claims directly (no Stripe)
+    // Look up market keys from zip_briefings
+    const { data: briefingData } = await supabase.from('zip_briefings')
+      .select('zip_code, market_key')
+      .in('zip_code', available);
+    const marketKeys = {};
+    for (const b of (briefingData || [])) marketKeys[b.zip_code] = b.market_key;
+    
+    const claimed = [];
     for (const zip of available) {
       // Delete any existing inactive claims for this ZIP first
       await supabase.from('territory_claims')
@@ -1514,6 +1522,7 @@ app.post('/api/territories/beta-claim', async (req, res) => {
         zip_code: zip,
         user_id: user.id,
         status: 'active',
+        market_key: marketKeys[zip] || 'UNKNOWN',
         stripe_subscription_id: 'beta_' + Date.now(),
         agent_name: agentName || '',
         agent_email: agentEmail,
@@ -1522,16 +1531,18 @@ app.post('/api/territories/beta-claim', async (req, res) => {
         claimed_at: new Date().toISOString(),
       });
       if (insertErr) {
-        console.error(`[BETA] Insert error for ZIP ${zip}:`, insertErr);
-        // Try update if insert fails (ZIP might exist as inactive)
-        await supabase.from('territory_claims')
-          .update({ user_id: user.id, status: 'active', agent_name: agentName || '', agent_email: agentEmail, agent_phone: agentPhone || '', agent_brokerage: agentBrokerage || '', claimed_at: new Date().toISOString(), stripe_subscription_id: 'beta_' + Date.now() })
-          .eq('zip_code', zip);
+        console.error(`[BETA] Insert error for ZIP ${zip}:`, insertErr.message);
+      } else {
+        claimed.push(zip);
+        console.log(`[BETA] Territory claimed: ZIP ${zip} by ${agentEmail} (user: ${user.id})`);
       }
-      console.log(`[BETA] Territory claimed: ZIP ${zip} by ${agentEmail} (user: ${user.id})`);
     }
     
-    res.json({ success: true, claimed: available, taken });
+    if (claimed.length === 0) {
+      return res.status(500).json({ error: 'Failed to claim territories. Check server logs.' });
+    }
+    
+    res.json({ success: true, claimed, taken });
   } catch(e) {
     console.error('Beta claim error:', e);
     res.status(500).json({ error: e.message });
