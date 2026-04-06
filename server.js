@@ -901,12 +901,20 @@ app.get('/api/my-territories', async (req, res) => {
     
     let claims;
     if (isAdmin) {
-      // Admins see all active territories
-      const { data, error } = await supabase.from('territory_claims')
-        .select('*')
-        .eq('status', 'active');
+      // Admins see all ZIPs that have briefing data — skip territory_claims entirely
+      const { data: allBriefings, error } = await supabase.from('zip_briefings')
+        .select('zip_code, market_key, total_parcels, act_today_count, outreach_queue_count, watch_list_count, updated_at');
       if (error) throw error;
-      claims = data || [];
+      // Synthesize claims from briefing data so dashboard can render cards
+      claims = (allBriefings || []).map(b => ({
+        zip_code: b.zip_code,
+        status: 'active',
+        agent_email: user.email,
+        agent_name: 'Admin',
+      }));
+      let briefings = {};
+      for (const b of (allBriefings || [])) briefings[b.zip_code] = b;
+      return res.json({ claims, briefings, isAdmin: true });
     } else {
       const { data, error } = await supabase.from('territory_claims')
         .select('*')

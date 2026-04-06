@@ -101,10 +101,14 @@ function getState(zip) {
     if (/^97/.test(zip)) return 'OR'; return 'MT';
 }
 
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+});
+
+// Define signOut immediately so the button always works
+window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} localStorage.clear(); window.location.href = '/'; };
+
 (async function init() {
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
-    });
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { window.location.href = 'index.html?auth=login'; return; }
     
@@ -207,8 +211,6 @@ function getState(zip) {
     `;
     
     document.getElementById('main').innerHTML = cardsHtml;
-    
-    window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} localStorage.clear(); window.location.href = '/'; };
 })();
 </script>
 </body>
