@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#F5F0EB;--bg-card:#FFFFFF;--bg-elevated:#EDE7DF;--text:#2C2418;--text-secondary:#7A6E5D;--text-dim:#A89B8A;--gold:#8B6914;--gold-dim:rgba(139,105,20,0.06);--gold-border:rgba(139,105,20,0.18);--green:#5A7247;--green-dim:rgba(90,114,71,0.08);--green-border:rgba(90,114,71,0.20);--red:#9E4B3C;--border:#D9CEBF;--border-light:#E8E0D4}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -96,14 +97,44 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);ove
 .mail-grid{grid-template-columns:1fr}.ds-body{grid-template-columns:1fr}
 .mockup-stats{margin:-16px 12px 0}.mockup-hero{height:120px}
 .hero-cta{flex-direction:column;align-items:center}.excl-stats{gap:28px}
-}
+/* Auth Modal */
+.auth-overlay{position:fixed;inset:0;background:rgba(44,36,24,0.85);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity 0.3s}
+.auth-overlay.open{opacity:1;pointer-events:all}
+.auth-modal{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;max-width:420px;width:92%;overflow:hidden;transform:translateY(20px);transition:transform 0.3s}
+.auth-overlay.open .auth-modal{transform:translateY(0)}
+.auth-header{padding:32px 32px 0;text-align:center}
+.auth-header h2{font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:6px}
+.auth-header p{font-size:13px;color:var(--text-secondary);margin-bottom:20px}
+.auth-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin:0 32px}
+.auth-tab{flex:1;padding:10px 0;font-size:12px;font-weight:600;letter-spacing:0.04em;text-align:center;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-dim);transition:all 0.2s;background:none;border-top:none;border-left:none;border-right:none;font-family:'DM Sans',sans-serif}
+.auth-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.auth-body{padding:24px 32px 32px}
+.auth-form{display:none}
+.auth-form.active{display:block}
+.auth-field{margin-bottom:14px}
+.auth-field label{display:block;font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:6px}
+.auth-field input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border 0.2s}
+.auth-field input:focus{border-color:var(--gold)}
+.auth-submit{width:100%;padding:12px;background:var(--gold);border:none;color:#F5F0EB;font-size:13px;font-weight:600;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;transition:background 0.2s}
+.auth-submit:hover{background:#7A5B10}
+.auth-submit:disabled{opacity:0.6;cursor:not-allowed}
+.auth-error{background:rgba(158,75,60,0.08);border:1px solid rgba(158,75,60,0.2);color:var(--red);font-size:12px;padding:10px 14px;border-radius:6px;margin-bottom:14px;display:none}
+.auth-success{background:rgba(90,114,71,0.08);border:1px solid rgba(90,114,71,0.2);color:var(--green);font-size:12px;padding:10px 14px;border-radius:6px;margin-bottom:14px;display:none}
+.auth-close{position:absolute;top:16px;right:18px;background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;line-height:1}
+.auth-close:hover{color:var(--text)}
+.auth-divider{text-align:center;font-size:11px;color:var(--text-dim);margin:16px 0;position:relative}
+.auth-divider::before,.auth-divider::after{content:'';position:absolute;top:50%;width:calc(50% - 20px);height:1px;background:var(--border)}
+.auth-divider::before{left:0}
+.auth-divider::after{right:0}
+.auth-magic{width:100%;padding:10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s}
+.auth-magic:hover{border-color:var(--gold);color:var(--gold)}
 </style>
 </head>
 <body>
 <nav class="nav">
     <a href="/" class="logo"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a>
     <div class="nav-right">
-        <a href="/sellersignal-briefing.html" class="nav-btn ghost">Live Demo</a>
+        <a href="#" onclick="openAuth('login');return false" class="nav-btn ghost">Sign In</a>
         <a href="/territories.html" class="nav-btn primary">Claim Your ZIP Code</a>
     </div>
 </nav>
@@ -263,18 +294,216 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);ove
     <a href="/territories.html" class="final-btn">Claim Your ZIP Code</a>
     <div style="font-size:11px;color:var(--text-dim);margin-top:16px">Limited beta · Dynamic pricing by market value · 6-month commitment recommended</div>
 </section>
+<div class="auth-overlay" id="authOverlay" onclick="if(event.target===this)closeAuth()">
+    <div class="auth-modal" style="position:relative">
+        <button class="auth-close" onclick="closeAuth()">&times;</button>
+        <div class="auth-header">
+            <h2 id="authTitle">Welcome Back</h2>
+            <p id="authSubtitle">Sign in to access your briefings and territories.</p>
+        </div>
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('login')">SIGN IN</button>
+            <button class="auth-tab" onclick="switchTab('signup')">CREATE ACCOUNT</button>
+        </div>
+        <div class="auth-body">
+            <div id="authError" class="auth-error"></div>
+            <div id="authSuccess" class="auth-success"></div>
+            <div id="loginForm" class="auth-form active">
+                <div class="auth-field">
+                    <label>EMAIL</label>
+                    <input type="email" id="loginEmail" placeholder="you@brokerage.com" autocomplete="email">
+                </div>
+                <div class="auth-field">
+                    <label>PASSWORD</label>
+                    <input type="password" id="loginPassword" placeholder="Your password" autocomplete="current-password">
+                </div>
+                <button class="auth-submit" id="loginBtn" onclick="handleLogin()">Sign In</button>
+                <div class="auth-divider">or</div>
+                <button class="auth-magic" onclick="handleMagicLink()">Send me a magic link instead</button>
+            </div>
+            <div id="signupForm" class="auth-form">
+                <div class="auth-field">
+                    <label>FULL NAME</label>
+                    <input type="text" id="signupName" placeholder="Jane Smith" autocomplete="name">
+                </div>
+                <div class="auth-field">
+                    <label>EMAIL</label>
+                    <input type="email" id="signupEmail" placeholder="you@brokerage.com" autocomplete="email">
+                </div>
+                <div class="auth-field">
+                    <label>PASSWORD</label>
+                    <input type="password" id="signupPassword" placeholder="Min 6 characters" autocomplete="new-password">
+                </div>
+                <div class="auth-field">
+                    <label>BROKERAGE</label>
+                    <input type="text" id="signupBrokerage" placeholder="Your brokerage name">
+                </div>
+                <button class="auth-submit" id="signupBtn" onclick="handleSignup()">Create Account</button>
+            </div>
+        </div>
+    </div>
+</div>
 <footer class="footer">
     <div style="margin-bottom:8px"><a href="/" class="logo" style="display:inline-flex"><div class="logo-mark"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div><span class="logo-text">SellerSignal</span></a></div>
     <div>© 2026 SellerSignal · <a href="/privacy.html" style="color:var(--text-dim)">Privacy</a> · <a href="/terms.html" style="color:var(--text-dim)">Terms</a></div>
 </footer>
 <script>
+// Intersection observer for fade-in animations
 const obs=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('v')})},{threshold:0.1});
 document.querySelectorAll('.fi').forEach(el=>obs.observe(el));
+
+// Territory count
 fetch('/api/territories').then(r=>r.json()).then(d=>{
     const a=(d.territories||[]).filter(t=>t.status==='available').length;
     document.getElementById('availCount').textContent=a;
     document.getElementById('availNum').textContent=a;
 }).catch(()=>{});
+
+// ========================================
+// AUTH SYSTEM
+// ========================================
+const SUPABASE_URL = 'https://eeqsbvizgpuehphiaslo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlcXNidml6Z3B1ZWhwaGlhc2xvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyODcyMjQsImV4cCI6MjA4NDg2MzIyNH0.dtK2_DN2xqaR6KZQh6-DgshuhgZcKadyZLJPJ-rOgVQ';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+});
+
+// Check if already logged in — redirect to dashboard
+(async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+        window.location.href = '/dashboard.html';
+        return;
+    }
+    // Auto-open auth modal if redirected from a protected page
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') === 'login') {
+        openAuth('login');
+    } else if (params.get('auth') === 'signup') {
+        openAuth('signup');
+    }
+})();
+
+function openAuth(tab = 'login') {
+    document.getElementById('authOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    switchTab(tab);
+    clearMessages();
+}
+
+function closeAuth() {
+    document.getElementById('authOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+    clearMessages();
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.auth-tab').forEach((t, i) => {
+        t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'signup' && i === 1));
+    });
+    document.getElementById('loginForm').classList.toggle('active', tab === 'login');
+    document.getElementById('signupForm').classList.toggle('active', tab === 'signup');
+    document.getElementById('authTitle').textContent = tab === 'login' ? 'Welcome Back' : 'Get Started';
+    document.getElementById('authSubtitle').textContent = tab === 'login'
+        ? 'Sign in to access your briefings and territories.'
+        : 'Create your account to claim a ZIP code.';
+    clearMessages();
+}
+
+function clearMessages() {
+    const err = document.getElementById('authError');
+    const suc = document.getElementById('authSuccess');
+    err.style.display = 'none'; err.textContent = '';
+    suc.style.display = 'none'; suc.textContent = '';
+}
+
+function showError(msg) {
+    const el = document.getElementById('authError');
+    el.textContent = msg; el.style.display = 'block';
+    document.getElementById('authSuccess').style.display = 'none';
+}
+
+function showSuccess(msg) {
+    const el = document.getElementById('authSuccess');
+    el.textContent = msg; el.style.display = 'block';
+    document.getElementById('authError').style.display = 'none';
+}
+
+async function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) return showError('Please enter your email and password.');
+
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'Signing in...';
+    clearMessages();
+
+    try {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        window.location.href = '/dashboard.html';
+    } catch (e) {
+        showError(e.message || 'Sign in failed. Please check your credentials.');
+        btn.disabled = false; btn.textContent = 'Sign In';
+    }
+}
+
+async function handleSignup() {
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const brokerage = document.getElementById('signupBrokerage').value.trim();
+
+    if (!name || !email || !password) return showError('Please fill in all required fields.');
+    if (password.length < 6) return showError('Password must be at least 6 characters.');
+
+    const btn = document.getElementById('signupBtn');
+    btn.disabled = true; btn.textContent = 'Creating account...';
+    clearMessages();
+
+    try {
+        const { data, error } = await sb.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { full_name: name, brokerage: brokerage }
+            }
+        });
+        if (error) throw error;
+
+        if (data.user && !data.user.confirmed_at && !data.session) {
+            showSuccess('Check your email for a confirmation link, then sign in.');
+            btn.disabled = false; btn.textContent = 'Create Account';
+        } else {
+            window.location.href = '/dashboard.html';
+        }
+    } catch (e) {
+        showError(e.message || 'Signup failed. Please try again.');
+        btn.disabled = false; btn.textContent = 'Create Account';
+    }
+}
+
+async function handleMagicLink() {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) return showError('Enter your email first, then click magic link.');
+    clearMessages();
+
+    try {
+        const { error } = await sb.auth.signInWithOtp({
+            email,
+            options: { emailRedirectTo: window.location.origin + '/dashboard.html' }
+        });
+        if (error) throw error;
+        showSuccess('Magic link sent! Check your email and click the link to sign in.');
+    } catch (e) {
+        showError(e.message || 'Could not send magic link. Please try again.');
+    }
+}
+
+// Enter key submits forms
+document.getElementById('loginPassword')?.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+document.getElementById('signupBrokerage')?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSignup(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAuth(); });
 </script>
 </body>
 </html>
