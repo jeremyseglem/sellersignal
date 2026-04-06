@@ -910,7 +910,7 @@ app.get('/api/my-territories', async (req, res) => {
     if (isAdmin) {
       // Admins see all ZIPs that have briefing data — skip territory_claims entirely
       const { data: allBriefings, error } = await supabase.from('zip_briefings')
-        .select('zip_code, market_key, total_parcels, act_today_count, outreach_queue_count, watch_list_count, updated_at');
+        .select('zip_code, market_key, total_parcels, act_today_count, outreach_queue_count, computed_at');
       if (error) throw error;
       // Synthesize claims from briefing data so dashboard can render cards
       claims = (allBriefings || []).map(b => ({
@@ -936,7 +936,7 @@ app.get('/api/my-territories', async (req, res) => {
     let briefings = {};
     if (zips.length > 0) {
       const { data: bData } = await supabase.from('zip_briefings')
-        .select('zip_code, total_parcels, act_today_count, outreach_queue_count, watch_list_count, updated_at')
+        .select('zip_code, total_parcels, act_today_count, outreach_queue_count, computed_at')
         .in('zip_code', zips);
       for (const b of (bData || [])) briefings[b.zip_code] = b;
     }
