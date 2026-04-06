@@ -900,6 +900,10 @@ app.get('/api/my-territories', async (req, res) => {
   
   try {
     const isAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase());
+    console.log(`[MY-TERRITORIES] isAdmin: ${isAdmin}, email: "${user.email}"`);
+    
+    // TEMP DEBUG: include auth info in response
+    const _debug = { email: user.email, id: user.id, isAdmin, adminList: ADMIN_EMAILS };
     console.log(`[MY-TERRITORIES] isAdmin: ${isAdmin}, email check: "${user.email?.toLowerCase()}"`);
     
     let claims;
@@ -917,7 +921,7 @@ app.get('/api/my-territories', async (req, res) => {
       }));
       let briefings = {};
       for (const b of (allBriefings || [])) briefings[b.zip_code] = b;
-      return res.json({ claims, briefings, isAdmin: true });
+      return res.json({ claims, briefings, isAdmin: true, _debug });
     } else {
       const { data, error } = await supabase.from('territory_claims')
         .select('*')
@@ -937,7 +941,7 @@ app.get('/api/my-territories', async (req, res) => {
       for (const b of (bData || [])) briefings[b.zip_code] = b;
     }
     
-    res.json({ claims, briefings, isAdmin });
+    res.json({ claims, briefings, isAdmin, _debug });
   } catch(e) {
     console.error('My territories error:', e);
     res.status(500).json({ error: e.message });

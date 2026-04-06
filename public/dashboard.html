@@ -135,6 +135,8 @@ window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} loca
         const resp = await fetch('/api/my-territories', { headers: { 'Authorization': 'Bearer ' + token } });
         const data = await resp.json();
         console.log('API response:', resp.status, data);
+        // TEMP DEBUG: show what API returned
+        document.getElementById('greetingSub').textContent = `API: ${resp.status} | admin: ${data.isAdmin} | claims: ${(data.claims||[]).length} | email: ${data._debug?.email || 'none'} | inList: ${data._debug?.isAdmin}`;
         if (data.error) {
             document.getElementById('greetingSub').textContent = 'API error: ' + data.error + ' (status ' + resp.status + ')';
         }
