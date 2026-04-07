@@ -4596,10 +4596,10 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                         <div style="display:flex;gap:6px;flex-shrink:0">
                             ${tier === 'call' ? `
                                 <button class="action-btn primary" onclick="event.stopPropagation();openCallModal('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
-                                <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Preview Letters</button>
+                                <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Six Letters</button>
                             ` : `
                                 <button class="action-btn primary" onclick="event.stopPropagation();runDeepSignalForCard('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
-                                <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Preview Letters</button>
+                                <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Six Letters</button>
                             `}
                         </div>
                     </div>
@@ -5041,84 +5041,280 @@ function openCallModal(id) {
     document.getElementById('actionModal').classList.add('active');
 }
 
+// =========================
+// THE SIX LETTERS — SellerSignal's seller cultivation program
+// =========================
+
+// Templated 6-letter sequence using real prospect data (no AI cost in preview mode)
+function generateSixLetters(p) {
+    const fullName = normalizeName(p.ownerName) || 'Property Owner';
+    const firstName = fullName.split(/\s+/)[0];
+    const propertyAddress = (p.address || 'your property').replace(/\s+/g, ' ').trim();
+    const neighborhood = p.neighborhood || p.marketName || 'your area';
+    const isAbsentee = !!p.isAbsentee;
+    const isOutOfState = !!p.isOutOfState;
+    const isTrust = (p.ownerType || '').toLowerCase().includes('trust');
+    const isLLC = (p.ownerType || '').toLowerCase().match(/llc|corp|inc/);
+    const yearsOwned = p.yearsOwned || null;
+    
+    // Tone modulation by owner type
+    const greeting = isLLC ? `To the ownership of ${propertyAddress}` : `Dear ${firstName}`;
+    const ownerTypeContext = isAbsentee 
+        ? 'an out-of-area owner who had been holding the property for years'
+        : isTrust 
+        ? 'a property held in trust with multiple stakeholders to consider'
+        : yearsOwned && yearsOwned > 15
+        ? 'a longtime owner who had built significant equity over time'
+        : 'a homeowner who had been quietly considering their options';
+    
+    // Address acknowledgment line for absentee/out-of-state
+    const distanceAck = isOutOfState
+        ? ` Even from a distance, your investment in ${neighborhood} represents real value, and you deserve to have someone watching it closely on your behalf.`
+        : isAbsentee
+        ? ` Owners who don't live at their property often miss the day-to-day signals of what their home is worth — I try to fill that gap.`
+        : '';
+    
+    return [
+        {
+            num: 1,
+            name: 'The Introduction',
+            dayLabel: 'Day 1',
+            trigger: 'Sent immediately upon enrollment',
+            body: `${greeting},
+
+I'm writing because I've been studying ${neighborhood} for some time, and your property at ${propertyAddress} caught my attention.
+
+I'm not reaching out to ask for anything today. I just wanted to introduce myself as someone who pays close attention to this market — what's selling, what isn't, and what your property might be worth in today's environment if you ever decided to find out.${distanceAck}
+
+If that's a conversation you'd like to have someday, I'd welcome it. If not, I'll continue watching the market and may write again when there's something worth sharing about your area specifically.
+
+Either way, thank you for letting me introduce myself.
+
+Warmly,`
+        },
+        {
+            num: 2,
+            name: 'The Context',
+            dayLabel: 'Day 30',
+            trigger: 'Sent 30 days after enrollment, or earlier if a comparable property in the area lists',
+            body: `${greeting},
+
+Following up on my note from last month — I wanted to share some context about what's actually happening in ${neighborhood} right now.
+
+In the past 90 days, properties similar to yours have moved through this market at a pace that has surprised even local agents. Homes are changing hands at numbers that would have seemed optimistic a year ago, and the buyer pool for ${neighborhood} specifically remains deeper than supply.
+
+For a property like yours at ${propertyAddress}, that translates to a meaningfully different valuation conversation than even six months ago. I'm not telling you this to push you toward anything. I'm telling you this because if I owned a home like yours, I'd want to know.
+
+If you'd ever like a clearer picture of where your property sits in today's market — confidentially, no commitment — I'd be glad to put it together for you.
+
+Best,`
+        },
+        {
+            num: 3,
+            name: 'The Story',
+            dayLabel: 'Day 60',
+            trigger: 'Sent 60 days after enrollment, or earlier if a directly comparable sale closes nearby',
+            body: `${greeting},
+
+A property near you sold recently. I won't name the exact address out of respect for the seller's privacy, but the situation reminded me of yours — ${ownerTypeContext}, comparable in size and character to ${propertyAddress}.
+
+The owner had been thinking about selling for over a year but had never taken the simple step of finding out what their home was actually worth in today's market. When they finally did, the number was higher than they expected. The decision became a lot easier.
+
+I share this not as a sales pitch but as a pattern I see often. Most homeowners in ${neighborhood} who eventually sell tell me afterward that they wish they'd known their number sooner. Knowing doesn't commit you to anything — it just makes the eventual decision, whenever it comes, a real decision based on real information rather than a guess.
+
+If that's something you'd like, you know where to find me.
+
+Best,`
+        },
+        {
+            num: 4,
+            name: 'The Offer',
+            dayLabel: 'Day 90',
+            trigger: 'Sent 90 days after enrollment',
+            body: `${greeting},
+
+I want to make this very simple.
+
+I'd like to put together a confidential, no-obligation valuation of your property at ${propertyAddress}. I'll do the work — recent comparable sales on your block and in your immediate area, current market positioning, what I'd list it for if you were my client today, and what I'd realistically expect it to net you after closing costs.
+
+You don't need to be considering selling. You don't need to call me back to discuss it. I'll just put it together and send it to you, and you can do whatever you want with it — file it away, ignore it, share it with your accountant, or use it as a starting point for a conversation when the time is right for you.
+
+If you'd like me to prepare it, just call or text the number below. One sentence is enough: "Yes, send the valuation."
+
+That's the entire ask.
+
+Sincerely,`
+        },
+        {
+            num: 5,
+            name: 'The Moment',
+            dayLabel: 'Day 135',
+            trigger: 'Sent 135 days in, or earlier if local market data shifts meaningfully',
+            body: `${greeting},
+
+Five months into our correspondence and I haven't heard back, which is completely fine. Most homeowners I write to don't respond to early letters, and I'd rather earn your eventual trust slowly than push for something you're not ready for.
+
+But I'm writing today because the market in ${neighborhood} is in a moment that's worth your attention.
+
+Inventory remains tight. Qualified buyers are still actively looking — I have several right now who would be interested in a property exactly like yours at ${propertyAddress}. And the rate environment, while uncertain, is creating motivation among buyers who don't want to wait any longer.
+
+I'm not predicting anything. Markets always have moments, and the right moment to know your property's value is usually the moment before you wish you'd known it.
+
+If you'd like that picture now, I can have it to you within 48 hours.
+
+Best,`
+        },
+        {
+            num: 6,
+            name: 'The Conversation',
+            dayLabel: 'Day 180',
+            trigger: 'Final letter — sent 180 days after enrollment',
+            body: `${greeting},
+
+This is the sixth letter I've written to you over the past six months. You haven't responded, and I want to acknowledge that with respect rather than persistence.
+
+So I'm not going to ask you to call me again. I'm going to ask something different.
+
+Whenever the day eventually comes — six months from now, two years from now, or ten — that you start thinking seriously about what your property at ${propertyAddress} might be worth and what selling it would actually look like, I'd like to be the person you call first. Not because I've earned it through these letters, but because by then I'll have spent over a year studying ${neighborhood} closely and watching how it's evolved.
+
+If that day comes, just save my number. That's all I'm asking.
+
+I'll keep watching the market. I won't write again unless something material changes that affects your property specifically.
+
+With genuine respect,`
+        }
+    ];
+}
+
+let _currentSixLetters = null;
+let _currentLetterIdx = 0;
+let _currentProspectName = '';
+
 function previewLetters(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
     if (!p) return;
-    const name = normalizeName(p.ownerName) || p.address;
-    const addr = p.address || 'the property';
-    document.getElementById('modalTitle').textContent = `✉ Letter Preview — ${name}`;
-    document.getElementById('modalTabs').innerHTML = '';
     
-    const hasDS = p._deepSignalVerified && p._dsScripts?.letter;
-    const letter1 = hasDS ? p._dsScripts.letter : generateScript(p, p.cohort);
+    const fullName = normalizeName(p.ownerName) || p.address;
+    _currentProspectName = fullName;
+    _currentSixLetters = generateSixLetters(p);
+    _currentLetterIdx = 0;
     
     const mailAddr = p.ownerAddress 
-        ? `${p.ownerAddress}${p.ownerCity ? ', '+p.ownerCity : ''}${p.ownerState ? ' '+p.ownerState : ''} ${p.ownerZip||''}`
+        ? `${p.ownerAddress}${p.ownerCity ? ', '+p.ownerCity : ''}${p.ownerState ? ' '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
         : p.address;
     
-    // Letter timeline descriptions
-    const letterSteps = [
-        { num: 1, title: 'Introduction', desc: 'Personalized first touch — references their specific property and situation', active: true },
-        { num: 2, title: 'Market Context', desc: 'Local market data specific to their neighborhood and price range' },
-        { num: 3, title: 'Social Proof', desc: 'Recent success stories from their area — builds credibility' },
-        { num: 4, title: 'Value Add', desc: 'Free home valuation offer — moves from awareness to action' },
-        { num: 5, title: 'Urgency', desc: 'Market timing and buyer demand — creates natural urgency' },
-        { num: 6, title: 'Direct Ask', desc: 'Relationship-based close — references all prior letters' },
-    ];
+    document.getElementById('modalTitle').textContent = `The Six Letters — ${fullName}`;
+    document.getElementById('modalTabs').innerHTML = '';
     
-    const timelineHtml = letterSteps.map(s => `
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;${s.active?'':'opacity:0.5'}">
-            <div style="width:28px;height:28px;border-radius:50%;background:${s.active?'var(--gold)':'var(--border)'};color:${s.active?'#F5F0EB':'var(--text-dim)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${s.num}</div>
-            <div>
-                <div style="font-size:12px;font-weight:600;${s.active?'color:var(--gold)':''}">${s.title}${s.num===1?' — shown below':''}</div>
-                <div style="font-size:11px;color:var(--text-dim);line-height:1.4">${s.desc}</div>
-            </div>
-        </div>
+    // Tab strip + letter view container
+    const tabsHtml = _currentSixLetters.map((l, i) => `
+        <button class="six-tab" data-idx="${i}" onclick="switchSixLetter(${i})">
+            <div class="six-tab-day">${l.dayLabel}</div>
+            <div class="six-tab-name">${l.name}</div>
+        </button>
     `).join('');
     
     document.getElementById('modalScript').innerHTML = `
-        <div style="margin-bottom:20px">
-            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:10px">6-LETTER CAMPAIGN SEQUENCE</div>
-            ${timelineHtml}
+        <style>
+            .six-program-header{padding:14px 18px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;margin-bottom:16px}
+            .six-program-header strong{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--gold);display:block;margin-bottom:4px}
+            .six-program-header p{font-size:12px;color:var(--text-secondary);line-height:1.5;margin:0}
+            .six-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:thin}
+            .six-tab{flex:0 0 auto;min-width:108px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;transition:all 0.15s;font-family:'DM Sans',sans-serif}
+            .six-tab:hover{border-color:var(--gold-border);background:var(--gold-dim)}
+            .six-tab.active{background:#2C2418;border-color:#2C2418}
+            .six-tab.active .six-tab-day{color:rgba(245,240,235,0.6)}
+            .six-tab.active .six-tab-name{color:#F5F0EB}
+            .six-tab-day{font-size:9px;font-weight:600;letter-spacing:0.06em;color:var(--text-dim);margin-bottom:3px;text-transform:uppercase}
+            .six-tab-name{font-size:12px;font-weight:600;color:var(--text);font-family:'Playfair Display',Georgia,serif}
+            .six-letter-paper{background:#FFFDF8;border:1px solid #E8E0D0;border-radius:10px;padding:32px 36px;font-family:'Source Serif 4',Georgia,serif;box-shadow:0 2px 12px rgba(44,36,24,0.06)}
+            .six-letter-meta{display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid #E8E0D0;font-size:10px;color:#A89B8A;letter-spacing:0.04em;text-transform:uppercase;font-family:'DM Sans',sans-serif}
+            .six-letter-to{font-size:11px;color:#A89B8A;letter-spacing:0.06em;margin-bottom:4px;font-family:'DM Sans',sans-serif}
+            .six-letter-name{font-size:14px;color:#2C2418;font-weight:600;margin-bottom:2px}
+            .six-letter-mailaddr{font-size:12px;color:#7A6E5D}
+            .six-letter-body{font-size:14px;line-height:1.85;color:#2C2418;white-space:pre-wrap;margin-top:22px}
+            .six-letter-sig{margin-top:18px;padding-top:14px;border-top:1px solid #E8E0D0;font-size:11px;color:#A89B8A;font-style:italic;font-family:'DM Sans',sans-serif}
+            .six-trigger{margin-top:14px;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary);line-height:1.5}
+            .six-trigger strong{color:var(--text);font-weight:600}
+            .six-program-explainer{margin-top:18px;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
+            .six-program-explainer h4{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase}
+            .six-program-explainer p{font-size:12px;color:var(--text-dim);line-height:1.6;margin:0}
+        </style>
+        
+        <div class="six-program-header">
+            <strong>SELLERSIGNAL'S SIX LETTERS PROGRAM</strong>
+            <p>A six-month, six-letter cultivation sequence personalized to this seller's situation. Each letter has a distinct purpose and builds on the last. Letters can fire on a calendar or in response to events — comparable sales, market shifts, or pipeline status changes.</p>
         </div>
         
-        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:10px">LETTER 1 — INTRODUCTION</div>
-        <div style="background:#FFFDF8;border:1px solid #E8E0D0;border-radius:8px;padding:28px 32px;font-family:'Source Serif 4',Georgia,serif;position:relative;box-shadow:0 2px 12px rgba(44,36,24,0.06)">
-            <div style="border-bottom:1px solid #E8E0D0;padding-bottom:14px;margin-bottom:18px">
-                <div style="font-size:10px;color:#A89B8A;letter-spacing:0.06em;margin-bottom:4px">TO</div>
-                <div style="font-size:13px;color:#2C2418;font-weight:500">${name}</div>
-                <div style="font-size:12px;color:#7A6E5D">${mailAddr}</div>
-            </div>
-            <div style="font-size:14px;line-height:1.8;color:#2C2418;white-space:pre-wrap">${letter1.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-            <div style="border-top:1px solid #E8E0D0;padding-top:14px;margin-top:18px;font-size:11px;color:#A89B8A">
-                <em>Your name, brokerage, and contact info appear here</em>
-            </div>
-        </div>
+        <div class="six-tabs">${tabsHtml}</div>
         
-        ${hasDS ? `
-            <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="modal-btn secondary" onclick="copyFullLetter('${id}')">Copy Letter Text</button>
-            </div>
-        ` : `
-            <div style="padding:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center;margin-top:16px">
-                <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px">Want an even more personalized letter?</div>
-                <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Run Deep Signal to generate letters based on this seller's psychology and motivation.</div>
-                <button class="modal-btn primary" onclick="closeModal();runDeepSignalForCard('${id}')">Run Deep Signal</button>
-            </div>
-        `}
+        <div id="sixLetterContent"></div>
         
-        <div style="margin-top:20px;padding:14px 16px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">HOW IT WORKS</div>
-            <div style="font-size:12px;color:var(--text-dim);line-height:1.6">When subscribed, SellerSignal generates all 6 letters using AI — each one unique to this seller's situation. Letters are printed and mailed monthly via USPS. Each letter builds on the last, progressing from introduction to direct ask over 6 months.</div>
+        <div class="six-program-explainer">
+            <h4>HOW THE SIX LETTERS WORKS</h4>
+            <p>What you see above is a templated preview using ${fullName.split(' ')[0]}'s real property data. When you enroll a prospect with a mail credit, SellerSignal generates a fully bespoke version of all six letters using AI — incorporating Deep Signal psychology, recent local sales, and the seller's specific context. Letters are then printed and mailed via USPS on the schedule shown, with smart triggers that adjust timing based on local market events and the prospect's pipeline status.</p>
         </div>
     `;
     
-    if (hasDS) window._tempFullLetter = letter1;
+    renderSixLetter(mailAddr, fullName);
     
     document.getElementById('modalActions').innerHTML = `
         <button class="modal-btn secondary" onclick="closeModal()">Close</button>
+        <button class="modal-btn secondary" onclick="copySixLetter()">Copy This Letter</button>
     `;
     document.getElementById('actionModal').classList.add('active');
+}
+
+function switchSixLetter(idx) {
+    _currentLetterIdx = idx;
+    const p = allProspects.find(x => normalizeName(x.ownerName) === _currentProspectName || x.address === _currentProspectName);
+    const mailAddr = p?.ownerAddress 
+        ? `${p.ownerAddress}${p.ownerCity ? ', '+p.ownerCity : ''}${p.ownerState ? ' '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
+        : (p?.address || '');
+    renderSixLetter(mailAddr, _currentProspectName);
+}
+
+function renderSixLetter(mailAddr, fullName) {
+    if (!_currentSixLetters) return;
+    const letter = _currentSixLetters[_currentLetterIdx];
+    if (!letter) return;
+    
+    // Update tab active state
+    document.querySelectorAll('.six-tab').forEach((t, i) => {
+        t.classList.toggle('active', i === _currentLetterIdx);
+    });
+    
+    const escaped = letter.body.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    
+    document.getElementById('sixLetterContent').innerHTML = `
+        <div class="six-letter-paper">
+            <div class="six-letter-meta">
+                <span>${letter.dayLabel} · ${letter.name}</span>
+                <span>Letter ${letter.num} of 6</span>
+            </div>
+            <div class="six-letter-to">TO</div>
+            <div class="six-letter-name">${fullName}</div>
+            <div class="six-letter-mailaddr">${mailAddr}</div>
+            <div class="six-letter-body">${escaped}</div>
+            <div class="six-letter-sig">[Your name, brokerage, phone, and email signature appear here]</div>
+        </div>
+        <div class="six-trigger"><strong>Trigger:</strong> ${letter.trigger}</div>
+    `;
+}
+
+function copySixLetter() {
+    if (!_currentSixLetters) return;
+    const letter = _currentSixLetters[_currentLetterIdx];
+    navigator.clipboard?.writeText(letter.body).then(() => {
+        const btns = document.querySelectorAll('.modal-btn');
+        btns.forEach(b => { 
+            if (b.textContent.includes('Copy')) { 
+                const orig = b.textContent; 
+                b.textContent = '✓ Copied'; 
+                setTimeout(() => b.textContent = orig, 1500); 
+            }
+        });
+    });
 }
 
 function revealFullLetter(id) {
@@ -5385,7 +5581,7 @@ function showMapPanel(p, isAct, isOut) {
     document.getElementById('mapPanelBody').innerHTML = bodyHtml;
     
     document.getElementById('mapPanelActions').innerHTML = `
-        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Letters</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Letters</button>`}
+        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Six Letters</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Six Letters</button>`}
     `;
     
     document.getElementById('mapPanel').classList.add('open');
