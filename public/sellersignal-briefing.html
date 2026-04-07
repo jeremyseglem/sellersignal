@@ -4358,21 +4358,6 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         }
     }
     
-    // RANK + PERCENTILE WITHIN ZIP — gives every market a meaningful frame.
-    // Sorts by descending score, assigns each prospect a 1-indexed rank against the
-    // total addressable population (after junk filters). Display layer turns this into
-    // 'Top 0.3%' or 'Rank #14' chips so users in compressed-distribution markets
-    // (NC, FL) still see clear standout prospects even when raw scores compress.
-    const rankSorted = [...liveEnriched].sort((a, b) => 
-        (b.sellerLikelihood || b.briefingRank || 0) - (a.sellerLikelihood || a.briefingRank || 0)
-    );
-    const zipTotal = rankSorted.length;
-    rankSorted.forEach((p, i) => {
-        p._zipRank = i + 1;
-        p._zipTotal = zipTotal;
-        p._zipPercentile = zipTotal > 0 ? ((i + 1) / zipTotal) * 100 : 100;
-    });
-    
     // ========================================
     // TIER ASSIGNMENT — turnover-based, matches batch worker
     // Act Today = monthly sellers (from calibration), Outreach = 2x monthly
@@ -4402,6 +4387,22 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         const sub = (p.subdivision || '').toUpperCase();
         return /MARRIOTT|RESORT HOTEL|FRACTIONAL|RESIDENCE CLUB|VACATION CLUB|TIMESHARE/.test(sub);
     };
+    
+    // RANK + PERCENTILE WITHIN ZIP — computed against the ADDRESSABLE population
+    // (after resort/fractional and active-listing filters), so ranks reflect what
+    // users actually see in the briefing. Rank #1 is the #1 prospect they could
+    // contact today, not the #1 absolute score (which might be a Marriott condo
+    // we filtered out).
+    const addressable = liveEnriched.filter(p => !p._activeListingBlocker && !isResortFractional(p));
+    const rankSorted = [...addressable].sort((a, b) => 
+        (b.sellerLikelihood || b.briefingRank || 0) - (a.sellerLikelihood || a.briefingRank || 0)
+    );
+    const zipTotal = rankSorted.length;
+    rankSorted.forEach((p, i) => {
+        p._zipRank = i + 1;
+        p._zipTotal = zipTotal;
+        p._zipPercentile = zipTotal > 0 ? ((i + 1) / zipTotal) * 100 : 100;
+    });
     
     // Simply take top N by score — already sorted by _sortRank
     let callToday = liveEnriched
