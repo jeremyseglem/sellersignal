@@ -374,7 +374,7 @@ body.demo-mode .feedback-tab{display:none}
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59715';startBriefing()">59715 · Bozeman</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59718';startBriefing()">59718 · Bozeman W</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59937';startBriefing()">59937 · Whitefish</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='59716';startBriefing()">59716 · Big Sky</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='59716';startBriefing()">59716 · Belgrade</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59801';startBriefing()">59801 · Missoula</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='59711';startBriefing()">59711 · Anaconda</button>
         </div>
@@ -549,7 +549,7 @@ let currentUser = null;
 let userTerritories = [];
 
 const ZIP_NAMES = {
-    '59715':'Bozeman','59718':'Bozeman W','59937':'Whitefish','59716':'Big Sky','59801':'Missoula','59711':'Anaconda',
+    '59715':'Bozeman','59718':'Bozeman W','59937':'Whitefish','59716':'Belgrade','59801':'Missoula','59711':'Anaconda',
     '85253':'Paradise Valley','85254':'N Scottsdale','85262':'Scottsdale Ranch','85255':'DC Ranch','85268':'Fountain Hills','85331':'Cave Creek',
     '85251':'Old Town Scottsdale','85258':'S Scottsdale','85260':'N Scottsdale','85281':'Tempe','85224':'Chandler','85295':'Gilbert','85206':'Mesa',
     '33480':'Palm Beach','33486':'Boca Raton','33496':'Boca W','33432':'Boca E','33433':'Boca S','33487':'Boca Beach','33458':'Jupiter','33408':'N Palm Beach','33462':'Lantana','33434':'W Boca',
@@ -4370,7 +4370,7 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     // Update header with market name and atmospheric hero
     const zipNames = {
         // Montana
-        '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana','59716':'Big Sky, Montana','59730':'Livingston, Montana',
+        '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana','59716':'Belgrade, Montana','59730':'Livingston, Montana',
         // King County WA
         '98004':'Bellevue, Washington','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington','98074':'Sammamish, Washington','98103':'Fremont, Seattle','98109':'Queen Anne, Seattle','98105':'University District, Seattle','98112':'Capitol Hill, Seattle','98199':'Magnolia, Seattle',
         // Arizona
