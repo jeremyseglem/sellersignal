@@ -78,14 +78,36 @@ const SUPABASE_URL = 'https://eeqsbvizgpuehphiaslo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlcXNidml6Z3B1ZWhwaGlhc2xvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyODcyMjQsImV4cCI6MjA4NDg2MzIyNH0.dtK2_DN2xqaR6KZQh6-DgshuhgZcKadyZLJPJ-rOgVQ';
 
 const zipNames = {
-    '59715':'Bozeman, Montana','59718':'Bozeman, Montana','59714':'Big Sky, Montana','59711':'Dillon, Montana',
-    '98004':'Bellevue, Washington','98033':'Kirkland, Washington','98040':'Mercer Island, Washington','98039':'Medina, Washington','98074':'Sammamish, Washington','98103':'Fremont, Seattle','98112':'Capitol Hill, Seattle',
-    '85253':'Paradise Valley, Arizona','85254':'North Scottsdale, Arizona','85255':'North Scottsdale, Arizona','85331':'Cave Creek, Arizona','85258':'McCormick Ranch, Arizona',
-    '28211':'Myers Park, Charlotte','28209':'South Charlotte, NC','28226':'SouthPark, Charlotte',
-    '33480':'Palm Beach, Florida','33432':'Boca Raton, Florida','33433':'Boca Raton, Florida','33496':'Boca Raton, Florida',
-    '33131':'Brickell, Miami','33139':'South Beach, Miami','33134':'Coral Gables, Florida',
-    '10013':'Tribeca, New York','10021':'Upper East Side, New York','10024':'Upper West Side, New York',
-    '97701':'Bend, Oregon','97702':'South Bend, Oregon',
+    // Montana
+    '59711':'Anaconda, Montana','59714':'Belgrade, Montana','59715':'Bozeman, Montana','59716':'Big Sky, Montana',
+    '59718':'Bozeman West, Montana','59730':'Gallatin Gateway, Montana','59801':'Missoula, Montana','59937':'Whitefish, Montana',
+    // King County, WA
+    '98004':'Bellevue, Washington','98033':'Kirkland, Washington','98039':'Medina, Washington','98040':'Mercer Island, Washington',
+    '98074':'Sammamish, Washington','98103':'Fremont, Seattle','98105':'University District, Seattle','98109':'Queen Anne, Seattle',
+    '98112':'Capitol Hill, Seattle','98199':'Magnolia, Seattle',
+    // Maricopa County, AZ
+    '85206':'Mesa, Arizona','85224':'Chandler, Arizona','85251':'Old Town Scottsdale, Arizona','85253':'Paradise Valley, Arizona',
+    '85254':'North Scottsdale, Arizona','85255':'DC Ranch, Arizona','85258':'McCormick Ranch, Arizona','85260':'North Scottsdale, Arizona',
+    '85262':'Scottsdale Ranch, Arizona','85268':'Fountain Hills, Arizona','85281':'Tempe, Arizona','85295':'Gilbert, Arizona',
+    '85331':'Cave Creek, Arizona',
+    // Charlotte / Raleigh / Asheville, NC
+    '27517':'Chapel Hill, NC','27609':'North Raleigh, NC','27613':'West Raleigh, NC','27615':'North Hills, NC','27707':'Durham, NC',
+    '28105':'Matthews, NC','28202':'Uptown Charlotte, NC','28207':'Elizabeth, Charlotte','28209':'South Charlotte, NC',
+    '28211':'Myers Park, Charlotte','28226':'Ballantyne, Charlotte','28270':'Providence, Charlotte','28277':'Ballantyne West, Charlotte',
+    '28401':'Wilmington, NC','28803':'South Asheville, NC','28804':'North Asheville, NC',
+    // Palm Beach, FL
+    '33408':'North Palm Beach, FL','33432':'East Boca Raton, FL','33433':'South Boca Raton, FL','33434':'West Boca Raton, FL',
+    '33458':'Jupiter, FL','33462':'Lantana, FL','33480':'Palm Beach, Florida','33486':'Boca Raton, Florida',
+    '33487':'Boca Beach, FL','33496':'West Boca Raton, FL',
+    // Miami-Dade, FL
+    '33131':'Brickell, Miami','33133':'Coconut Grove, Miami','33134':'Coral Gables, Florida','33139':'South Beach, Miami',
+    '33140':'North Miami Beach, FL','33143':'South Miami, FL','33149':'Key Biscayne, FL','33156':'Pinecrest, FL',
+    // New York
+    '10013':'Tribeca, New York','10014':'West Village, New York','10021':'Upper East Side, New York','10024':'Upper West Side, New York',
+    '10583':'Scarsdale, New York','11201':'Brooklyn Heights, New York',
+    // Bend, OR
+    '97701':'Bend Central, Oregon','97702':'Bend SW, Oregon','97703':'Bend West, Oregon','97707':'Sunriver, Oregon',
+    '97756':'Redmond, Oregon','97759':'Sisters, Oregon',
 };
 const zipGradients = {
     'MT':'linear-gradient(135deg,#4A5E6E,#6A8A78)','WA':'linear-gradient(135deg,#2A3D4A,#6A8E9A)',
@@ -157,15 +179,16 @@ window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} loca
     
     document.getElementById('greetingSub').textContent = `${claims.length} territor${claims.length === 1 ? 'y' : 'ies'} active · Your briefings updated daily`;
     
-    // Render territory cards
+    // Render territory cards — sorted by ZIP for predictable navigation
+    const sortedClaims = [...claims].sort((a, b) => (a.zip_code || '').localeCompare(b.zip_code || ''));
     let cardsHtml = '<div class="territories">';
-    for (const claim of claims) {
+    for (const claim of sortedClaims) {
         const zip = claim.zip_code;
         const name = zipNames[zip] || zip;
         const state = getState(zip);
         const grad = zipGradients[state] || zipGradients['MT'];
         const b = briefings[zip] || {};
-        const updated = b.updated_at ? new Date(b.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not yet';
+        const updated = b.computed_at ? new Date(b.computed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Pending';
         
         cardsHtml += `
             <a href="/sellersignal-briefing.html?zip=${zip}" class="territory-card">
@@ -177,13 +200,12 @@ window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} loca
                     </div>
                 </div>
                 <div class="territory-body">
-                    <div class="territory-stats">
+                    <div class="territory-stats" style="grid-template-columns:repeat(3,1fr)">
                         <div class="territory-stat"><div class="num">${(b.total_parcels || 0).toLocaleString()}</div><div class="lbl">PARCELS</div></div>
                         <div class="territory-stat"><div class="num" style="color:var(--green)">${b.act_today_count || 0}</div><div class="lbl">ACT TODAY</div></div>
                         <div class="territory-stat"><div class="num" style="color:var(--gold)">${b.outreach_queue_count || 0}</div><div class="lbl">OUTREACH</div></div>
-                        <div class="territory-stat"><div class="num" style="color:var(--text-dim)">${b.watch_list_count || 0}</div><div class="lbl">WATCH</div></div>
                     </div>
-                    <div class="territory-updated">Last updated: ${updated}</div>
+                    <div class="territory-updated">Updated ${updated}</div>
                     <div class="territory-btn">Open Briefing →</div>
                 </div>
             </a>
