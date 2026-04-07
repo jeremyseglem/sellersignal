@@ -134,19 +134,13 @@ window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} loca
     try {
         const resp = await fetch('/api/my-territories', { headers: { 'Authorization': 'Bearer ' + token } });
         const data = await resp.json();
-        console.log('API response:', resp.status, data);
-        // TEMP DEBUG: show what API returned
-        document.getElementById('greetingSub').textContent = `API: ${resp.status} | admin: ${data.isAdmin} | claims: ${(data.claims||[]).length} | email: ${data._debug?.email || 'none'} | inList: ${data._debug?.isAdmin}`;
         if (data.error) {
-            document.getElementById('greetingSub').textContent = 'API error: ' + data.error + ' (status ' + resp.status + ')';
+            console.error('Territory load error:', data.error);
         }
         claims = data.claims || [];
         briefings = data.briefings || {};
         isAdmin = data.isAdmin || false;
-    } catch(e) {
-        console.error('Failed to load territories:', e);
-        document.getElementById('greetingSub').textContent = 'Fetch error: ' + e.message;
-    }
+    } catch(e) { console.error('Failed to load territories:', e); }
     
     if (!claims || claims.length === 0) {
         // No territories — show empty state

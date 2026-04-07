@@ -283,6 +283,45 @@ PROSPECTS:\n${d}`}] });
     if (error) log(`  Score err: ${error.message}`);
   }
 
+  // === PREDICTION SNAPSHOTS — time-series capture for ML training + accuracy validation ===
+  // Snapshot every meaningfully scored parcel (rank >= 10) so we have a permanent record
+  // of what we predicted and when. Used to validate accuracy when sales are detected later.
+  try {
+    const now = new Date().toISOString();
+    const batchRunId = `batch_${zip}_${Date.now()}`;
+    const snapshots = uR
+      .filter(r => r.s.briefingRank >= 10)
+      .map(r => ({
+        parcel_id: r.p.id,
+        zip_code: zip,
+        market_key: market.key,
+        briefing_rank: r.s.briefingRank,
+        calibrated_rank: r.s.briefingRank,
+        cohort: r.s.cohort || null,
+        lite_score: r.s.lite_score || null,
+        snapshot_date: now,
+        batch_run_id: batchRunId,
+        owner_name: r.p.ownerName || null,
+        owner_type: cohortMap[r.p.id] || 'residential',
+        is_absentee: !!r.p.isAbsentee,
+        is_out_of_state: !!r.p.isOutOfState,
+      }));
+    
+    let snapshotCount = 0;
+    for (let i = 0; i < snapshots.length; i += 500) {
+      const slice = snapshots.slice(i, i+500);
+      const { error } = await supabase.from('prediction_snapshots').insert(slice);
+      if (error) {
+        log(`  Snapshot err (batch ${i}): ${error.message}`);
+        break;
+      }
+      snapshotCount += slice.length;
+    }
+    if (snapshotCount > 0) log(`  Prediction snapshots: ${snapshotCount} captured for training data`);
+  } catch(e) {
+    log(`  Snapshot error: ${e.message}`);
+  }
+
   // === STORE DEEP SIGNALS ===
   if (pendingDS.length > 0) {
     const dsM = new Map(); for (const r of pendingDS) dsM.set(r.parcel_id, r);
@@ -372,6 +411,7 @@ async function main() {
       for (const s of (scoredParcels || [])) scoreMap[s.parcel_id] = s;
       
       let detected = 0;
+      let validated = 0;
       for (const sale of recentSales) {
         const scored = scoreMap[sale.id];
         if (!scored || scored.briefing_rank < 25) continue; // only track meaningful scores
@@ -394,9 +434,52 @@ async function main() {
           detected_at: new Date().toISOString(),
         });
         detected++;
+        
+        // === PREDICTION VALIDATION — query the snapshot history for this parcel ===
+        try {
+          const { data: snapshots } = await supabase.from('prediction_snapshots')
+            .select('briefing_rank, cohort, snapshot_date, market_key')
+            .eq('parcel_id', sale.id)
+            .order('snapshot_date', { ascending: true });
+          
+          if (snapshots && snapshots.length > 0) {
+            const first = snapshots[0];
+            const last = snapshots[snapshots.length - 1];
+            const saleDate = sale.last_transfer_date;
+            const firstDate = new Date(first.snapshot_date);
+            const saleDt = new Date(saleDate);
+            const daysFromFirst = Math.round((saleDt - firstDate) / (1000 * 60 * 60 * 24));
+            
+            const everActToday = snapshots.some(s => s.cohort === 'act_today');
+            const everOutreach = snapshots.some(s => s.cohort === 'outreach');
+            
+            await supabase.from('prediction_validations').upsert({
+              parcel_id: sale.id,
+              zip_code: sale.zip_code,
+              market_key: first.market_key,
+              sale_date: saleDate,
+              sale_price: sale.sale_price,
+              first_flagged_date: first.snapshot_date,
+              first_flagged_score: first.briefing_rank,
+              first_flagged_cohort: first.cohort,
+              days_from_first_flag: daysFromFirst,
+              last_score_before_sale: last.briefing_rank,
+              last_cohort_before_sale: last.cohort,
+              last_score_date: last.snapshot_date,
+              ever_act_today: everActToday,
+              ever_outreach: everOutreach,
+              snapshot_count: snapshots.length,
+              validated_at: new Date().toISOString(),
+            }, { onConflict: 'parcel_id' });
+            validated++;
+          }
+        } catch(ve) {
+          log(`  Validation err for ${sale.id}: ${ve.message}`);
+        }
       }
       
       log(`  Sale detection: ${detected} new confirmed sales from previously scored parcels`);
+      if (validated > 0) log(`  Prediction validations: ${validated} predictions linked to actual outcomes`);
     }
   } catch(e) {
     log(`  Sale detection error: ${e.message}`);

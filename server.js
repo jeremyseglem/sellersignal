@@ -896,14 +896,8 @@ app.get('/api/my-territories', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
   if (!supabase) return res.status(503).json({ error: 'Not configured' });
   
-  console.log(`[MY-TERRITORIES] user: ${user.email}, id: ${user.id}`);
-  
   try {
     const isAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase());
-    console.log(`[MY-TERRITORIES] isAdmin: ${isAdmin}, email: "${user.email}"`);
-    
-    // TEMP DEBUG: include auth info in response
-    const _debug = { email: user.email, id: user.id, isAdmin, adminList: ADMIN_EMAILS };
     console.log(`[MY-TERRITORIES] isAdmin: ${isAdmin}, email check: "${user.email?.toLowerCase()}"`);
     
     let claims;
@@ -921,7 +915,7 @@ app.get('/api/my-territories', async (req, res) => {
       }));
       let briefings = {};
       for (const b of (allBriefings || [])) briefings[b.zip_code] = b;
-      return res.json({ claims, briefings, isAdmin: true, _debug });
+      return res.json({ claims, briefings, isAdmin: true });
     } else {
       const { data, error } = await supabase.from('territory_claims')
         .select('*')
@@ -941,7 +935,7 @@ app.get('/api/my-territories', async (req, res) => {
       for (const b of (bData || [])) briefings[b.zip_code] = b;
     }
     
-    res.json({ claims, briefings, isAdmin, _debug });
+    res.json({ claims, briefings, isAdmin });
   } catch(e) {
     console.error('My territories error:', e);
     res.status(500).json({ error: e.message });
@@ -949,15 +943,74 @@ app.get('/api/my-territories', async (req, res) => {
 });
 
 // ===================
-// TEMP DEBUG - remove after fixing
+// PREDICTION ACCURACY — admin endpoint to view validation stats
 // ===================
-app.get('/api/debug-territories', async (req, res) => {
+app.get('/api/admin/accuracy', async (req, res) => {
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  if (!ADMIN_EMAILS.includes(user.email?.toLowerCase())) {
+    return res.status(403).json({ error: 'Admin only' });
+  }
+  
   try {
-    const { data, error } = await supabase.from('zip_briefings')
-      .select('zip_code, market_key, total_parcels')
-      .limit(5);
-    res.json({ count: data?.length || 0, sample: data, error: error?.message || null, adminEmails: ADMIN_EMAILS });
-  } catch(e) { res.json({ error: e.message }); }
+    // Overall stats
+    const { data: allValidations, error: vErr } = await supabase
+      .from('prediction_validations')
+      .select('*');
+    
+    if (vErr) {
+      return res.json({ 
+        error: vErr.message, 
+        hint: 'Tables may not exist yet. Run schema-prediction-tracking.sql in Supabase SQL Editor.',
+        snapshots: 0,
+        validations: 0
+      });
+    }
+    
+    const { count: snapshotCount } = await supabase
+      .from('prediction_snapshots')
+      .select('*', { count: 'exact', head: true });
+    
+    const validations = allValidations || [];
+    const total = validations.length;
+    const everActToday = validations.filter(v => v.ever_act_today).length;
+    const within30 = validations.filter(v => v.days_from_first_flag != null && v.days_from_first_flag <= 30).length;
+    const within60 = validations.filter(v => v.days_from_first_flag != null && v.days_from_first_flag <= 60).length;
+    const within90 = validations.filter(v => v.days_from_first_flag != null && v.days_from_first_flag <= 90).length;
+    const within180 = validations.filter(v => v.days_from_first_flag != null && v.days_from_first_flag <= 180).length;
+    
+    const avgDaysToSale = validations
+      .filter(v => v.days_from_first_flag != null)
+      .reduce((sum, v, _, arr) => sum + v.days_from_first_flag / arr.length, 0);
+    
+    // By market
+    const byMarket = {};
+    for (const v of validations) {
+      const m = v.market_key || 'unknown';
+      if (!byMarket[m]) byMarket[m] = { total: 0, actToday: 0, within90: 0 };
+      byMarket[m].total++;
+      if (v.ever_act_today) byMarket[m].actToday++;
+      if (v.days_from_first_flag != null && v.days_from_first_flag <= 90) byMarket[m].within90++;
+    }
+    
+    res.json({
+      snapshots_total: snapshotCount || 0,
+      validations_total: total,
+      ever_act_today: everActToday,
+      sold_within_30d: within30,
+      sold_within_60d: within60,
+      sold_within_90d: within90,
+      sold_within_180d: within180,
+      avg_days_to_sale: Math.round(avgDaysToSale * 10) / 10,
+      pct_act_today_hit: total > 0 ? Math.round(everActToday / total * 1000) / 10 : 0,
+      pct_within_90d: total > 0 ? Math.round(within90 / total * 1000) / 10 : 0,
+      by_market: byMarket,
+      recent_sales: validations.sort((a,b) => new Date(b.sale_date) - new Date(a.sale_date)).slice(0, 10),
+    });
+  } catch(e) {
+    console.error('Accuracy endpoint error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ===================
