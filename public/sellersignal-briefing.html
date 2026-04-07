@@ -5320,11 +5320,18 @@ function previewLetters(id) {
     modalScript.style.padding = '0';
     modalScript.style.background = 'transparent';
     modalScript.style.border = 'none';
-    // Widen the modal for letter content
+    // Widen the modal and reduce its outer padding for Six Letters
     const modalEl = modalScript.closest('.action-modal');
     if (modalEl) {
         modalEl.style.maxWidth = '720px';
+        modalEl.style.padding = '20px 22px 18px';
     }
+    // Hide empty modalTabs gap and tighten modal-header margin
+    document.getElementById('modalTabs').style.display = 'none';
+    const modalHeader = modalEl?.querySelector('.modal-header');
+    if (modalHeader) modalHeader.style.marginBottom = '10px';
+    const modalActions = document.getElementById('modalActions');
+    if (modalActions) modalActions.style.marginTop = '10px';
     
     // Tab strip + letter view container
     const tabsHtml = _currentSixLetters.map((l, i) => `
@@ -5336,44 +5343,28 @@ function previewLetters(id) {
     
     document.getElementById('modalScript').innerHTML = `
         <style>
-            .six-program-header{padding:11px 15px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;margin-bottom:10px}
-            .six-program-header strong{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.06em;color:var(--gold);display:block;margin-bottom:3px}
-            .six-program-header p{font-size:11.5px;color:var(--text-secondary);line-height:1.45;margin:0}
-            .six-tabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;margin-bottom:10px;scrollbar-width:thin}
-            .six-tab{flex:0 0 auto;min-width:104px;padding:7px 11px;background:var(--bg-card);border:1px solid var(--border);border-radius:7px;cursor:pointer;text-align:left;transition:all 0.15s;font-family:'DM Sans',sans-serif}
+            .six-tabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;margin-bottom:8px;scrollbar-width:thin}
+            .six-tab{flex:0 0 auto;min-width:100px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;cursor:pointer;text-align:left;transition:all 0.15s;font-family:'DM Sans',sans-serif}
             .six-tab:hover{border-color:var(--gold-border);background:var(--gold-dim)}
             .six-tab.active{background:#2C2418;border-color:#2C2418}
             .six-tab.active .six-tab-day{color:rgba(245,240,235,0.6)}
             .six-tab.active .six-tab-name{color:#F5F0EB}
             .six-tab-day{font-size:9px;font-weight:600;letter-spacing:0.06em;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase}
             .six-tab-name{font-size:11.5px;font-weight:600;color:var(--text);font-family:'Playfair Display',Georgia,serif}
-            .six-letter-paper{background:#FFFDF8;border:1px solid #E8E0D0;border-radius:10px;padding:22px 28px 24px;font-family:'Source Serif 4',Georgia,serif;box-shadow:0 2px 12px rgba(44,36,24,0.06)}
-            .six-letter-meta{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid #E8E0D0;font-size:9.5px;color:#A89B8A;letter-spacing:0.04em;text-transform:uppercase;font-family:'DM Sans',sans-serif}
+            .six-letter-paper{background:#FFFDF8;border:1px solid #E8E0D0;border-radius:10px;padding:18px 24px 20px;font-family:'Source Serif 4',Georgia,serif;box-shadow:0 2px 12px rgba(44,36,24,0.06)}
+            .six-letter-meta{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid #E8E0D0;font-size:9.5px;color:#A89B8A;letter-spacing:0.04em;text-transform:uppercase;font-family:'DM Sans',sans-serif}
             .six-letter-to{font-size:9.5px;color:#A89B8A;letter-spacing:0.06em;margin-bottom:3px;font-family:'DM Sans',sans-serif}
             .six-letter-name{font-size:13px;color:#2C2418;font-weight:600;margin-bottom:1px}
             .six-letter-mailaddr{font-size:11.5px;color:#7A6E5D}
-            .six-letter-body{font-size:13px;line-height:1.65;color:#2C2418;white-space:pre-wrap;margin-top:14px}
-            .six-letter-sig{margin-top:14px;padding-top:10px;border-top:1px solid #E8E0D0;font-size:10px;color:#A89B8A;font-style:italic;font-family:'DM Sans',sans-serif}
-            .six-trigger{margin-top:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:10.5px;color:var(--text-secondary);line-height:1.5}
+            .six-letter-body{font-size:13px;line-height:1.6;color:#2C2418;white-space:pre-wrap;margin-top:12px}
+            .six-letter-sig{margin-top:10px;padding-top:8px;border-top:1px solid #E8E0D0;font-size:10px;color:#A89B8A;font-style:italic;font-family:'DM Sans',sans-serif}
+            .six-trigger{margin-top:8px;padding:7px 11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:10.5px;color:var(--text-secondary);line-height:1.5}
             .six-trigger strong{color:var(--text);font-weight:600}
-            .six-program-explainer{margin-top:12px;padding:11px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
-            .six-program-explainer h4{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:5px;text-transform:uppercase}
-            .six-program-explainer p{font-size:11.5px;color:var(--text-dim);line-height:1.55;margin:0}
         </style>
-        
-        <div class="six-program-header">
-            <strong>SELLERSIGNAL'S SIX LETTERS PROGRAM</strong>
-            <p>A six-month, six-letter cultivation sequence personalized to this seller's situation. Each letter has a distinct purpose and builds on the last.</p>
-        </div>
         
         <div class="six-tabs">${tabsHtml}</div>
         
         <div id="sixLetterContent"></div>
-        
-        <div class="six-program-explainer">
-            <h4>HOW THE SIX LETTERS WORKS</h4>
-            <p>What you see above is a templated preview using ${fullName.split(' ')[0]}'s real property data. When you enroll a prospect with a mail credit, SellerSignal generates a fully bespoke version of all six letters using AI — incorporating Deep Signal psychology, recent local sales, and the seller's specific context. Letters are then printed and mailed via USPS on the schedule shown.</p>
-        </div>
     `;
     
     renderSixLetter();
@@ -5534,7 +5525,16 @@ function closeModal() {
         ms.style.border = '';
     }
     const me = ms?.closest('.action-modal');
-    if (me) me.style.maxWidth = '';
+    if (me) {
+        me.style.maxWidth = '';
+        me.style.padding = '';
+    }
+    const mt = document.getElementById('modalTabs');
+    if (mt) mt.style.display = '';
+    const mh = me?.querySelector('.modal-header');
+    if (mh) mh.style.marginBottom = '';
+    const ma = document.getElementById('modalActions');
+    if (ma) ma.style.marginTop = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
