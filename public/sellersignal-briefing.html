@@ -3389,6 +3389,9 @@ async function startBriefing() {
                         const ds = dsMap.get(p.id);
                         if (ds) {
                             p._batchDeepSignal = ds;
+                            // Treat pre-computed batch DS as verified — same data quality,
+                            // just generated overnight instead of on-demand
+                            p._deepSignalVerified = true;
                             p._dsWhyNow = ds.motivation || '';
                             p._dsTimeframe = ds.timeline || '';
                             p._dsNextMove = ds.best_channel ? (ds.best_channel === 'call' ? 'Phone call' : ds.best_channel === 'mail' ? 'Letter' : 'Door knock') : '';
@@ -3399,6 +3402,25 @@ async function startBriefing() {
                                 email: ''
                             };
                             p._dsAvoid = ds.what_not_to_say || '';
+                            // Build _deepSignal object so the expanded card detail view works too
+                            p._deepSignal = {
+                                sellerLikelihood: p.sellerLikelihood,
+                                offMarketReceptivity: p.offMarketReceptivity,
+                                actionability: p.actionability,
+                                confidence: p.confidence,
+                                segment: p.cohortLabel || p.cohort,
+                                timeframe: ds.timeline || '',
+                                sellerLikelihoodBasis: ds.motivation || '',
+                                bestNextMove: p._dsNextMove,
+                                scripts: {
+                                    letter: ds.mail_script || '',
+                                    phone: ds.call_script || '',
+                                    door: ds.door_script || '',
+                                    avoid: ds.what_not_to_say || ''
+                                },
+                                signals: [],
+                                confirmedFacts: []
+                            };
                         }
                     }
                     
@@ -4043,7 +4065,11 @@ async function startBriefing() {
         const FULL_DS_COUNT = 10;
         
         // Get the current Act Today candidates from the rendered state
-        const actTodayCandidates = (window._currentCallToday || []).slice(0, FULL_DS_COUNT);
+        // Skip prospects that already have batch (pre-computed) deep signals — same data quality,
+        // no need to regenerate and burn API calls + 30-60s of wait time
+        const actTodayCandidates = (window._currentCallToday || [])
+            .filter(p => !p._batchDeepSignal)
+            .slice(0, FULL_DS_COUNT);
         // Fall back to top prospects if no Act Today rendered yet
         const topForFullDS = actTodayCandidates.length > 0 ? actTodayCandidates : allProspects.slice(0, FULL_DS_COUNT);
         
@@ -5274,10 +5300,16 @@ function previewLetters(id) {
     _currentSixLetters = generateSixLetters(p);
     _currentLetterIdx = 0;
     
-    // Title-case city, keep state uppercase
-    const titleCity = (p.ownerCity || '').split(/\s+/).map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    _currentMailAddr = p.ownerAddress 
-        ? `${p.ownerAddress}${titleCity ? ', '+titleCity : ''}${p.ownerState ? ', '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
+    // Title-case city + street, keep state uppercase
+    const titleCaseStr = (s) => (s||'').split(/\s+/).map(w => {
+        if (/^\d/.test(w)) return w;
+        if (/^(N|S|E|W|NE|NW|SE|SW)$/i.test(w)) return w.toUpperCase();
+        return w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }).join(' ');
+    const titleStreet = titleCaseStr(p.ownerAddress);
+    const titleCity = titleCaseStr(p.ownerCity);
+    _currentMailAddr = titleStreet 
+        ? `${titleStreet}${titleCity ? ', '+titleCity : ''}${p.ownerState ? ', '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
         : p.address;
     
     document.getElementById('modalTitle').textContent = `The Six Letters — ${fullName}`;
