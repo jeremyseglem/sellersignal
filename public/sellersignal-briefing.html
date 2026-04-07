@@ -3279,15 +3279,17 @@ async function startBriefing() {
                     // Transform snake_case API data → camelCase for renderer
                     // Helpers to extract clean property city + street address from raw assessor format
                     // Raw format: "STREET   CITY  ZIP" with multi-spaces; p.city is OWNER mailing city (wrong)
+                    const titleCaseCity = (s) => (s||'').split(/\s+/).map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
                     const extractPropertyCity = (rawAddr, zipCode) => {
-                        if (!rawAddr) return ZIP_NAMES[zipCode] || '';
+                        const fallback = ZIP_NAMES[zipCode] || '';
+                        if (!rawAddr) return titleCaseCity(fallback);
                         // Match "<anything> CITY 12345" — city is uppercase letters between street and zip
                         const m = rawAddr.match(/\s{2,}([A-Z][A-Z\s]+?)\s+\d{5}/);
-                        if (m) return m[1].trim();
+                        if (m) return titleCaseCity(m[1].trim());
                         // Fallback: try without requiring multi-space
                         const m2 = rawAddr.match(/\s([A-Z][A-Z\s]{2,}?)\s+\d{5}\s*$/);
-                        if (m2) return m2[1].trim();
-                        return ZIP_NAMES[zipCode] || '';
+                        if (m2) return titleCaseCity(m2[1].trim());
+                        return titleCaseCity(fallback);
                     };
                     const extractStreetAddress = (rawAddr) => {
                         if (!rawAddr) return '';
@@ -5088,16 +5090,34 @@ function openCallModal(id) {
 function generateSixLetters(p) {
     const fullName = normalizeName(p.ownerName) || 'Property Owner';
     const firstName = fullName.split(/\s+/)[0];
-    const propertyAddress = (p.address || 'your property').replace(/\s+/g, ' ').trim();
+    
+    // Title-case the property address for letter rendering
+    // "7317 N HIGHCLIFF DR" → "7317 N Highcliff Dr"
+    const titleCaseStreet = (s) => {
+        if (!s) return '';
+        return s.split(/\s+/).map(w => {
+            if (/^\d/.test(w)) return w; // numbers stay as-is
+            if (/^(N|S|E|W|NE|NW|SE|SW)$/i.test(w)) return w.toUpperCase(); // directions stay uppercase
+            if (/^(ST|AVE|BLVD|RD|DR|LN|CT|PL|TER|TRL|HWY|PKWY|CIR|WAY|APT|UNIT|STE)$/i.test(w)) return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        }).join(' ');
+    };
+    
+    const propertyAddress = titleCaseStreet((p.address || 'your property').replace(/\s+/g, ' ').trim());
     const neighborhood = p.neighborhood || p.marketName || 'your area';
     const isAbsentee = !!p.isAbsentee;
     const isOutOfState = !!p.isOutOfState;
-    const isTrust = (p.ownerType || '').toLowerCase().includes('trust');
-    const isLLC = (p.ownerType || '').toLowerCase().match(/llc|corp|inc/);
+    const isTrust = /trust/i.test(p.ownerName || '') || (p.ownerType || '').toLowerCase().includes('trust');
+    const isLLC = /\b(LLC|CORP|INC|HOLDINGS|PROPERTIES|GROUP|FOUNDATION)\b/i.test(p.ownerName || '') || (p.ownerType || '').toLowerCase().match(/llc|corp|inc/);
     const yearsOwned = p.yearsOwned || null;
     
     // Tone modulation by owner type
-    const greeting = isLLC ? `To the ownership of ${propertyAddress}` : `Dear ${firstName}`;
+    // For LLCs/Trusts, use formal address. For individuals, use first name.
+    const greeting = isLLC 
+        ? `To the ownership of ${propertyAddress}` 
+        : isTrust 
+        ? `To the trustees`
+        : `Dear ${firstName}`;
     const ownerTypeContext = isAbsentee 
         ? 'an out-of-area owner who had been holding the property for years'
         : isTrust 
@@ -5228,6 +5248,8 @@ With genuine respect,`
 let _currentSixLetters = null;
 let _currentLetterIdx = 0;
 let _currentProspectName = '';
+let _currentProspectId = '';
+let _currentMailAddr = '';
 
 function previewLetters(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
@@ -5235,11 +5257,14 @@ function previewLetters(id) {
     
     const fullName = normalizeName(p.ownerName) || p.address;
     _currentProspectName = fullName;
+    _currentProspectId = id;
     _currentSixLetters = generateSixLetters(p);
     _currentLetterIdx = 0;
     
-    const mailAddr = p.ownerAddress 
-        ? `${p.ownerAddress}${p.ownerCity ? ', '+p.ownerCity : ''}${p.ownerState ? ' '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
+    // Title-case city, keep state uppercase
+    const titleCity = (p.ownerCity || '').split(/\s+/).map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    _currentMailAddr = p.ownerAddress 
+        ? `${p.ownerAddress}${titleCity ? ', '+titleCity : ''}${p.ownerState ? ', '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
         : p.address;
     
     document.getElementById('modalTitle').textContent = `The Six Letters — ${fullName}`;
@@ -5295,7 +5320,7 @@ function previewLetters(id) {
         </div>
     `;
     
-    renderSixLetter(mailAddr, fullName);
+    renderSixLetter();
     
     document.getElementById('modalActions').innerHTML = `
         <button class="modal-btn secondary" onclick="closeModal()">Close</button>
@@ -5306,14 +5331,10 @@ function previewLetters(id) {
 
 function switchSixLetter(idx) {
     _currentLetterIdx = idx;
-    const p = allProspects.find(x => normalizeName(x.ownerName) === _currentProspectName || x.address === _currentProspectName);
-    const mailAddr = p?.ownerAddress 
-        ? `${p.ownerAddress}${p.ownerCity ? ', '+p.ownerCity : ''}${p.ownerState ? ' '+p.ownerState : ''} ${p.ownerZip||''}`.replace(/\s+/g,' ').trim()
-        : (p?.address || '');
-    renderSixLetter(mailAddr, _currentProspectName);
+    renderSixLetter();
 }
 
-function renderSixLetter(mailAddr, fullName) {
+function renderSixLetter() {
     if (!_currentSixLetters) return;
     const letter = _currentSixLetters[_currentLetterIdx];
     if (!letter) return;
@@ -5332,8 +5353,8 @@ function renderSixLetter(mailAddr, fullName) {
                 <span>Letter ${letter.num} of 6</span>
             </div>
             <div class="six-letter-to">TO</div>
-            <div class="six-letter-name">${fullName}</div>
-            <div class="six-letter-mailaddr">${mailAddr}</div>
+            <div class="six-letter-name">${_currentProspectName}</div>
+            <div class="six-letter-mailaddr">${_currentMailAddr}</div>
             <div class="six-letter-body">${escaped}</div>
             <div class="six-letter-sig">[Your name, brokerage, phone, and email signature appear here]</div>
         </div>
