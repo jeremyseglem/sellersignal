@@ -3318,7 +3318,25 @@ async function startBriefing() {
                             isAbsentee: p.is_absentee || false,
                             isOutOfState: p.is_out_of_state || false,
                             ownerState: p.mailing_state || p.owner_state || '',
-                            ownerAddress: p.mailing_address || '',
+                            ownerCity: p.mailing_city || '',
+                            ownerZip: p.mailing_zip || '',
+                            // Extract clean street from messy mailing_address that often contains
+                            // duplicated city/state/USA/zip junk. Pattern in DB:
+                            // "STREET CITY ST USA ZIP, CITY ST" — we want just "STREET"
+                            ownerAddress: (() => {
+                                let s = p.mailing_address || '';
+                                if (!s) return '';
+                                // Remove ", CITY ST..." trailing junk
+                                if (p.mailing_city && p.mailing_state) {
+                                    const re = new RegExp(',?\\s*' + p.mailing_city.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\s+' + p.mailing_state + '.*$', 'i');
+                                    s = s.replace(re, '');
+                                }
+                                // Remove " USA 12345" trailing junk
+                                s = s.replace(/\s+(USA|US)\s+\d{5}.*$/i, '');
+                                // Remove trailing zip if still present
+                                s = s.replace(/\s+\d{5}(-\d{4})?\s*$/, '');
+                                return s.trim();
+                            })(),
                             multiCount: p.multi_count || 1,
                             lastTransferYear: p.last_transfer_year || null,
                             lastTransferDate: p.last_transfer_date || null,
