@@ -4354,14 +4354,27 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         outreachSize = actTodaySize * 2;
     }
     
+    // Filter out resort residence clubs and fractional vacation properties from Act Today.
+    // These score high on owner-type signals (trusts, LLCs) but are vacation residence
+    // ownership patterns that need a separate scoring model — they create noise in the
+    // standard luxury single-family Act Today list.
+    const isResortFractional = (p) => {
+        const sub = (p.subdivision || '').toUpperCase();
+        return /MARRIOTT|RESORT HOTEL|FRACTIONAL|RESIDENCE CLUB|VACATION CLUB|TIMESHARE/.test(sub);
+    };
+    
     // Simply take top N by score — already sorted by _sortRank
-    let callToday = liveEnriched.slice(0, actTodaySize).filter(p => !p._activeListingBlocker);
+    let callToday = liveEnriched
+        .filter(p => !p._activeListingBlocker && !isResortFractional(p))
+        .slice(0, actTodaySize);
     const callIds = new Set(callToday.map(p => p.id || `${p.lat}-${p.lng}`));
     
-    const mailWeek = liveEnriched.slice(actTodaySize, actTodaySize + outreachSize).filter(p => {
-        const id = p.id || `${p.lat}-${p.lng}`;
-        return !callIds.has(id) && !p._activeListingBlocker;
-    });
+    const mailWeek = liveEnriched
+        .filter(p => {
+            const id = p.id || `${p.lat}-${p.lng}`;
+            return !callIds.has(id) && !p._activeListingBlocker && !isResortFractional(p);
+        })
+        .slice(0, outreachSize);
     const mailIds = new Set(mailWeek.map(p => p.id || `${p.lat}-${p.lng}`));
     
     const watchList = liveEnriched.filter(p => {
