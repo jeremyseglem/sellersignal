@@ -3277,13 +3277,34 @@ async function startBriefing() {
                     console.log(`Pre-computed briefing found: ${preData.parcels.length} scored parcels, ${preData.briefing?.act_today_count || 0} act today`);
                     
                     // Transform snake_case API data → camelCase for renderer
+                    // Helpers to extract clean property city + street address from raw assessor format
+                    // Raw format: "STREET   CITY  ZIP" with multi-spaces; p.city is OWNER mailing city (wrong)
+                    const extractPropertyCity = (rawAddr, zipCode) => {
+                        if (!rawAddr) return ZIP_NAMES[zipCode] || '';
+                        // Match "<anything> CITY 12345" — city is uppercase letters between street and zip
+                        const m = rawAddr.match(/\s{2,}([A-Z][A-Z\s]+?)\s+\d{5}/);
+                        if (m) return m[1].trim();
+                        // Fallback: try without requiring multi-space
+                        const m2 = rawAddr.match(/\s([A-Z][A-Z\s]{2,}?)\s+\d{5}\s*$/);
+                        if (m2) return m2[1].trim();
+                        return ZIP_NAMES[zipCode] || '';
+                    };
+                    const extractStreetAddress = (rawAddr) => {
+                        if (!rawAddr) return '';
+                        // Strip "  CITY  ZIP" suffix
+                        return rawAddr.replace(/\s{2,}[A-Z][A-Z\s]+?\s+\d{5}.*$/, '').replace(/\s{2,}/g, ' ').trim();
+                    };
+                    
                     const prospects = preData.parcels.map(s => {
                         const p = s.parcel || {};
+                        const propertyCity = extractPropertyCity(p.address, p.zip_code);
+                        const cleanStreet = extractStreetAddress(p.address);
                         return {
                             id: p.id || s.parcel_id,
                             ownerName: p.owner_name || '',
-                            address: p.address || '',
-                            cityStateZip: [p.city, p.state, p.zip_code].filter(Boolean).join(', '),
+                            address: cleanStreet || p.address || '',
+                            cityStateZip: [propertyCity, p.state, p.zip_code].filter(Boolean).join(', '),
+                            propertyCity: propertyCity,
                             lat: p.lat || 0, lng: p.lng || 0,
                             totalValue: p.assessed_value || 0,
                             buildingValue: p.building_value || 0,
