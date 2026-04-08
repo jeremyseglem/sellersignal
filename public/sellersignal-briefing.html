@@ -4317,9 +4317,10 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     collapsed.sort((a,b) => b._sortRank - a._sortRank);
     
     // Filter out obvious non-sellers from ALL tiers — recycling centers, government, utilities, etc.
-    const neverSellerRx = /\bREAL ESTATE\b|\bREALTY\b|\bBROKERAGE\b|\bWINDERMERE\b|\bCOLDWELL\b|\bKELLER\s*WILLIAMS\b|\bRE\/MAX\b|\bSOTHEBY\b|\bCENTURY\s*21\b|\bCOMPASS\b|\bBANK\b|\bCREDIT\s*UNION\b|\bMORTGAGE\b|\bLENDING\b|\bDEVELOP(MENT|ER)\b|\bBUILD(ERS?|ING)\b|\bCONSTRUCTION\b|\bUNIVERSIT(Y|IES)\b|\bHOSPITAL\b|\bMEDICAL\b|\bSCHOOL\b|\bCHURCH\b|\bMINISTR(Y|IES)\b|\bCOUNTY OF\b|\bCITY OF\b|\bSTATE OF\b|\bUSA\b|\bUNITED STATES\b|\bGOVERNMENT\b|\bMUNICIPAL\b|\bUTILIT(Y|IES)\b|\bWATER\s*DISTRICT\b|\bSEWER\b|\bRECYCL\b|\bSANITATION\b|\bWASTE\b|\bFIRE\s*DISTRICT\b|\bSCHOOL\s*DISTRICT\b|\bHOA\b|\bHOMEOWNERS?\s*ASSOC\b|\bCONDOMINIUM\s*ASSOC\b|\bPARKING\b|\bSTORAGE\b|\bPROVINCIA\b|\bDIOCESE\b|\bPARISH\b|\bMONASTER(Y|IES)\b|\bCONVENT\b|\bARCHDIOCESE\b|\bCONGREGATION\b|\bSISTERS\s*OF\b|\bBROTHERS\s*OF\b|\bORDER\s*OF\b|\bFRIARS\b|\bABBEY\b|\bPRIORY\b|\bSEMINARY\b|\bTEMPLE\b|\bMOSQUE\b|\bSYNAGOGUE\b|\bPLAN\s*OF\b|\bTAX\s*(DIST|OFFICE|DEPT)\b|\bBOY\s*SCOUT\b|\bGIRL\s*SCOUT\b|\bROTARY\b|\bLIONS\s*CLUB\b|\bELKS\b|\bMOOSE\s*LODGE\b|\bVFW\b|\bAMERICAN\s*LEGION\b|\bSALVATION\s*ARMY\b|\bGOODWILL\b|\bHABITAT\b|\bREDCROSS\b|\bRED\s*CROSS\b|\bYMCA\b|\bYWCA\b/i;
+    const neverSellerRx = /\bREAL ESTATE\b|\bREALTY\b|\bBROKERAGE\b|\bWINDERMERE\b|\bCOLDWELL\b|\bKELLER\s*WILLIAMS\b|\bRE\/MAX\b|\bSOTHEBY\b|\bCENTURY\s*21\b|\bCOMPASS\b|\bBANK\b|\bCREDIT\s*UNION\b|\bMORTGAGE\b|\bLENDING\b|\bDEVELOP(MENT|ER)\b|\bBUILD(ERS?|ING)\b|\bCONSTRUCTION\b|\bUNIVERSIT(Y|IES)\b|\bHOSPITAL\b|\bMEDICAL\b|\bSCHOOL\b|\bCHURCH\b|\bMINISTR(Y|IES)\b|\bCOUNTY OF\b|\bCITY OF\b|\bSTATE OF\b|\bUSA\b|\bUNITED STATES\b|\bGOVERNMENT\b|\bMUNICIPAL\b|\bUTILIT(Y|IES)\b|\bWATER\s*DISTRICT\b|\bSEWER\b|\bRECYCL\b|\bSANITATION\b|\bWASTE\b|\bFIRE\s*DISTRICT\b|\bSCHOOL\s*DISTRICT\b|\bHOA\b|\bHOMEOWNERS?\s*ASSOC\b|\bCONDOMINIUM\s*ASSOC\b|\bPARKING\b|\bSTORAGE\b|\bPROVINCIA\b|\bDIOCESE\b|\bPARISH\b|\bMONASTER(Y|IES)\b|\bCONVENT\b|\bARCHDIOCESE\b|\bCONGREGATION\b|\bSISTERS\s*OF\b|\bBROTHERS\s*OF\b|\bORDER\s*OF\b|\bFRIARS\b|\bABBEY\b|\bPRIORY\b|\bSEMINARY\b|\bTEMPLE\b|\bMOSQUE\b|\bSYNAGOGUE\b|\bPLAN\s*OF\b|\bTAX\s*(DIST|OFFICE|DEPT)\b|\bBOY\s*SCOUT\b|\bGIRL\s*SCOUT\b|\bROTARY\b|\bLIONS\s*CLUB\b|\bELKS\b|\bMOOSE\s*LODGE\b|\bVFW\b|\bAMERICAN\s*LEGION\b|\bSALVATION\s*ARMY\b|\bGOODWILL\b|\bHABITAT\b|\bREDCROSS\b|\bRED\s*CROSS\b|\bYMCA\b|\bYWCA\b|\bPROP(ERTY)?\s*MGMT\b|\bPROPERTY\s*MANAGEMENT\b|\bPROP(ERTY)?\s*MANAGER\b|\bCORP\s*REAL\s*ESTATE\b|\bCORPORATE\s*REAL\s*ESTATE\b|\bCORP\s*TAX\b|\bCORPORATE\s*TAX\b|\bC\/O\b|^C\/O\s|\bATTN\s*:|\bAZOSE\b|\bWINDEMERE\b|\bFORGROUND\b|\bUDR\b|\bURBAN\s*RENAISSANCE\b|\bALTUS\s*GROUP\b|\bEQUITY\s*RESIDENTIAL\b|\bGREYSTAR\b|\bAVALON\b|\bPINNACLE\b|\bCAMDEN\b|\bESSEX\s*PROPERT(Y|IES)\b|\bBOSTON\s*PROPERT(Y|IES)\b/i;
     
-    // Additional junk-name filter — trailing punctuation, single words, number-only, suspiciously short, addresses-as-names
+    // Additional junk-name filter — trailing punctuation, single words, number-only, suspiciously short, addresses-as-names,
+    // orphan trust/LLC labels (label with no actual name attached).
     const isJunkOwnerName = (name) => {
         if (!name || name.length < 3) return true;
         const cleaned = name.replace(/[,.\-;:'"!?#()\/\\]+$/, '').trim();
@@ -4329,6 +4330,9 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         if (/^\d+\s+\w+\s+(ST|AVE|RD|DR|LN|CT|WAY|BLVD|PL|CIR|TRL|LOOP)\b/i.test(cleaned)) return true; // address as name
         if (cleaned.split(/\s+/).length === 1 && cleaned.length < 6) return true; // single very short word
         if (/^(PLAN|TAX|UNKNOWN|NONE|NA|N\/A|TBD|VACANT|OWNER|OCCUPANT|RESIDENT|CURRENT)\b/i.test(cleaned)) return true;
+        // Orphan trust/LLC labels — the word TRUST/LLC/etc with no actual name attached
+        // e.g. "TRUST", "REVOCABLE TRUST", "LIVING TRUST", "FAMILY TRUST", "THE TRUST"
+        if (/^(THE\s+)?(REVOCABLE|IRREVOCABLE|LIVING|FAMILY|MARITAL)?\s*(TRUST|LLC|INC|CORP|TR|LP|LLP|LTD|CO)\.?\s*$/i.test(cleaned)) return true;
         return false;
     };
     const neverPropTypeRx = /commercial|industrial|utility|exempt|rail|right.of.way|common\s*area|parking|min(eral|ing)/i;
