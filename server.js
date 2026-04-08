@@ -1380,6 +1380,26 @@ app.post('/api/billing-portal', async (req, res) => {
 
 // GET /api/territories — all ZIPs with claim status + dynamic pricing
 const { calculateTier } = require('./batch/pricing');
+
+// Markets temporarily delisted from the claim UI until ATTOM data integration
+// replaces the per-county GIS scraping pipeline. These ZIPs have broken data:
+// - NY (Manhattan/Brooklyn/Scarsdale): NYS Tax Parcels feature service returns
+//   addresses missing street names and FULL_MARKET_VAL = null for all NYC
+//   parcels. NYC values are held by NYC DOF separately, not in the statewide
+//   dataset.
+// - OR Deschutes (Bend area): source GIS has zero value fields — no FCV, no
+//   market value, no assessment. Deschutes keeps values in DIAL (paid subscription).
+// - MT 59937 Whitefish: missing from zip_briefings entirely.
+// When ATTOM ships, remove from this list — data will be uniform across all ZIPs.
+const DELISTED_ZIPS = new Set([
+  // NY broken addresses + null values
+  '10013', '10014', '10021', '10024', '10583', '11201',
+  // OR Deschutes zero-value pipeline
+  '97701', '97702', '97703', '97707', '97756', '97759',
+  // MT 59937 missing from zip_briefings
+  '59937',
+]);
+
 app.get('/api/territories', async (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   if (!supabase) return res.status(503).json({ error: 'Not configured' });
@@ -1408,7 +1428,9 @@ app.get('/api/territories', async (req, res) => {
     const marketsWithSales = ['WA_KING', 'AZ_MARICOPA', 'FL_PB', 'FL_MD'];
     // Markets with calibration sold24 > 0 also have sales data
     
-    const territories = (briefings || []).map(b => {
+    const territories = (briefings || [])
+      .filter(b => !DELISTED_ZIPS.has(b.zip_code))  // hide broken markets until ATTOM
+      .map(b => {
       const cal = b.calibration || {};
       const sold24 = cal.sold24 || 0;
       const hasSalesData = marketsWithSales.includes(b.market_key) || sold24 > 0;
