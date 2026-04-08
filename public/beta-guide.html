@@ -33,6 +33,17 @@ p{font-size:15px;margin-bottom:16px}
 .key-box strong{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.04em;display:block;margin-bottom:8px}
 .key-box p{font-size:13px;color:var(--text-secondary);margin-bottom:0}
 .score-explain{display:flex;gap:16px;margin:16px 0}
+.faq-item{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:all 0.15s}
+.faq-item:hover{border-color:var(--gold-border)}
+.faq-q{padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--text)}
+.faq-q::after{content:'+';font-size:20px;color:var(--gold);font-weight:400;transition:transform 0.2s}
+.faq-item.open .faq-q::after{content:'−'}
+.faq-a{padding:0 20px;max-height:0;overflow:hidden;transition:max-height 0.2s ease,padding 0.2s ease;font-size:14px;color:var(--text-secondary);line-height:1.65}
+.faq-item.open .faq-a{max-height:500px;padding:0 20px 18px}
+.faq-a p{font-size:14px;margin-bottom:10px}
+.faq-a p:last-child{margin-bottom:0}
+.faq-category{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--gold);margin:24px 0 10px;text-transform:uppercase}
+.faq-category:first-child{margin-top:0}
 .score-ex{flex:1;text-align:center;padding:16px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px}
 .score-ex .num{font-family:'DM Sans',sans-serif;font-size:28px;font-weight:700;background:#2C2418;color:#F5F0EB;width:48px;height:48px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px}
 .score-ex .label{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.04em}
@@ -149,6 +160,194 @@ h1{font-size:28px}
     <div class="key-box">
         <strong>BETA TERMS</strong>
         <p>You have exclusive access to your ZIP code — no other agent can claim it while you hold it. Your briefing updates nightly with fresh scoring. During the beta period, we're focused on accuracy, usability, and making sure the intelligence actually helps you win listings. Everything you see is real data from county assessor records, scored by our proprietary models.</p>
+    </div>
+
+    <h2>Frequently Asked Questions</h2>
+    
+    <div class="faq-category">GETTING STARTED</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How do I claim a territory?<span></span></div>
+        <div class="faq-a">
+            <p>During beta, territories are assigned by invitation. Contact Jeremy directly to be set up in the ZIP code you want. Once claimed, your territory is exclusive — no other SellerSignal agent can operate in it while you hold it.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How often does my data update?<span></span></div>
+        <div class="faq-a">
+            <p>Parcel data, ownership, and scoring refresh nightly. Deep Signal reports for top Act Today prospects are regenerated on a weekly or better cadence. You can also generate a fresh Deep Signal on any prospect on demand — it takes 30-60 seconds.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Can my team or assistant use my account?<span></span></div>
+        <div class="faq-a">
+            <p>During beta, accounts are tied to individual licensed agents. Team access isn't formally supported yet. If you want your assistant to help work the prospect list, that's fine in practice — just know that everything you see is meant for one licensed agent. Team tier pricing is on the post-beta roadmap.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What if I want to work multiple ZIP codes?<span></span></div>
+        <div class="faq-a">
+            <p>You can claim multiple territories — each is priced separately based on its tier. Your dashboard will show all your active territories, and clicking any of them opens its briefing. There's no bundle discount during beta, but there may be one post-launch.</p>
+        </div>
+    </div>
+
+    <div class="faq-category">UNDERSTANDING THE SCORES</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How are prospects scored?<span></span></div>
+        <div class="faq-a">
+            <p>Every parcel in your ZIP gets a 0-100 Briefing Rank built from four sub-scores: <strong>Seller Likelihood</strong> (probability they list in 12 months), <strong>Off-Market Receptivity</strong> (fit for direct outreach), <strong>Actionability</strong> (how reachable they are), and <strong>Confidence</strong> (how much the model trusts the signal).</p>
+            <p>The scoring engine weighs indicators like absentee ownership, trust/LLC ownership patterns, length of tenure, estate transitions, out-of-state mailing addresses, and market-specific life-event signals. For top prospects, we also run an AI psychology layer (Deep Signal) that generates personalized motivation analysis.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What's the difference between Act Today, Outreach, and Watch?<span></span></div>
+        <div class="faq-a">
+            <p><strong>Act Today</strong> is the top prospect count matched to your ZIP's actual monthly turnover rate — if 144 homes sell per month in your area, you see 144 ranked prospects. These are the people most likely to list this month. Open Deep Signal and contact them.</p>
+            <p><strong>Outreach</strong> is the next tier, sized at roughly 2x your Act Today count. These are cultivation targets — mail them the Six Letters program, touch them quarterly, stay top of mind.</p>
+            <p><strong>Watch</strong> is everything else that scored above the noise floor. These move up or down week to week as signals change.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Why are some prospects ranked "Top 0.5%" when their absolute score looks low?<span></span></div>
+        <div class="faq-a">
+            <p>Scores compress differently across markets. A score of 36 in a tightly-distributed market like North Carolina can represent the top 1% of prospects, while in Paradise Valley it's closer to the 30th percentile. The "Top X%" chip on each card tells you how exceptional the prospect is within their specific ZIP, which is more meaningful than the raw number.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Why is the Historical Accuracy panel sometimes missing?<span></span></div>
+        <div class="faq-a">
+            <p>Historical Accuracy is computed from 24 months of actual sales data. If your ZIP doesn't have enough validated transactions yet (minimum 10 sales), the panel is suppressed rather than shown with unreliable numbers. As more data accumulates, the panel will return.</p>
+        </div>
+    </div>
+
+    <div class="faq-category">DEEP SIGNAL</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What is a Deep Signal report?<span></span></div>
+        <div class="faq-a">
+            <p>Deep Signal is an AI-generated psychological profile of a specific prospect. It includes: why they might sell (motivation), their likely timeline, the best channel to reach them, personalized scripts for phone / letter / door, and specific language to avoid. For top Act Today prospects, we generate these overnight so they're instant. For other prospects, you can click "Generate Deep Signal" and it runs on demand in 30-60 seconds.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Can I edit a Deep Signal script?<span></span></div>
+        <div class="faq-a">
+            <p>Not yet from within the app — you can copy the scripts and adapt them however you want. Script editing and save-as-template is on the post-beta roadmap.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How accurate is Deep Signal?<span></span></div>
+        <div class="faq-a">
+            <p>Deep Signal uses public records, the scoring engine's signal analysis, and general real estate psychology knowledge — it doesn't have private information about the prospect. Treat the motivation analysis as an educated hypothesis to guide your approach, not a factual biography. Scripts are meant as starting points you can personalize further based on anything you know about the prospect from other sources.</p>
+        </div>
+    </div>
+
+    <div class="faq-category">SIX LETTERS</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What is the Six Letters program?<span></span></div>
+        <div class="faq-a">
+            <p>A six-month cultivation sequence of six distinct letters designed to move a prospect from cold to listing conversation. Each letter has a specific purpose — introduction, market context, social proof, direct offer, urgency, and final ask. They're triggered by calendar and by events in the prospect's situation.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How do the Six Letters get printed and mailed?<span></span></div>
+        <div class="faq-a">
+            <p>Mail sending is handled through a print-and-mail service integrated with SellerSignal. You enroll a prospect, burn a mail credit, and the letters are printed on premium stock and mailed via USPS on schedule. You don't need to handle printing, envelopes, or stamps.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What I see in the preview — is that exactly what gets mailed?<span></span></div>
+        <div class="faq-a">
+            <p>The preview shows a templated version using the prospect's real property data. When you enroll and burn a credit, SellerSignal generates a fully bespoke AI version of all six letters using Deep Signal psychology. The bespoke versions will be different — more personalized, more specific, more compelling — but always signed with your name and brokerage.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How much does a mail credit cost?<span></span></div>
+        <div class="faq-a">
+            <p>Mail credits are priced separately from your subscription and purchased in packs. Pricing is set per-send to cover AI generation, printing, materials, and postage. See your dashboard or contact Jeremy for current pricing.</p>
+        </div>
+    </div>
+
+    <div class="faq-category">TERRITORY &amp; BILLING</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What does "exclusive territory" actually mean?<span></span></div>
+        <div class="faq-a">
+            <p>While your subscription is active and in good standing, SellerSignal will not sell access to the same ZIP code to any other real estate agent. You're the only agent in that ZIP using our intelligence. This exclusivity is tied to you personally (not your brokerage), and it applies only to other real estate agents — SellerSignal may still work with mortgage lenders, investors, or other non-agent users.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What happens if I cancel?<span></span></div>
+        <div class="faq-a">
+            <p>You retain access until the end of your current billing period. After that, your territory enters a 30-day hold where it can't be claimed by anyone else — so if you change your mind, you can reactivate without losing your spot. After the 30-day hold, the territory becomes available to new subscribers.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What if I move to a different ZIP code?<span></span></div>
+        <div class="faq-a">
+            <p>Contact us and we'll work with you to transfer your subscription. Territory transfers are handled case-by-case during beta. Post-beta there will be a formal process.</p>
+        </div>
+    </div>
+
+    <div class="faq-category">DATA &amp; PRIVACY</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Where does the property data come from?<span></span></div>
+        <div class="faq-a">
+            <p>County assessor public records. Everything you see is legally available information — owner names, addresses, assessed values, sales history, property characteristics. We do not use private or leaked data. Our contribution is in how we analyze, score, and surface this data — not in the raw data itself.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Can I export my CRM / pipeline data?<span></span></div>
+        <div class="faq-a">
+            <p>Yes. Your CRM pipeline is stored in your browser and also synced to your account. You can export the full list as CSV from the Pipeline page at any time. Upon cancellation, you have 30 days to export before data is archived.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Do you sell my outreach data to anyone?<span></span></div>
+        <div class="faq-a">
+            <p>No. Your personal outreach activity (who you contacted, notes, pipeline status) is yours. We do use anonymized, aggregated outcome data to improve our scoring models, but nothing that identifies you or your specific prospects is ever shared externally.</p>
+        </div>
+    </div>
+
+    <div class="faq-category">COMPLIANCE</div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Is my outreach compliant with TCPA, CAN-SPAM, and DNC rules?<span></span></div>
+        <div class="faq-a">
+            <p>Compliance is your responsibility as the licensed agent conducting the outreach. SellerSignal provides intelligence and tools but does not guarantee compliance with any federal, state, or local regulation governing real estate marketing. If you have questions about whether a specific outreach activity is compliant in your state, consult your brokerage compliance officer or a real estate attorney.</p>
+        </div>
+    </div>
+    
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What about Fair Housing Act considerations?<span></span></div>
+        <div class="faq-a">
+            <p>All Deep Signal analysis and Six Letters content is designed to focus on property characteristics, ownership patterns, and seller motivation — never on protected class characteristics of the people involved. If you ever see language in a generated letter or Deep Signal report that seems off, please report it immediately so we can investigate. We take FHA compliance seriously.</p>
+        </div>
+    </div>
+
+    <h2>Something Not Here?</h2>
+    <div class="step-card">
+        <div class="step-title">Reach out directly</div>
+        <div class="step-desc">
+            Text or email Jeremy directly with any question that isn't covered above. Beta feedback is the most valuable thing you can give us right now — we read every message and most product decisions get made based on what beta agents tell us.
+        </div>
     </div>
 </div>
 <div class="footer">
