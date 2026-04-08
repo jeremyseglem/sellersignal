@@ -59,13 +59,19 @@ const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPAB
 
 const ASSESSOR_SPARSE_STATES = new Set(['NY', 'MT', 'CO']);
 
-// States where owner names are redacted in the ATTOM feed. Properties from
-// these states should be skipped entirely during Deep Signal enrichment
-// because the script generator needs a real owner name to produce useful
-// intelligence. NY confirmed via 10013 test (owner.owner1.fullname =
-// "NOT AVAILABLE FROM DATA SOURCE").
+// States where owner names are systemically redacted in the ATTOM feed at
+// rates high enough to skip entirely during Deep Signal enrichment.
+// Currently empty — the one state we suspected (NY) actually has ~95% owner
+// name coverage in ATTOM, measured against a 100-property sample in 10013
+// Tribeca (95 populated, 4 suppressed, 1 blank). The 4% suppression rate
+// is handled by the standard data quality filter (owner_name length check)
+// and does not require special per-state treatment.
+//
+// Add states to this set only if validation sampling shows a suppression
+// rate above roughly 20%, where filtering individually stops being
+// cost-effective and the entire state should be routed differently.
 
-const OWNER_REDACTED_STATES = new Set(['NY']);
+const OWNER_REDACTED_STATES = new Set([]);
 
 // ============================================================================
 // CLI ARGS
