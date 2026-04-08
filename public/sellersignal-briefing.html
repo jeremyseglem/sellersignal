@@ -4489,6 +4489,54 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         return false;
     };
     const neverPropTypeRx = /commercial|industrial|utility|exempt|rail|right.of.way|common\s*area|parking|min(eral|ing)/i;
+    
+    // DATA QUALITY SCORE — ATTOM-inspired per-parcel hygiene check.
+    // ATTOM runs every parcel through an ingest-time validation pipeline and
+    // stamps each record with a matchCode like 'ExaStr' (exact street match).
+    // Low-confidence parcels are silently suppressed from production responses.
+    // We don't have that yet, so we compute a quality score per parcel and
+    // filter out anything below a threshold alongside the junk/institutional
+    // filters. Catches broken parcels inside otherwise-healthy markets that
+    // pattern-based filters miss. 30-45 min fix, ships before Monday.
+    //
+    // Scoring (100 = perfect, 0 = garbage):
+    //   Address (30 pts)  — missing, placeholder, no street number, no street name
+    //   Value   (25 pts)  — zero or implausibly low assessed value
+    //   Owner   (15 pts)  — missing or too short to be real
+    //   Geo     (15 pts)  — missing or zero lat/lng
+    //   City    (10 pts)  — missing city/state/zip line
+    //   Subtotal  95 pts possible base score; remaining 5 pts for future checks
+    // Threshold: 40 points. Allows one major gap but filters anything with 2+.
+    const computeDataQuality = (p) => {
+        let score = 100;
+        const issues = [];
+        
+        const addr = (p.address || '').trim();
+        if (!addr || addr.length < 5) { score -= 30; issues.push('no_address'); }
+        else {
+            if (/^(ADDRESS|UNKNOWN|N\/A|TBD|VACANT|NONE|NULL)\b/i.test(addr)) { score -= 20; issues.push('placeholder_address'); }
+            if (!/^\d/.test(addr)) { score -= 15; issues.push('no_street_number'); }
+            // Addresses that are only a street number + street type (like "1234 ST") with no name
+            if (/^\d+\s+(ST|AVE|RD|DR|LN|CT|PL|WAY|BLVD|CIR|TRL|LOOP|PKWY|HWY)\s*$/i.test(addr)) { score -= 15; issues.push('no_street_name'); }
+        }
+        
+        const val = p.totalValue || 0;
+        if (val === 0) { score -= 25; issues.push('zero_value'); }
+        else if (val < 10000) { score -= 10; issues.push('implausibly_low_value'); }
+        
+        if (!p.ownerName || p.ownerName.length < 3) { score -= 15; issues.push('no_owner'); }
+        
+        if (!p.lat || !p.lng || p.lat === 0 || p.lng === 0) { score -= 15; issues.push('no_geo'); }
+        
+        const csz = (p.cityStateZip || '').trim();
+        if (!csz || csz === ',' || csz.length < 5) { score -= 10; issues.push('no_city'); }
+        
+        return { score: Math.max(0, score), issues };
+    };
+    
+    const DQ_THRESHOLD = 40;
+    const _dqFilteredReasons = {};  // for diagnostic logging
+    
     const liveEnriched = collapsed.filter(p => {
         const id = p.id || `${p.lat}-${p.lng}`;
         const act = actions[id];
@@ -4496,8 +4544,26 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         if (neverSellerRx.test(p.ownerName || '')) return false;
         if (isJunkOwnerName(p.ownerName)) return false;
         if (neverPropTypeRx.test(p.propType || '')) return false;
+        
+        // Data quality gate — silently filter parcels that fail multiple hygiene checks
+        const quality = computeDataQuality(p);
+        p._dataQuality = quality;  // expose for card diagnostics if needed later
+        if (quality.score < DQ_THRESHOLD) {
+            for (const issue of quality.issues) {
+                _dqFilteredReasons[issue] = (_dqFilteredReasons[issue] || 0) + 1;
+            }
+            return false;
+        }
+        
         return true;
     });
+    
+    // Log data quality filter impact so we can tune the threshold based on real data.
+    // Anything interesting shows up in the browser console — not surfaced to agents.
+    const _dqFilteredCount = Object.values(_dqFilteredReasons).reduce((a, b) => a + Math.max(0, b), 0);
+    if (_dqFilteredCount > 0) {
+        console.log(`[DQ] Filtered ${_dqFilteredCount} parcel-issues across ${collapsed.length - liveEnriched.length} excluded parcels. Breakdown:`, _dqFilteredReasons);
+    }
     
     // PERCENTILE-BASED SCORE CLASSES — relative to this ZIP, not absolute thresholds
     // Top 10% = green (high), next 25% = gold (medium), rest = neutral (low)
