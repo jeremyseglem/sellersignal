@@ -4721,6 +4721,30 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         propTypes[pt] = (propTypes[pt] || 0) + 1;
     }
     
+    // Timeline bucket distribution — for the new timeline filter. Normalizes raw
+    // Deep Signal timeline strings into 4 clean buckets so filtering stays simple.
+    const bucketizeTimeline = (raw) => {
+        if (!raw) return null;
+        const s = String(raw).toLowerCase();
+        if (/immediat|urgent|now|asap|0-?3/.test(s)) return '0-3 months';
+        if (/3-?6|3 to 6|90.?day/.test(s)) return '3-6 months';
+        if (/6-?12|6 to 12/.test(s)) return '6-12 months';
+        if (/12\+|year|watch|long.?term/.test(s)) return '12+ months';
+        return null;
+    };
+    const timelineBuckets = {};
+    let withTimeline = 0;
+    for (const p of liveEnriched) {
+        const bucket = bucketizeTimeline(p._dsTimeframe);
+        p._timelineBucket = bucket;  // store for card data attribute + filter
+        if (bucket) {
+            timelineBuckets[bucket] = (timelineBuckets[bucket] || 0) + 1;
+            withTimeline++;
+        }
+    }
+    // Preserve natural ordering for display
+    const timelineOrder = ['0-3 months', '3-6 months', '6-12 months', '12+ months'];
+    
     html += `<div class="filter-bar" id="filterBar">
         <select id="filterOwnerType" onchange="applyFilters()">
             <option value="">All Owner Types</option>
@@ -4730,6 +4754,10 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
             <option value="">All Property Types</option>
             ${Object.entries(propTypes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<option value="${k}">${k} (${v})</option>`).join('')}
         </select>
+        ${withTimeline > 0 ? `<select id="filterTimeline" onchange="applyFilters()" title="Filter by predicted sell timeline">
+            <option value="">All Timelines</option>
+            ${timelineOrder.filter(b => timelineBuckets[b]).map(b => `<option value="${b}">${b} (${timelineBuckets[b]})</option>`).join('')}
+        </select>` : ''}
         <input type="text" id="filterSearch" placeholder="Search by name, address..." oninput="applyFilters()">
         <div class="filter-count" id="filterCount">${liveEnriched.length} prospects</div>
     </div>`;
@@ -4838,7 +4866,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         const ownerTypeLabel = p.cohortLabel || p.cohort || 'Unknown';
         const propTypeLabel = p.propType || 'Unknown';
         
-        return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
+        return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-timeline="${p._timelineBucket||''}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
                 <div style="width:130px;height:90px;border-radius:8px;overflow:hidden;flex-shrink:0;position:relative;border:1px solid var(--border);background:linear-gradient(145deg,hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+25},22%,62%),hsl(${((name||p.address||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%30)+33},18%,52%))">
                     <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><svg width="36" height="30" viewBox="0 0 36 30" fill="none" style="opacity:0.35"><path d="M18 2L2 16H7V28H15V20H21V28H29V16H34L18 2Z" fill="#F5F0EB"/></svg></div>
@@ -5214,18 +5242,26 @@ setTimeout(initWalkthrough, 500);
 function applyFilters() {
     const ownerType = document.getElementById('filterOwnerType')?.value || '';
     const propType = document.getElementById('filterPropType')?.value || '';
+    const timeline = document.getElementById('filterTimeline')?.value || '';
     const search = (document.getElementById('filterSearch')?.value || '').toLowerCase().trim();
     
-    let visible = 0, hidden = 0;
+    let visible = 0, hidden = 0, hiddenNoTimeline = 0;
     document.querySelectorAll('.prospect-card').forEach(card => {
         const name = (card.dataset.owner || '').toLowerCase();
         const addr = (card.dataset.address || '').toLowerCase();
         const ot = card.dataset.ownertype || '';
         const pt = card.dataset.proptype || '';
+        const tl = card.dataset.timeline || '';
         
         let show = true;
         if (ownerType && ot !== ownerType) show = false;
         if (propType && pt !== propType) show = false;
+        if (timeline) {
+            if (tl !== timeline) {
+                show = false;
+                if (!tl) hiddenNoTimeline++;
+            }
+        }
         if (search && !name.includes(search) && !addr.includes(search)) show = false;
         
         card.style.display = show ? '' : 'none';
@@ -5233,7 +5269,17 @@ function applyFilters() {
     });
     
     const countEl = document.getElementById('filterCount');
-    if (countEl) countEl.textContent = `${visible} prospects` + (hidden > 0 ? ` (${hidden} filtered)` : '');
+    if (countEl) {
+        let txt = `${visible} prospects`;
+        if (hidden > 0) {
+            txt += ` (${hidden} filtered`;
+            if (timeline && hiddenNoTimeline > 0) {
+                txt += `, ${hiddenNoTimeline} without timeline`;
+            }
+            txt += `)`;
+        }
+        countEl.textContent = txt;
+    }
 }
 
 // ========================================
