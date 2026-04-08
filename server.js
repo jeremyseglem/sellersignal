@@ -4354,6 +4354,57 @@ app.options('/api/feedback', (req, res) => {
 });
 
 // ===================
+// MICRO FEEDBACK — in-app behavioral signals
+// ===================
+
+app.post('/api/micro-feedback', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  if (!supabase) return res.status(503).json({ error: 'Not configured' });
+  
+  const { 
+    promptType, response, responseValue, 
+    zipCode, prospectId, prospectScore, 
+    agentId, agentEmail, sessionId, context 
+  } = req.body;
+  
+  if (!promptType || !response) {
+    return res.status(400).json({ error: 'promptType and response required' });
+  }
+  
+  // Skip admin/demo feedback to keep the beta signal clean
+  const ADMIN_EMAILS_LIST = ['jeremy@sellersignal.co', 'jeremyseglem@gmail.com', 'jeremy.seglem@theagencyre.com', 'jmseglem@gmail.com', 'brian.hawkins@theagencyre.com'];
+  if (agentEmail && ADMIN_EMAILS_LIST.includes(agentEmail.toLowerCase())) {
+    return res.json({ saved: false, reason: 'admin_excluded' });
+  }
+  
+  const { error } = await supabase.from('beta_micro_feedback').insert({
+    agent_id: agentId || 'anonymous',
+    agent_email: agentEmail || null,
+    zip_code: zipCode || null,
+    prompt_type: promptType,
+    response: response,
+    response_value: typeof responseValue === 'number' ? responseValue : null,
+    prospect_id: prospectId || null,
+    prospect_score: typeof prospectScore === 'number' ? prospectScore : null,
+    session_id: sessionId || null,
+    context: context || null,
+  });
+  
+  if (error) {
+    console.error('Micro feedback insert error:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ saved: true });
+});
+
+app.options('/api/micro-feedback', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(204);
+});
+
+// ===================
 // TERRITORY MANAGEMENT API
 // ===================
 

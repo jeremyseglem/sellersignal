@@ -271,6 +271,21 @@ body.demo-mode .feedback-tab{display:none}
 .stagger-1{animation-delay:0.05s}.stagger-2{animation-delay:0.1s}.stagger-3{animation-delay:0.15s}
 .stagger-4{animation-delay:0.2s}.stagger-5{animation-delay:0.25s}.stagger-6{animation-delay:0.3s}
 
+/* Micro-feedback toast — bottom-right corner, non-blocking one-question prompts */
+.mf-toast{position:fixed;bottom:24px;right:24px;z-index:300;max-width:340px;background:var(--bg-card);border:1px solid var(--gold-border);border-radius:12px;box-shadow:0 8px 28px rgba(44,36,24,0.22);padding:16px 18px 14px;font-family:'DM Sans',sans-serif;animation:mfSlideIn 0.3s ease;display:none}
+.mf-toast.active{display:block}
+.mf-toast-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1}
+.mf-toast-close:hover{color:var(--text)}
+.mf-toast-label{font-size:9px;font-weight:700;letter-spacing:0.08em;color:var(--gold);text-transform:uppercase;margin-bottom:5px}
+.mf-toast-q{font-family:'Source Serif 4',Georgia,serif;font-size:13.5px;color:var(--text);line-height:1.4;margin-bottom:10px;padding-right:16px}
+.mf-toast-opts{display:flex;gap:5px;flex-wrap:wrap}
+.mf-opt{flex:1 1 auto;min-width:0;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.mf-opt:hover{border-color:var(--gold);background:var(--gold-dim);color:var(--gold)}
+.mf-opt.selected{background:#2C2418;border-color:#2C2418;color:#F5F0EB}
+.mf-toast-thanks{text-align:center;padding:6px 0;font-size:12px;color:var(--green);font-weight:600}
+@keyframes mfSlideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+body.demo-mode .mf-toast{display:none!important}
+
 /* Responsive */
 @media(max-width:640px){
     .prospect-main{grid-template-columns:1fr;gap:10px}
@@ -279,6 +294,7 @@ body.demo-mode .feedback-tab{display:none}
     .detail-grid{grid-template-columns:1fr}
     .briefing-stats{flex-wrap:wrap;gap:16px}
     .farm-input-row{flex-direction:column}
+    .mf-toast{left:16px;right:16px;bottom:16px;max-width:none}
 }
 </style>
 </head>
@@ -523,6 +539,14 @@ body.demo-mode .feedback-tab{display:none}
     </div>
 </div>
 
+<!-- Micro-feedback toast (bottom-right, one-tap feedback prompts) -->
+<div class="mf-toast" id="mfToast">
+    <button class="mf-toast-close" onclick="dismissMicroFeedback()">✕</button>
+    <div class="mf-toast-label">QUICK FEEDBACK</div>
+    <div class="mf-toast-q" id="mfToastQ"></div>
+    <div class="mf-toast-opts" id="mfToastOpts"></div>
+</div>
+
 <!-- Action Modal -->
 <div class="action-modal-overlay" id="actionModal" onclick="if(event.target===this)closeModal()">
     <div class="action-modal">
@@ -570,6 +594,9 @@ const ZIP_NAMES = {
         return;
     }
     currentUser = session.user;
+    // Expose for micro-feedback and other systems
+    window._currentAgentId = currentUser.id || null;
+    window._currentAgentEmail = currentUser.email || null;
     const name = currentUser.user_metadata?.full_name || currentUser.user_metadata?.first_name || currentUser.email?.split('@')[0] || 'Agent';
     const userEl = document.getElementById('userInfo');
     if (userEl) userEl.innerHTML = `<span style="color:var(--text-secondary);font-size:12px">${name}</span><button onclick="signOut()" style="padding:4px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">Sign Out</button>`;
@@ -3120,6 +3147,151 @@ async function enrichTenure(source, parcels) {
 // ========================
 let allProspects = [];
 
+// ========================
+// MICRO-FEEDBACK SYSTEM — one-tap prompts for beta signal
+// ========================
+const MF_PROMPTS = {
+    deep_signal_quality: {
+        q: 'Was that Deep Signal useful for this prospect?',
+        opts: [
+            { label: 'Very', value: 1 },
+            { label: 'Somewhat', value: 0 },
+            { label: 'Not really', value: -1 },
+        ],
+    },
+    six_letters_sendable: {
+        q: 'Would you send these Six Letters to this prospect?',
+        opts: [
+            { label: 'Yes', value: 1 },
+            { label: 'Edit first', value: 0 },
+            { label: 'No', value: -1 },
+        ],
+    },
+    act_today_value: {
+        q: 'Does this Act Today list feel valuable?',
+        opts: [
+            { label: 'Yes', value: 1 },
+            { label: 'Mostly', value: 0 },
+            { label: 'Not yet', value: -1 },
+        ],
+    },
+    would_contact: {
+        q: 'Would you actually contact this person?',
+        opts: [
+            { label: 'Yes', value: 1 },
+            { label: 'Maybe', value: 0 },
+            { label: 'No', value: -1 },
+        ],
+    },
+};
+let _mfSessionShown = false;          // hard cap: 1 prompt per session
+let _mfCurrentPrompt = null;           // active prompt context
+const MF_COOLDOWN_HOURS = 48;          // don't re-ask the same question within 48h
+
+function _mfCanShow(promptType) {
+    // Demo mode: never
+    if (document.body.classList.contains('demo-mode')) return false;
+    // Hard session cap
+    if (_mfSessionShown) return false;
+    // Admin check (best effort — server also filters)
+    const email = (window._currentAgentEmail || '').toLowerCase();
+    if (['jeremy@sellersignal.co','jeremyseglem@gmail.com','jeremy.seglem@theagencyre.com','jmseglem@gmail.com','brian.hawkins@theagencyre.com'].includes(email)) return false;
+    // 48h cooldown per prompt type
+    try {
+        const last = parseInt(localStorage.getItem('mf_last_' + promptType) || '0', 10);
+        if (last && (Date.now() - last) < MF_COOLDOWN_HOURS * 60 * 60 * 1000) return false;
+    } catch(e) {}
+    return true;
+}
+
+function showMicroFeedback(promptType, context) {
+    if (!_mfCanShow(promptType)) return;
+    const prompt = MF_PROMPTS[promptType];
+    if (!prompt) return;
+    _mfCurrentPrompt = { type: promptType, context: context || {}, startedAt: Date.now() };
+    
+    const toast = document.getElementById('mfToast');
+    document.getElementById('mfToastQ').textContent = prompt.q;
+    document.getElementById('mfToastOpts').innerHTML = prompt.opts.map((opt, i) => 
+        `<button class="mf-opt" onclick="submitMicroFeedback(${i})">${opt.label}</button>`
+    ).join('');
+    toast.classList.add('active');
+    _mfSessionShown = true;
+    
+    // Auto-dismiss after 20 seconds if ignored
+    setTimeout(() => {
+        if (toast.classList.contains('active') && _mfCurrentPrompt && _mfCurrentPrompt.type === promptType) {
+            dismissMicroFeedback();
+        }
+    }, 20000);
+}
+
+async function submitMicroFeedback(optIdx) {
+    if (!_mfCurrentPrompt) return;
+    const prompt = MF_PROMPTS[_mfCurrentPrompt.type];
+    const opt = prompt.opts[optIdx];
+    if (!opt) return;
+    
+    // Mark button as selected
+    const btns = document.querySelectorAll('.mf-opt');
+    btns.forEach((b, i) => b.classList.toggle('selected', i === optIdx));
+    
+    // Record 'do not re-ask' timestamp immediately so rapid close doesn't lose it
+    try { localStorage.setItem('mf_last_' + _mfCurrentPrompt.type, String(Date.now())); } catch(e) {}
+    
+    // Fire-and-forget POST to server
+    try {
+        const ctx = _mfCurrentPrompt.context || {};
+        fetch('https://sellersignal.co/api/micro-feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                promptType: _mfCurrentPrompt.type,
+                response: opt.label,
+                responseValue: opt.value,
+                zipCode: (document.getElementById('briefFarm')?.textContent?.trim()) || null,
+                prospectId: ctx.prospectId || null,
+                prospectScore: ctx.prospectScore || null,
+                agentId: window._currentAgentId || null,
+                agentEmail: window._currentAgentEmail || null,
+                sessionId: window._mfSessionId || null,
+                context: ctx,
+            }),
+        }).catch(() => {});
+    } catch(e) {}
+    
+    // Show thanks, then fade out
+    setTimeout(() => {
+        const toast = document.getElementById('mfToast');
+        if (toast) {
+            toast.innerHTML = '<div class="mf-toast-thanks">✓ Thanks — this helps us improve</div>';
+            setTimeout(() => {
+                toast.classList.remove('active');
+                toast.innerHTML = `
+                    <button class="mf-toast-close" onclick="dismissMicroFeedback()">✕</button>
+                    <div class="mf-toast-label">QUICK FEEDBACK</div>
+                    <div class="mf-toast-q" id="mfToastQ"></div>
+                    <div class="mf-toast-opts" id="mfToastOpts"></div>
+                `;
+            }, 1500);
+        }
+        _mfCurrentPrompt = null;
+    }, 300);
+}
+
+function dismissMicroFeedback() {
+    const toast = document.getElementById('mfToast');
+    if (toast) toast.classList.remove('active');
+    // Still mark the cooldown so it doesn't re-show on next action
+    if (_mfCurrentPrompt) {
+        try { localStorage.setItem('mf_last_' + _mfCurrentPrompt.type, String(Date.now())); } catch(e) {}
+    }
+    _mfCurrentPrompt = null;
+}
+
+// Session ID for grouping events
+window._mfSessionId = 'ses_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+
 // Direct bounds-based briefing (from map viewport or URL params)
 async function startBriefingFromBounds(south, west, north, east, label) {
     document.getElementById('farmSetup').style.display = 'none';
@@ -5110,6 +5282,15 @@ function openDeepSignalModal(id) {
     _currentDsId = id;
     _currentDsTab = 'call';
     
+    // Track for micro-feedback on close
+    window._lastModalType = 'deep_signal';
+    window._lastModalContext = {
+        prospectId: id,
+        prospectScore: p.briefingRank || p.sellerLikelihood || 0,
+        openedAt: Date.now(),
+        hasBatchDs: !!p._batchDeepSignal,
+    };
+    
     const name = normalizeName(p.ownerName) || p.address;
     const titleCaseStreet = (s) => (s||'').split(/\s+/).map(w => {
         if (/^\d/.test(w)) return w;
@@ -5556,6 +5737,15 @@ function previewLetters(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
     if (!p) return;
     
+    // Track for micro-feedback on close
+    window._lastModalType = 'six_letters';
+    window._lastModalContext = {
+        prospectId: id,
+        prospectScore: p.briefingRank || p.sellerLikelihood || 0,
+        openedAt: Date.now(),
+        cohort: p.cohort || null,
+    };
+    
     const fullName = normalizeName(p.ownerName) || p.address;
     _currentProspectName = fullName;
     _currentProspectId = id;
@@ -5779,6 +5969,10 @@ async function enrollInMailCampaign(id) {
 }
 
 function closeModal() {
+    // Determine which modal was open to trigger the right micro-feedback
+    const openedType = window._lastModalType;
+    const openedCtx = window._lastModalContext || {};
+    
     document.getElementById('actionModal').classList.remove('active');
     // Reset modal-script overrides applied by Six Letters preview
     const ms = document.getElementById('modalScript');
@@ -5798,6 +5992,19 @@ function closeModal() {
     if (mh) mh.style.marginBottom = '';
     const ma = document.getElementById('modalActions');
     if (ma) ma.style.marginTop = '';
+    
+    // Fire micro-feedback prompt after modal closes — only if they spent meaningful time
+    window._lastModalType = null;
+    window._lastModalContext = null;
+    if (openedType && openedCtx.openedAt && (Date.now() - openedCtx.openedAt) > 2500) {
+        const promptType = openedType === 'deep_signal' ? 'deep_signal_quality' 
+            : openedType === 'six_letters' ? 'six_letters_sendable' 
+            : null;
+        if (promptType) {
+            // Brief delay so the modal close animation completes first
+            setTimeout(() => showMicroFeedback(promptType, openedCtx), 450);
+        }
+    }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
