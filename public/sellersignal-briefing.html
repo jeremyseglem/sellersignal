@@ -4899,7 +4899,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                         </div>
                         <div style="display:flex;gap:6px;flex-shrink:0">
                             ${tier === 'call' ? `
-                                <button class="action-btn primary" onclick="event.stopPropagation();openDeepSignalModal('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
+                                <button class="action-btn primary" onclick="event.stopPropagation();runDeepSignalForCard('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
                                 <button class="action-btn" onclick="event.stopPropagation();previewLetters('${id}')" style="background:transparent;color:var(--text);border:1px solid var(--border);padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Six Letters</button>
                             ` : `
                                 <button class="action-btn primary" onclick="event.stopPropagation();runDeepSignalForCard('${id}')" style="background:#2C2418;color:#F5F0EB;border:none;padding:7px 15px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Deep Signal</button>
@@ -5316,298 +5316,6 @@ function onCrmStatusChange(id, selectEl) {
     // Flash confirmation
     selectEl.style.borderColor = 'var(--green)';
     setTimeout(() => selectEl.style.borderColor = '', 1500);
-}
-
-let _currentDsTab = 'call';
-let _currentDsId = '';
-
-function openDeepSignalModal(id) {
-    const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
-    if (!p) return;
-    
-    _currentDsId = id;
-    _currentDsTab = 'call';
-    
-    // Track for micro-feedback on close
-    window._lastModalType = 'deep_signal';
-    window._lastModalContext = {
-        prospectId: id,
-        prospectScore: p.briefingRank || p.sellerLikelihood || 0,
-        openedAt: Date.now(),
-        hasBatchDs: !!p._batchDeepSignal,
-    };
-    
-    const name = normalizeName(p.ownerName) || p.address;
-    const titleCaseStreet = (s) => (s||'').split(/\s+/).map(w => {
-        if (/^\d/.test(w)) return w;
-        if (/^(N|S|E|W|NE|NW|SE|SW)$/i.test(w)) return w.toUpperCase();
-        return w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-    }).join(' ');
-    const niceAddr = titleCaseStreet(p.address || '');
-    const niceCity = titleCaseStreet((p.cityStateZip || '').split(',')[0] || '');
-    
-    // Pull DS data — works for both batch DS (from /api/briefing) and live DS (from runDeepSignalForCard)
-    const motivation = (p._dsWhyNow || (p._batchDeepSignal && p._batchDeepSignal.motivation) || '').trim();
-    const timeline = (p._dsTimeframe || (p._batchDeepSignal && p._batchDeepSignal.timeline) || '').trim();
-    const bestChannel = (p._dsNextMove || '').trim();
-    const callScript = ((p._dsScripts && p._dsScripts.phone) || '').trim();
-    const mailScript = ((p._dsScripts && p._dsScripts.letter) || '').trim();
-    const doorScript = ((p._dsScripts && p._dsScripts.door) || '').trim();
-    const avoid = (p._dsAvoid || '').trim();
-    const score = p.briefingRank || p.sellerLikelihood || 0;
-    
-    const hasAnyData = !!(motivation || callScript || mailScript || doorScript);
-    
-    // Override modal-script's default styling so Deep Signal report sits cleanly
-    const modalScript = document.getElementById('modalScript');
-    modalScript.style.padding = '0';
-    modalScript.style.background = 'transparent';
-    modalScript.style.border = 'none';
-    const modalEl = modalScript.closest('.action-modal');
-    if (modalEl) {
-        modalEl.style.maxWidth = '720px';
-        modalEl.style.padding = '20px 22px 18px';
-    }
-    document.getElementById('modalTabs').style.display = 'none';
-    const modalHeader = modalEl?.querySelector('.modal-header');
-    if (modalHeader) modalHeader.style.marginBottom = '12px';
-    const modalActions = document.getElementById('modalActions');
-    if (modalActions) modalActions.style.marginTop = '12px';
-    
-    document.getElementById('modalTitle').textContent = `Deep Signal — ${name}`;
-    
-    const headerHtml = `
-        <style>
-            .ds-meta-row{display:flex;gap:14px;align-items:center;padding:0 0 12px 0;margin-bottom:14px;border-bottom:1px solid var(--border)}
-            .ds-meta-addr{flex:1;font-family:'Source Serif 4',Georgia,serif;font-size:13px;color:var(--text-secondary)}
-            .ds-meta-score{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;background:linear-gradient(135deg,#2C2418,#4A3D2A);color:#F5F0EB;flex-shrink:0}
-            .ds-section{margin-bottom:14px}
-            .ds-label{font-family:'DM Sans',sans-serif;font-size:9.5px;font-weight:700;letter-spacing:0.08em;color:var(--gold);text-transform:uppercase;margin-bottom:6px}
-            .ds-motivation{font-family:'Source Serif 4',Georgia,serif;font-size:14px;line-height:1.6;color:var(--text);padding:14px 16px;background:var(--gold-dim);border-left:3px solid var(--gold);border-radius:0 6px 6px 0}
-            .ds-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-            .ds-info-card{padding:10px 13px;background:var(--bg);border:1px solid var(--border);border-radius:7px}
-            .ds-info-card-label{font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.08em;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px}
-            .ds-info-card-value{font-size:13px;color:var(--text);font-weight:600}
-            .ds-script-tabs{display:flex;gap:5px;margin-bottom:8px}
-            .ds-script-tab{flex:1;padding:7px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:7px;cursor:pointer;text-align:center;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;color:var(--text-secondary);transition:all 0.15s}
-            .ds-script-tab:hover{border-color:var(--gold-border);background:var(--gold-dim);color:var(--text)}
-            .ds-script-tab.active{background:#2C2418;border-color:#2C2418;color:#F5F0EB}
-            .ds-script-content{padding:14px 16px;background:#FFFDF8;border:1px solid #E8E0D0;border-radius:8px;font-family:'Source Serif 4',Georgia,serif;font-size:13px;line-height:1.65;color:#2C2418;white-space:pre-wrap;min-height:80px}
-            .ds-avoid{margin-top:12px;padding:11px 14px;background:rgba(158,75,60,0.06);border:1px solid rgba(158,75,60,0.18);border-left:3px solid var(--red);border-radius:0 6px 6px 0}
-            .ds-avoid-label{font-family:'DM Sans',sans-serif;font-size:9.5px;font-weight:700;letter-spacing:0.08em;color:var(--red);text-transform:uppercase;margin-bottom:5px}
-            .ds-avoid-text{font-family:'Source Serif 4',Georgia,serif;font-size:12.5px;line-height:1.55;color:var(--text-secondary)}
-            .ds-empty-card{padding:32px 28px;text-align:center;background:var(--bg);border:1px dashed var(--border);border-radius:10px;margin:8px 0}
-            .ds-empty-icon{font-size:36px;margin-bottom:10px;opacity:0.5}
-            .ds-empty-title{font-family:'Playfair Display',Georgia,serif;font-size:17px;color:var(--text);margin-bottom:6px;font-weight:600}
-            .ds-empty-desc{font-size:12.5px;line-height:1.55;color:var(--text-secondary);margin-bottom:18px;max-width:380px;margin-left:auto;margin-right:auto}
-            .ds-empty-btn{display:inline-block;padding:10px 22px;background:#2C2418;color:#F5F0EB;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;letter-spacing:0.02em}
-            .ds-empty-btn:hover{background:#4A3D2A;transform:translateY(-1px)}
-            .ds-empty-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:32px 28px;color:var(--text-secondary);font-size:13px}
-        </style>
-        
-        <div class="ds-meta-row">
-            <div class="ds-meta-addr">${niceAddr}${niceCity ? ' · ' + niceCity : ''}</div>
-            <div class="ds-meta-score">${score}</div>
-        </div>
-    `;
-    
-    let bodyHtml = '';
-    
-    if (!hasAnyData) {
-        // Empty state — offer to generate Deep Signal on demand
-        bodyHtml = `
-            <div class="ds-empty-card" id="dsEmptyState">
-                <div class="ds-empty-icon">🔍</div>
-                <div class="ds-empty-title">Deep Signal not yet generated</div>
-                <div class="ds-empty-desc">SellerSignal can run a full psychological profile on this prospect right now — motivation analysis, timeline prediction, recommended approach, and personalized scripts. Takes 30-60 seconds.</div>
-                <button class="ds-empty-btn" onclick="generateDsInModal('${id}')">Generate Deep Signal</button>
-            </div>
-        `;
-    } else {
-        bodyHtml = `
-            ${motivation ? `
-                <div class="ds-section">
-                    <div class="ds-label">WHY NOW</div>
-                    <div class="ds-motivation">${motivation}</div>
-                </div>
-            ` : ''}
-            
-            ${(timeline || bestChannel) ? `
-                <div class="ds-info-grid">
-                    ${timeline ? `
-                        <div class="ds-info-card">
-                            <div class="ds-info-card-label">LIKELY TIMELINE</div>
-                            <div class="ds-info-card-value">${timeline}</div>
-                        </div>
-                    ` : ''}
-                    ${bestChannel ? `
-                        <div class="ds-info-card">
-                            <div class="ds-info-card-label">BEST CHANNEL</div>
-                            <div class="ds-info-card-value">${bestChannel}</div>
-                        </div>
-                    ` : ''}
-                </div>
-            ` : ''}
-            
-            ${(callScript || mailScript || doorScript) ? `
-                <div class="ds-section">
-                    <div class="ds-label">WHAT TO SAY</div>
-                    <div class="ds-script-tabs">
-                        ${callScript ? `<div class="ds-script-tab active" data-tab="call" onclick="switchDsTab('call')">📞 Call</div>` : ''}
-                        ${mailScript ? `<div class="ds-script-tab${!callScript ? ' active' : ''}" data-tab="mail" onclick="switchDsTab('mail')">✉ Letter</div>` : ''}
-                        ${doorScript ? `<div class="ds-script-tab${!callScript && !mailScript ? ' active' : ''}" data-tab="door" onclick="switchDsTab('door')">🚪 Door</div>` : ''}
-                    </div>
-                    <div id="dsScriptContent" class="ds-script-content">${callScript || mailScript || doorScript}</div>
-                </div>
-            ` : ''}
-            
-            ${avoid ? `
-                <div class="ds-avoid">
-                    <div class="ds-avoid-label">⚠ WHAT NOT TO SAY</div>
-                    <div class="ds-avoid-text">${avoid}</div>
-                </div>
-            ` : ''}
-        `;
-    }
-    
-    document.getElementById('modalScript').innerHTML = headerHtml + bodyHtml;
-    
-    // Set initial tab content based on which is first available
-    if (callScript) _currentDsTab = 'call';
-    else if (mailScript) _currentDsTab = 'mail';
-    else if (doorScript) _currentDsTab = 'door';
-    
-    document.getElementById('modalActions').innerHTML = `
-        <button class="modal-btn secondary" onclick="closeModal()">Close</button>
-        <button class="modal-btn secondary" onclick="closeModal();previewLetters('${id}')">Six Letters →</button>
-    `;
-    document.getElementById('actionModal').classList.add('active');
-}
-
-async function generateDsInModal(id) {
-    const empty = document.getElementById('dsEmptyState');
-    if (empty) {
-        empty.innerHTML = `
-            <div class="ds-empty-loading">
-                <div class="loading-spinner" style="width:18px;height:18px;margin:0"></div>
-                <div>Researching this prospect... 30-60 seconds</div>
-            </div>
-        `;
-    }
-    
-    const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
-    if (!p) return;
-    
-    try {
-        const fullAddr = p.address + (p.cityStateZip ? ', ' + p.cityStateZip : '');
-        const dsRes = await fetch('https://sellersignal.co/api/beta-research', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ownerName: p.ownerName || '',
-                propertyAddress: fullAddr,
-                preliminaryScore: p.briefingRank,
-                assessedValue: p.totalValue || 0,
-                buildingValue: p.buildingValue || 0,
-                landValue: p.landValue || 0,
-                propType: p.propType || ''
-            })
-        });
-        
-        if (!dsRes.ok) throw new Error('Deep Signal request failed');
-        const ds = await dsRes.json();
-        
-        // Merge DS data onto the prospect
-        p.sellerLikelihood = ds.sellerLikelihood || ds.score || p.sellerLikelihood;
-        p.offMarketReceptivity = ds.offMarketReceptivity || ds.offMarketScore || p.offMarketReceptivity;
-        p.confidence = ds.confidence || ds.confidenceScore || p.confidence;
-        p.actionability = ds.actionability || p.actionability;
-        p.briefingRank = Math.round(p.sellerLikelihood*0.50 + p.actionability*0.30 + p.offMarketReceptivity*0.15 + p.confidence*0.05);
-        p._deepSignal = ds;
-        p._deepSignalVerified = true;
-        p._dsTimeframe = ds.timeframe || ds.timeline || '';
-        p._dsWhyNow = ds.sellerLikelihoodBasis || ds.scoreBasis || ds.motivation || '';
-        p._dsNextMove = ds.bestNextMove || ds.best_channel || '';
-        p._dsScripts = {
-            letter: ds.scripts?.letter || ds.mail_script || '',
-            phone: ds.scripts?.phone || ds.call_script || '',
-            door: ds.scripts?.door || ds.door_script || '',
-            email: ds.scripts?.email || ''
-        };
-        p._dsAvoid = ds.scripts?.avoid || ds.what_not_to_say || '';
-        
-        // Re-open the modal to render the rich content
-        openDeepSignalModal(id);
-    } catch (err) {
-        if (empty) {
-            empty.innerHTML = `
-                <div class="ds-empty-icon">⚠</div>
-                <div class="ds-empty-title">Generation failed</div>
-                <div class="ds-empty-desc">Could not generate Deep Signal right now. Please try again or check the console for details.</div>
-                <button class="ds-empty-btn" onclick="generateDsInModal('${id}')">Try again</button>
-            `;
-        }
-        console.error('Deep Signal generation failed:', err);
-    }
-}
-
-function switchDsTab(tab) {
-    _currentDsTab = tab;
-    const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === _currentDsId);
-    if (!p) return;
-    const callScript = (p._dsScripts && p._dsScripts.phone) || '';
-    const mailScript = (p._dsScripts && p._dsScripts.letter) || '';
-    const doorScript = (p._dsScripts && p._dsScripts.door) || '';
-    const content = tab === 'call' ? callScript : tab === 'mail' ? mailScript : doorScript;
-    document.getElementById('dsScriptContent').innerHTML = content || '<span class="ds-script-content-empty">No script available</span>';
-    document.querySelectorAll('.ds-script-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.tab === tab);
-    });
-}
-
-function openCallModal(id) {
-    const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
-    if (!p) return;
-    const name = normalizeName(p.ownerName) || p.address;
-    document.getElementById('modalTitle').textContent = `📞 Call ${name}`;
-    document.getElementById('modalTabs').innerHTML = '';
-    
-    const hasDS = p._deepSignalVerified && p._dsScripts?.phone;
-    const teaser = hasDS 
-        ? p._dsScripts.phone.substring(0, 120).replace(/\n/g, ' ') + '...'
-        : `"Hi, I'm reaching out about your property at ${p.address}..."`;
-    
-    document.getElementById('modalScript').innerHTML = `
-        <div style="margin-bottom:16px">
-            <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:8px">PHONE NUMBER</div>
-            <div style="padding:14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center">
-                <div style="font-size:24px;letter-spacing:4px;color:var(--text-dim);margin-bottom:8px">••• ••• ••••</div>
-                <div style="font-size:11px;color:var(--text-secondary);margin-bottom:12px">Skip trace to discover this owner's phone number</div>
-                <button class="modal-btn primary" style="display:inline-block" onclick="alert('Skip trace coming soon — $2 per lookup or included with Pro subscription')">Unlock Phone — $2</button>
-            </div>
-        </div>
-        <div style="margin-bottom:8px">
-            <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.04em;margin-bottom:8px">CALL SCRIPT PREVIEW</div>
-            <div style="color:var(--text-secondary);font-style:italic;font-size:13px;line-height:1.6">${teaser}</div>
-            <div style="height:40px;background:linear-gradient(to bottom, transparent, var(--bg-elevated));margin-top:-40px;position:relative"></div>
-        </div>
-        ${!hasDS ? `
-            <div style="padding:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center;margin-top:12px">
-                <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px">Unlock full call script + seller psychology</div>
-                <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Deep Signal reveals what to say, what NOT to say, and why they might sell</div>
-                <button class="modal-btn primary" onclick="closeModal();runDeepSignalForCard('${id}')">Run Deep Signal — $15</button>
-            </div>
-        ` : `
-            <button class="modal-btn secondary" onclick="document.getElementById('modalScript').innerHTML=\`<div style='white-space:pre-wrap;font-size:13px;line-height:1.7'>\${window._tempFullScript}</div>\`;this.remove()" id="revealBtn">Show full script</button>
-        `}
-    `;
-    
-    if (hasDS) window._tempFullScript = p._dsScripts.phone.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    
-    document.getElementById('modalActions').innerHTML = `
-        <button class="modal-btn secondary" onclick="closeModal()">Close</button>
-    `;
-    document.getElementById('actionModal').classList.add('active');
 }
 
 // =========================
@@ -6222,7 +5930,7 @@ function showMapPanel(p, isAct, isOut) {
     document.getElementById('mapPanelBody').innerHTML = bodyHtml;
     
     document.getElementById('mapPanelActions').innerHTML = `
-        ${isAct ? `<button class="mp-btn-primary" onclick="openCallModal('${id}')">📞 Call</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Six Letters</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Six Letters</button>`}
+        ${isAct ? `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Six Letters</button>` : `<button class="mp-btn-primary" onclick="runDeepSignalForCard('${id}')">🔍 Deep Signal</button><button class="mp-btn-secondary" onclick="previewLetters('${id}')">✉ Six Letters</button>`}
     `;
     
     document.getElementById('mapPanel').classList.add('open');
@@ -6353,8 +6061,19 @@ async function runDeepSignalForCard(id) {
     const p = allProspects.find(x => (x.id || `${x.lat}-${x.lng}`) === id);
     if (!p) return;
     
-    const fullAddr = p.address + (p.cityStateZip ? ', ' + p.cityStateZip : '');
     const card = document.getElementById(`card-${id}`);
+    
+    // If deep signal is already verified (from batch DS or a prior live fetch),
+    // the card's .prospect-detail div already has the full rich report rendered
+    // inline from the initial card build. Just expand the card and scroll — no
+    // fetch, no re-render, no overwriting the existing detail content.
+    if (p._deepSignalVerified && card) {
+        card.classList.add('expanded');
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+    }
+    
+    const fullAddr = p.address + (p.cityStateZip ? ', ' + p.cityStateZip : '');
     if (card) {
         const detail = card.querySelector('.prospect-detail');
         if (detail) detail.innerHTML = '<div style="padding:24px;text-align:center"><div class="loading-spinner" style="width:24px;height:24px;margin:0 auto 8px"></div><div style="font-size:12px;color:var(--text-secondary)">Running Deep Signal on ' + (p.ownerName || p.address) + '...</div></div>';
