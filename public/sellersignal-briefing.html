@@ -1353,6 +1353,37 @@ SOURCES.OR_DESCHUTES = {
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
+// === DOMINANT COHORT DETECTION ===
+// Count cohort frequency across a scored prospect set. If any single cohort
+// dominates (>= 40% of parcels), store it on window so the chip render block
+// can suppress its chip and reduce visual monotony in markets where trust or
+// absentee ownership is baseline (e.g., 60-80% of luxury parcels). The
+// differentiating chips (REO, quit claim, OOS, long tenure) become visually
+// prominent because they're no longer drowning in generic trust labels.
+// Called from both the precomputed and live scoring paths.
+function computeDominantCohort(prospects) {
+    const counts = {};
+    let total = 0;
+    for (const p of prospects) {
+        const c = p.cohort || 'residential';
+        counts[c] = (counts[c] || 0) + 1;
+        total += 1;
+    }
+    let dominantCohort = null, dominantPct = 0;
+    for (const [c, n] of Object.entries(counts)) {
+        const pct = total > 0 ? n / total : 0;
+        if (pct > dominantPct) { dominantCohort = c; dominantPct = pct; }
+    }
+    if (dominantPct >= 0.40) {
+        window._dominantCohort = dominantCohort;
+        window._dominantCohortPct = dominantPct;
+        console.log(`Dominant cohort suppressed in chips: ${dominantCohort} (${(dominantPct*100).toFixed(0)}% of ${total})`);
+    } else {
+        window._dominantCohort = null;
+        window._dominantCohortPct = 0;
+    }
+}
+
 function precomputeStats(parcels) {
     const valid = parcels.filter(x => x.totalValue > 0 && !x.exempt);
     const values = valid.map(x => x.totalValue).sort((a,b) => a-b);
@@ -3421,6 +3452,7 @@ async function startBriefingFromBounds(south, west, north, east, label) {
             .sort((a,b) => b.briefingRank - a.briefingRank);
         
         allProspects = evidenceScored.filter(p => p.briefingRank >= 15);
+        computeDominantCohort(allProspects);
         window._investigationComplete = true;
         document.getElementById('briefStats').style.display = ''; document.getElementById('briefMapWrap').style.display = '';
         renderBriefing(allProspects, parcels.length, 0, 0);
@@ -3647,12 +3679,14 @@ async function startBriefing() {
                     
                     // Store briefing metadata for stats display
                     window._precomputedBriefing = preData.briefing;
-                    
+
                     // Store for backtest / CRM
                     allProspects = prospects;
                     window._allScoredParcels = prospects;
                     window._investigationComplete = true;
                     window._backtestCalibration = preData.briefing?.calibration || null;
+
+                    computeDominantCohort(prospects);
                     
                     // Render immediately
                     renderBriefing(prospects, totalParcels, 0, 0);
@@ -3670,10 +3704,25 @@ async function startBriefing() {
                     
                     // Render historical accuracy — fetch v2 backtest (pure DB lookup, no API calls)
                     const cal = preData.briefing?.calibration;
+                    console.log('[Historical Panel] gating check:', {
+                        hasCalibration: !!cal,
+                        sold24: cal?.sold24,
+                        scoreGap: cal?.scoreGap,
+                        total: cal?.total,
+                        wouldRender: !!(cal && cal.sold24 >= 10)
+                    });
                     if (cal && cal.sold24 >= 10) {
-                        try { renderPrecomputedBacktest(cal, preData.briefing.total_parcels); } catch(e) { console.log('Backtest render failed:', e.message); }
+                        try {
+                            renderPrecomputedBacktest(cal, preData.briefing.total_parcels);
+                            console.log('[Historical Panel] rendered successfully');
+                        } catch(e) {
+                            console.error('[Historical Panel] render FAILED:', e.message);
+                            console.error('[Historical Panel] stack:', e.stack);
+                            console.error('[Historical Panel] cal data:', cal);
+                        }
                     } else if (preData.briefing?._v2) {
                         // V2: fetch backtest from server
+                        console.log('[Historical Panel] falling back to v2 backtest endpoint');
                         try {
                             const btResp = await fetch(`/api/v2/backtest/${cleanQuery}`);
                             if (btResp.ok) {
@@ -3681,9 +3730,18 @@ async function startBriefing() {
                                 if (btData.sold24 >= 5) {
                                     window._backtestCalibration = btData;
                                     renderPrecomputedBacktest(btData, preData.briefing.total_parcels);
+                                    console.log('[Historical Panel] v2 fallback rendered successfully');
+                                } else {
+                                    console.log('[Historical Panel] v2 fallback skipped: sold24 < 5');
                                 }
+                            } else {
+                                console.log('[Historical Panel] v2 fallback HTTP error:', btResp.status);
                             }
-                        } catch(e) { console.log('V2 backtest failed:', e.message); }
+                        } catch(e) {
+                            console.error('[Historical Panel] v2 fallback failed:', e.message);
+                        }
+                    } else {
+                        console.log('[Historical Panel] NOT rendering — neither precomputed nor v2 path qualified');
                     }
                     
                     return; // DONE — skip live pipeline entirely
@@ -3901,7 +3959,8 @@ async function startBriefing() {
             .sort((a,b) => b.briefingRank - a.briefingRank);
         
         allProspects = evidenceScored.filter(p => p.briefingRank >= 15);
-        
+        computeDominantCohort(allProspects);
+
         // Investigation not yet complete
         window._investigationComplete = false;
         
@@ -4305,6 +4364,10 @@ async function startBriefing() {
         document.getElementById('briefStats').style.display = ''; document.getElementById('briefMapWrap').style.display = '';
         renderBriefing(allProspects, parcels.length, marketResult.matches, marketResult.signals.length);
         document.getElementById('briefingContent').classList.add('briefing-reveal');
+
+        // Safety fallback: ensure historical accuracy panel renders even if
+        // the precomputed-briefing fast path failed and we fell through to here
+        ensureHistoricalPanel(cleanQuery, parcels.length);
         
         // STAGE FINAL: Full Deep Signal on Act Today candidates (parallel, ~30-60s)
         // Run DS on whoever is in Act Today, not just top 5 by rank
@@ -5006,6 +5069,14 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
         const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
         const ownerTypeLabel = p.cohortLabel || p.cohort || 'Unknown';
         const propTypeLabel = p.propType || 'Unknown';
+        // Suppress the cohort label in the visible subheader when it matches
+        // the dominant local pattern (>= 40% of parcels). Keeps the data
+        // attribute for filtering but removes the visual monotony of every
+        // card showing "Trust" or "Absentee" in trust-heavy / second-home
+        // markets. The full cohort label is still shown in the expanded
+        // detail panel below.
+        const isDominantCohort = window._dominantCohort && (p.cohort === window._dominantCohort);
+        const displayCohort = isDominantCohort ? '' : ownerTypeLabel;
         
         return `<div class="prospect prospect-card ${contacted?'contacted':''}"${hidden} id="card-${id}" data-owner="${(name||'').replace(/"/g,'')}" data-address="${(p.address||'').replace(/"/g,'')}" data-ownertype="${ownerTypeLabel}" data-proptype="${propTypeLabel}" data-timeline="${p._timelineBucket||''}" data-lat="${p.lat||''}" data-lng="${p.lng||''}" onclick="toggleExpand('${id}')">
             <div class="prospect-main">
@@ -5020,7 +5091,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
                         <div style="min-width:0">
                             <div class="prospect-addr">${isNew ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-right:6px;letter-spacing:0.06em;padding:1px 5px;background:var(--gold-border);border-radius:3px">NEW</span>' : ''}${name || p.address}${p._alsoOwns ? ` <span style="color:var(--text-dim);font-size:10px;font-style:italic;font-family:\'DM Sans\',sans-serif;font-weight:400">+ ${p._alsoOwns} other propert${p._alsoOwns===1?'y':'ies'}</span>` : ''}</div>
-                            <div style="font-size:12px;color:var(--text-secondary);margin-top:3px">${(p.address||'').split(' ').map(w => /^\d/.test(w) ? w : w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ')} · ${val || 'N/A'} · ${ownerTypeLabel}</div>
+                            <div style="font-size:12px;color:var(--text-secondary);margin-top:3px">${(p.address||'').split(' ').map(w => /^\d/.test(w) ? w : w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ')} · ${val || 'N/A'}${displayCohort ? ' · ' + displayCohort : ''}</div>
                             ${p.subdivision ? `<div style="font-size:10.5px;color:var(--text-dim);margin-top:4px;display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:5px;height:5px;border-radius:2px;background:${tier==='call'?'var(--green)':'var(--gold)'};opacity:0.5"></span>${p.subdivision}</div>` : ''}
                         </div>
                         <div class="prospect-score ${p.scoreClass}" style="width:48px;height:48px;border-radius:12px;font-size:19px">${tier === 'call' ? p.sellerLikelihood : p.briefingRank}${p._deepSignalVerified ? '<div style="font-size:7px;margin-top:1px;color:var(--accent)">✓ DS</div>' : ''}</div>
@@ -6048,7 +6119,7 @@ function showMapPanel(p, isAct, isOut) {
             ${isAct ? '<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border);font-weight:600">🔥 Act Today</span>' : isOut ? '<span class="chip" style="background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border)">Outreach</span>' : '<span class="chip">Watch List</span>'}
             ${p._isReo ? '<span class="chip" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(158,75,60,0.35);font-weight:700">🏦 Bank-Owned</span>' : ''}
             ${p._quitClaimFlag && p.tenureYears != null && p.tenureYears <= 3 ? '<span class="chip" style="background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold-border);font-weight:600">📜 Quit Claim · '+Math.round(p.tenureYears)+'yr</span>' : ''}
-            ${cohort && !p._isReo ? '<span class="chip">'+cohort+'</span>' : ''}
+            ${cohort && !p._isReo && (!window._dominantCohort || p.cohort !== window._dominantCohort) ? '<span class="chip">'+cohort+'</span>' : ''}
             ${val ? '<span class="chip">'+val+'</span>' : ''}
             ${p.isOutOfState ? '<span class="chip" style="color:var(--gold)">OOS · '+p.ownerState+'</span>' : ''}
             ${p.isAbsentee ? '<span class="chip">Absentee</span>' : ''}
@@ -6340,6 +6411,44 @@ function copyScript(id) {
 // ========================
 // HISTORICAL BACKTEST — analyze past sales to validate scoring accuracy
 // ========================
+
+// Safety fallback: ensure the historical panel renders even if the
+// precomputed-briefing path silently failed and control fell through to
+// the live pipeline. Idempotent — checks for an existing #backtestPanel
+// element and bails if one is already present so the precomputed path's
+// render is never double-rendered. Called from each live-path render
+// finish point. Fetches calibration directly from /api/briefing/{zip},
+// which is the same source the precomputed path uses, so the data shown
+// is identical regardless of which scoring path executed.
+async function ensureHistoricalPanel(zipCode, totalParcels) {
+    if (!zipCode || !/^\d{5}$/.test(zipCode)) {
+        console.log('[Historical Panel] safety fallback skipped: not a ZIP query');
+        return;
+    }
+    if (document.getElementById('backtestPanel')) {
+        console.log('[Historical Panel] safety fallback skipped: panel already rendered');
+        return;
+    }
+    try {
+        const r = await fetch(`/api/briefing/${zipCode}`);
+        if (!r.ok) {
+            console.log('[Historical Panel] safety fallback: API returned', r.status);
+            return;
+        }
+        const data = await r.json();
+        const cal = data?.briefing?.calibration;
+        if (!cal || !cal.sold24 || cal.sold24 < 10) {
+            console.log('[Historical Panel] safety fallback: calibration insufficient', { sold24: cal?.sold24 });
+            return;
+        }
+        const total = data?.briefing?.total_parcels || totalParcels || 0;
+        renderPrecomputedBacktest(cal, total);
+        console.log('[Historical Panel] safety fallback rendered successfully', { sold24: cal.sold24, scoreGap: cal.scoreGap });
+    } catch (e) {
+        console.error('[Historical Panel] safety fallback failed:', e.message);
+    }
+}
+
 function renderPrecomputedBacktest(cal, totalParcels) {
     const sold24 = cal.sold24 || 0;
     const total = cal.total || totalParcels || 0;
