@@ -206,11 +206,50 @@ function parseParcel(feature, cfg) {
     
     const situsNorm = (address || '').toUpperCase().replace(/\s+/g, '').substring(0, 20);
     const mailNorm = (ownerAddress || '').toUpperCase().replace(/\s+/g, '').substring(0, 20);
-    const isAbsentee = ownerAddress.length > 5 && address.length > 5 && situsNorm !== mailNorm && !mailNorm.includes(situsNorm.substring(0, 10));
+    let isAbsentee = ownerAddress.length > 5 && address.length > 5 && situsNorm !== mailNorm && !mailNorm.includes(situsNorm.substring(0, 10));
     const isOutOfState = ownerState && cfg.homeState && ownerState.toUpperCase() !== cfg.homeState.toUpperCase();
-    
+
+    // PO BOX OVERRIDE: an owner using a PO Box in the SAME 3-digit ZIP prefix as the
+    // situs property is almost certainly a local resident using a PO Box for mail
+    // privacy, not a true absentee. The 3-digit ZIP prefix is the postal sectional
+    // center, which means same-region delivery — typically within 30-50 miles of
+    // the property. Override the isAbsentee flag to false in this case so the
+    // cohort classifier doesn't bucket them as absentee owners.
+    const hasPoBox = /\bP\.?O\.?\s*BOX\b/i.test(ownerAddress);
+    const situsZipRaw = (a[fm.situsZip] || '').toString().substring(0, 3);
+    const ownerZipRaw = (ownerZip || '').toString().substring(0, 3);
+    const samePoBoxRegion = hasPoBox && situsZipRaw && ownerZipRaw && situsZipRaw === ownerZipRaw;
+    if (samePoBoxRegion && !isOutOfState) {
+        isAbsentee = false;
+    }
+
     const subdivision = fm.subdivision ? (a[fm.subdivision] || '').trim() : '';
     const inCareOf = fm.inCareOf ? (a[fm.inCareOf] || '').trim() : '';
+
+    // QUIT CLAIM FLAG: extracted if the market field map declares a deedType source.
+    // Detection looks for "QUIT" or "QC" anywhere in the deed/instrument type string.
+    // Returns false if the field isn't mapped for this market — graceful degradation
+    // until each market's parser audit adds the field.
+    let quitClaimFlag = false;
+    if (fm.deedType && a[fm.deedType]) {
+        const dt = String(a[fm.deedType]).toUpperCase();
+        quitClaimFlag = /\bQUIT\b|\bQUITCLAIM\b|\bQ\.?C\.?\b/.test(dt);
+    }
+
+    // SOURCE PUBLICATION DATE: when the underlying county feed was last refreshed
+    // for this parcel. Some ArcGIS feeds expose this as EditDate, LAST_UPDATE,
+    // ModDate, or similar. Extracted only if the market field map declares the
+    // source field. Stored as ISO date string for display in the UI freshness badge.
+    let sourceModifiedDate = null;
+    if (fm.sourceModified && a[fm.sourceModified]) {
+        const raw = a[fm.sourceModified];
+        if (typeof raw === 'number' && raw > 0) {
+            const d = new Date(raw);
+            if (d.getFullYear() > 2000) sourceModifiedDate = d.toISOString().split('T')[0];
+        } else if (typeof raw === 'string' && raw.length >= 8) {
+            sourceModifiedDate = raw.substring(0, 10);
+        }
+    }
     
     return {
         id: id || `${cfg.key}-${address.replace(/\s/g, '')}-${ownerName.substring(0, 10)}`,
@@ -223,7 +262,9 @@ function parseParcel(feature, cfg) {
         isAbsentee, isOutOfState, isVacantLand: isVacant,
         hasBuildingValue: hasBuilding,
         lastTransferYear, lastTransferDate, salePrice,
-        yearBuilt, sqft, inCareOf, multiCount: 1
+        yearBuilt, sqft, inCareOf, multiCount: 1,
+        // New ATTOM-style fields (graceful degradation when source field absent)
+        quitClaimFlag, sourceModifiedDate
     };
 }
 
@@ -268,9 +309,18 @@ function scoreParcel(p, stats, cal) {
     const signals = [];
     
     if (p.exempt) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
-    
+
+    // REO PRE-CHECK: Fannie Mae, Freddie Mac, HUD, etc. would otherwise be caught
+    // by the FEDERAL keyword in govRx and early-exited as "institutional" with
+    // score 0. We need to detect these as REO BEFORE the gov check fires so they
+    // get the high seller_likelihood boost they deserve. Same regex used later
+    // in the main entity classification block.
+    const onPre = (p.ownerName || '').toUpperCase();
+    const reoGovRxPre = /\b(FANNIE\s*MAE|FEDERAL\s*NATIONAL\s*MORTGAGE|FREDDIE\s*MAC|FEDERAL\s*HOME\s*LOAN\s*MORTGAGE|GINNIE\s*MAE|HUD\b|SECRETARY\s*OF\s*HOUSING|SECRETARY\s*OF\s*VETERANS|VETERANS\s*AFFAIRS|USDA\s*RURAL)\b/i;
+    const isReoPreCheck = reoGovRxPre.test(onPre);
+
     const govRx = /\bUSA\b|\bCITY OF\b|\bTOWN OF\b|\bVILLAGE OF\b|\bBOROUGH OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bSCHOOL\b|\bACADEMY\b|\bSEMINARY\b|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bMINISTR(Y|IES)\b|\bPARISH\b|\bMONASTER|\bCONVENT\b|\bARCHDIOCESE\b|\bCONGREGATION\b|\bSISTERS OF\b|\bBROTHERS OF\b|\bORDER OF\b|\bFRIARS\b|\bABBEY\b|\bPRIORY\b|\bSYNAGOGUE\b|\bTEMPLE\b|\bMOSQUE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSIT(Y|IES)\b|\bCOLLEGE\b|\bHOSPITAL\b|\bHEALTH(CARE)?\s*(SYSTEM|INC|CORP|GROUP|CENTER|CENTRE)\b|\bMEDICAL\s*CENTER\b|\bYMCA\b|\bYWCA\b|\bBOY\s*SCOUT|\bGIRL\s*SCOUT|\bROTARY\b|\bLIONS\s*CLUB|\bELKS\b|\bMOOSE\s*LODGE|\bVFW\b|\bAMERICAN\s*LEGION|\bSALVATION\s*ARMY|\bGOODWILL\b|\bHABITAT\b|\bRED\s*CROSS|\bBOYS\s*(AND|&)\s*GIRLS|\bDAV\b|\bKIWANIS\b|\bSHRINERS\b|\bODD\s*FELLOWS|\bKNIGHTS\s*OF|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
-    if (p.ownerName && govRx.test(p.ownerName)) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional'};
+    if (p.ownerName && govRx.test(p.ownerName) && !isReoPreCheck) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional'};
     
     const on = (p.ownerName || '').toUpperCase();
     if (!p.address && (!on || on.length < 4)) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Unknown'};
@@ -294,6 +344,21 @@ function scoreParcel(p, stats, cal) {
     const isRanch = /\bRANCH\b|\bFARM\b/i.test(on);
     const isEntity = isLLC || isTrust || isEstate || isHeirs || isRanch;
     const isCorporateOpaque = isLLC && !isTrust && !isEstate && !isHeirs && !isRanch;
+
+    // REO / BANK-OWNED DETECTION
+    // Two-bucket approach to keep false positives low:
+    //   1. Unambiguous government / GSE / federal mortgage agencies — always REO
+    //   2. Major banks WITHOUT a "TRUSTEE" qualifier — REO only if not in
+    //      mortgage-backed-security trustee capacity (those are securitization
+    //      vehicles, not foreclosed inventory)
+    // Plus a third bucket for known servicers that frequently hold REO during
+    // disposition cycles.
+    const reoGovRx = /\b(FANNIE\s*MAE|FEDERAL\s*NATIONAL\s*MORTGAGE|FREDDIE\s*MAC|FEDERAL\s*HOME\s*LOAN\s*MORTGAGE|GINNIE\s*MAE|HUD\b|SECRETARY\s*OF\s*HOUSING|SECRETARY\s*OF\s*VETERANS|VETERANS\s*AFFAIRS|USDA\s*RURAL)\b/i;
+    const reoBankRx = /\b(BANK\s*OF\s*AMERICA|WELLS\s*FARGO|JPMORGAN|JP\s*MORGAN|CHASE\s*BANK|US\s*BANK\s*N|CITIBANK|HSBC\s*BANK|DEUTSCHE\s*BANK|WILMINGTON\s*(SAVINGS|TRUST)|BANK\s*OF\s*NEW\s*YORK)\b/i;
+    const reoServicerRx = /\b(MTGLQ\s*INVESTORS|NATIONSTAR|MR\.?\s*COOPER|RUSHMORE\s*LOAN|SHELLPOINT|SPECIALIZED\s*LOAN\s*SERVICING|CARRINGTON\s*MORTGAGE|OCWEN|PHH\s*MORTGAGE|SELENE\s*FINANCE)\b/i;
+    const isReoUnambiguous = reoGovRx.test(on) || reoServicerRx.test(on);
+    const isReoBank = reoBankRx.test(on) && !/\bTRUSTEE\b/i.test(on);
+    const isReo = isReoUnambiguous || isReoBank;
     
     const isJunkName = hasOwnerName && (
         /\bMANAGEMENT\b|\bPROPERTY\b|\bSERVICE|\bAGENCY\b|\bDEPARTMENT\b|\bOFFICE\b|\bCOMMITTEE\b|\bBOARD\b/i.test(on) && !isEntity ||
@@ -313,7 +378,21 @@ function scoreParcel(p, stats, cal) {
     
     // 1. SELLER LIKELIHOOD
     let sellerLikelihood = 20;
-    
+
+    // REO and quit claim are the strongest signals — score them first so they
+    // dominate the signal panel when present.
+    if (isReo) {
+        signals.push({text:'Bank-owned / REO — bank will dispose, regulatory pressure to sell',type:'positive'});
+        sellerLikelihood += 35;
+    }
+    if (p.quitClaimFlag && p.tenureYears != null && p.tenureYears <= 3) {
+        signals.push({text:'Recent quit claim deed — likely divorce, family transfer, or distressed sale',type:'positive'});
+        sellerLikelihood += 15;
+    } else if (p.quitClaimFlag) {
+        signals.push({text:'Quit claim deed in chain — non-arms-length transfer history',type:'neutral'});
+        sellerLikelihood += 5;
+    }
+
     if (isHeirs) { signals.push({text:'Heir/deceased/survivor — likely transition',type:'positive'}); sellerLikelihood += calibrate(22, 'Estates / Heirs', cal); }
     if (isEstate && !isHeirs) { signals.push({text:'Estate ownership — may be in settlement',type:'positive'}); sellerLikelihood += calibrate(18, 'Estates / Heirs', cal); }
     if (isTrust && isAbsentee) { signals.push({text:'Trust + absentee — succession or remote management',type:'positive'}); sellerLikelihood += calibrate(16, 'Trusts', cal); }
@@ -442,19 +521,22 @@ function scoreParcel(p, stats, cal) {
     const scoreClass = briefingRank >= 55 ? 'high' : briefingRank >= 35 ? 'medium' : 'low';
     
     let cohort = 'residential', cohortLabel = 'Residential';
-    if (isHeirs || isEstate) { cohort='estate'; cohortLabel='Estate / Heir'; }
+    if (isReo) { cohort='reo'; cohortLabel='Bank-Owned / REO'; }
+    else if (isHeirs || isEstate) { cohort='estate'; cohortLabel='Estate / Heir'; }
+    else if (p.quitClaimFlag && p.tenureYears != null && p.tenureYears <= 3) { cohort='quitclaim'; cohortLabel='Recent Family Transfer'; }
     else if (isTrust) { cohort='trust'; cohortLabel='Trust'; }
     else if (isRanch) { cohort='ranch'; cohortLabel='Ranch / Farm'; }
     else if (isLLC && !isTrust && !isEstate) { cohort='investor'; cohortLabel='Investor / Entity'; }
     else if (isAbsentee || isOutOfState) { cohort='absentee'; cohortLabel='Absentee Owner'; }
     else if (isVacant) { cohort='vacant'; cohortLabel='Vacant / Land'; }
     else if (isLuxury) { cohort='luxury'; cohortLabel='Luxury / High-End'; }
-    
-    return { 
+
+    return {
         sellerLikelihood, offMarketReceptivity, actionability, confidence, briefingRank,
         scoreClass, signals, cohort, cohortLabel,
         _multiCount: multiCount, _isSmallPortfolio: isSmallPortfolio, _isLargePortfolio: isLargePortfolio,
-        _isAbsentee: isAbsentee, _isOutOfState: isOutOfState, _isVacant: isVacant, _isOperational: isOperational
+        _isAbsentee: isAbsentee, _isOutOfState: isOutOfState, _isVacant: isVacant, _isOperational: isOperational,
+        _isReo: isReo, _quitClaimFlag: !!p.quitClaimFlag
     };
 }
 

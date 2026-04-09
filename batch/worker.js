@@ -30,6 +30,30 @@ async function processZip(zip, market) {
   log(`=== ${zip} — ${market.name} ===`);
   if (!market.zipWhere) { log('  SKIP: needs spatial query'); return null; }
 
+  // === LAYER METADATA FETCH (best-effort, for source freshness badge) ===
+  // ArcGIS layer metadata endpoint exposes editingInfo.lastEditDate when the
+  // host enables it. We probe once per ZIP run, stamp every parcel with the
+  // result, and fail silently if the host doesn't expose it. Adds one HTTP
+  // call per ZIP per nightly run — negligible cost. Markets known to expose
+  // this as of April 8 2026: WA_KING (King County), NY (NYS Tax Parcels),
+  // FL_MD (Miami-Dade). Other markets fall back to fetched_at downstream.
+  let sourceModifiedDate = null;
+  try {
+    const metaUrl = market.url.replace(/\/query$/, '') + '?f=json';
+    const metaResp = await fetch(metaUrl, { signal: AbortSignal.timeout(15000) });
+    if (metaResp.ok) {
+      const meta = await metaResp.json();
+      const lastEdit = meta?.editingInfo?.lastEditDate;
+      if (lastEdit && typeof lastEdit === 'number') {
+        const d = new Date(lastEdit);
+        if (d.getFullYear() > 2000) {
+          sourceModifiedDate = d.toISOString().split('T')[0];
+          log(`  source last edited: ${sourceModifiedDate}`);
+        }
+      }
+    }
+  } catch (e) { /* metadata fetch is best-effort, never blocks ingest */ }
+
   // === PAGINATED FETCH ===
   let allFeatures = [], offset = 0, keepFetching = true;
   log('  Fetching...');
@@ -59,7 +83,12 @@ async function processZip(zip, market) {
       if (!p) continue;
       // Keep all parcels that have an address — same as briefing HTML
       // scoreParcel handles blank names (scores them lower, doesn't exclude them)
-      if (p.address && p.address.length >= 3) parcels.push(p);
+      if (p.address && p.address.length >= 3) {
+        // Stamp source freshness from the layer metadata fetch above. Only set
+        // if parseParcel didn't already populate it from a per-record field.
+        if (sourceModifiedDate && !p.sourceModifiedDate) p.sourceModifiedDate = sourceModifiedDate;
+        parcels.push(p);
+      }
     } catch(e) { /* skip unparseable */ }
   }
   log(`  ${parcels.length} parsed`);
