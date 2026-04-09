@@ -310,6 +310,42 @@ function scoreParcel(p, stats, cal) {
     
     if (p.exempt) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
 
+    // OVERSIZED-VALUE GUARDRAIL: any property assessed above $25M is functionally
+    // never a single-family residence. Bel Air mansions top out around $150M and
+    // there are five of them in the entire country. A $25M+ "house" in any market
+    // outside of Beverly Hills, Bel Air, Greenwich CT, or Aspen CO is overwhelmingly
+    // likely to be a misclassified apartment building, hotel, office, or institutional
+    // holding. The previous heuristic gave these maximum scores because the value-based
+    // luxury bonus stacked on top of out-of-state-absentee bonuses, putting commercial
+    // multi-family at the top of residential prospect lists. Catches AMLI Bellevue
+    // Park, downtown Seattle apartment towers, hotel REITs, and similar.
+    if (p.totalValue && p.totalValue > 25000000) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Oversized value (>$25M) — likely commercial/institutional',type:'negative'}],cohort:'commercial',cohortLabel:'Commercial / Institutional'};
+    }
+
+    // COMMERCIAL PROPERTY TYPE GUARDRAIL: if the assessor's property type field
+    // already classified this as commercial, exclude from residential scoring.
+    // Previously the propType label was set but never used as a filter, so
+    // commercial parcels still ran through the full scorer.
+    if (p.propType === 'Commercial') {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Commercial property — not a residential lead',type:'negative'}],cohort:'commercial',cohortLabel:'Commercial'};
+    }
+
+    // PROPERTY TAX AGENT GUARDRAIL: certain firms appear as "owner" on assessor
+    // records but are actually tax agents acting on behalf of institutional owners.
+    // KE Andrews (Texas) handles AMLI Residential, Equity Residential, and many
+    // others. Marvin F Poer, Ryan LLC, Altus Group, Duff & Phelps, True Partners,
+    // Paradigm Tax, and Property Tax Advisors all do similar work. They have
+    // person-like names (KE Andrews looks like "Ke Andrews", a name) so they slip
+    // past the LLC/Corp/Inc entity detection. Excluding them by name is the only
+    // reliable way to filter. List sourced from public commercial real estate
+    // tax agent registries.
+    const onAgent = (p.ownerName || '').toUpperCase();
+    const taxAgentRx = /\b(K\.?E\.?\s*ANDREWS|MARVIN\s*F\s*POER|RYAN\s*LLC|RYAN\s*PROPERTY\s*TAX|ALTUS\s*GROUP|DUFF\s*&?\s*PHELPS|TRUE\s*PARTNERS|PARADIGM\s*TAX|PROPERTY\s*TAX\s*ADVISORS|PADDOCK\s*&?\s*PARSONS|MORRIS\s*MANNING|BRUSNIAK\s*BLACKWELL|POPP\s*HUTCHESON|GUNTER\s*BENNETT)\b/i;
+    if (taxAgentRx.test(onAgent)) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Property tax agent (not actual owner)',type:'negative'}],cohort:'commercial',cohortLabel:'Tax Agent / Institutional'};
+    }
+
     // REO PRE-CHECK: Fannie Mae, Freddie Mac, HUD, etc. would otherwise be caught
     // by the FEDERAL keyword in govRx and early-exited as "institutional" with
     // score 0. We need to detect these as REO BEFORE the gov check fires so they

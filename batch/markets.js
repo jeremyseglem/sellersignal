@@ -26,7 +26,7 @@ MARKETS.WA_KING = {
   zipWhere: (zip) => `ZIP5='${zip}'`,
   latField: 'LAT', lngField: 'LON',
   fieldMap: { id:'PIN', ownerName:['PAAUNIQUENAME','KCTP_ATTN'], address:'ADDR_FULL', situsCity:'CTYNAME', situsZip:'ZIP5', totalValue:null, buildingValue:['APPR_IMPR','TAX_IMPR'], landValue:['APPRLNDVAL','TAX_LNDVAL'], acres:'KCA_ACRES', subdivision:'PLAT_NAME', mailAddress:'KCTP_ADDR', mailState:'KCTP_STATE' },
-  propTypeRules: { style: 'regex', field: 'PREUSE_DESC', exemptRx: /exempt|government/i, vacantRx: /vacant/i, commercialRx: /commercial|industrial/i },
+  propTypeRules: { style: 'regex', field: 'PREUSE_DESC', exemptRx: /exempt|government/i, vacantRx: /vacant/i, commercialRx: /commercial|industrial|apartment|multi.?family|multifamily|hotel|motel|\boffice\b|retail|warehouse|shopping|mobile home park/i },
   salesUrl: 'https://services.arcgis.com/Ej0PsM5Aw677QF1W/arcgis/rest/services/PARCEL_SALES3YR_AREA_287/FeatureServer/0/query',
   salesFields: 'PIN,SaleDate,SalePrice,Sellername,buyername',
   parse(f) { return parseParcel(f, this); },

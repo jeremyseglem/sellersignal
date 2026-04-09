@@ -140,5 +140,65 @@ const fakeFeature2 = {
 const parsed2 = parseParcel(fakeFeature2, fakeMarket2);
 check('PO Box different ZIP → still absentee', parsed2.isAbsentee === true, `got isAbsentee=${parsed2.isAbsentee}`);
 
+// === TEST 9: AMLI Bellevue Park case — oversized value guardrail ===
+console.log('\n--- Oversized value (>$25M) — apartment building ---');
+const amliCase = {
+  ownerName: 'KE ANDREWS',
+  address: '10001 NE 1ST ST', cityStateZip: 'BELLEVUE, WA 98004',
+  totalValue: 110800000, buildingValue: 95000000, landValue: 15800000,
+  ownerAddress: '1750 VALLEY VIEW LN STE 300 DALLAS TX', ownerState: 'TX',
+  isAbsentee: true, isOutOfState: true,
+  yearBuilt: 2000, sqft: 200000, propType: 'Apartment'
+};
+const amliResult = scoreParcel(amliCase, baseStats, null);
+check('cohort=commercial (>$25M cap)', amliResult.cohort === 'commercial', `got ${amliResult.cohort}`);
+check('seller likelihood = 0', amliResult.sellerLikelihood === 0, `got ${amliResult.sellerLikelihood}`);
+check('briefingRank = 0', amliResult.briefingRank === 0, `got ${amliResult.briefingRank}`);
+check('signal mentions oversized value', amliResult.signals.some(s => s.text.includes('Oversized value')));
+
+// === TEST 10: Property tax agent guardrail ===
+console.log('\n--- Property tax agent (KE Andrews on a smaller parcel) ---');
+const taxAgent = {
+  ownerName: 'KE ANDREWS',
+  address: '500 MAIN ST', cityStateZip: 'SEATTLE, WA 98101',
+  totalValue: 5000000, buildingValue: 4000000, landValue: 1000000,
+  ownerAddress: '1750 VALLEY VIEW LN DALLAS TX', ownerState: 'TX',
+  isAbsentee: true, isOutOfState: true,
+  yearBuilt: 1990, sqft: 50000, propType: 'Office'
+};
+const taxAgentResult = scoreParcel(taxAgent, baseStats, null);
+check('cohort=commercial (tax agent)', taxAgentResult.cohort === 'commercial', `got ${taxAgentResult.cohort}`);
+check('seller likelihood = 0', taxAgentResult.sellerLikelihood === 0);
+check('signal mentions tax agent', taxAgentResult.signals.some(s => s.text.includes('tax agent')));
+
+// === TEST 11: Real high-value home should still score ===
+console.log('\n--- Legitimate $5M residential should still score ---');
+const realLuxury = {
+  ownerName: 'JOHN ANDERSON',
+  address: '789 HIGHLAND DR', cityStateZip: 'BELLEVUE, WA 98004',
+  totalValue: 5000000, buildingValue: 3500000, landValue: 1500000,
+  ownerAddress: '789 HIGHLAND DR BELLEVUE WA', ownerState: 'WA',
+  isAbsentee: false, isOutOfState: false,
+  yearBuilt: 2010, sqft: 6000, propType: 'SFR',
+  tenureYears: 8
+};
+const realLuxuryResult = scoreParcel(realLuxury, baseStats, null);
+check('cohort != commercial (legitimate luxury)', realLuxuryResult.cohort !== 'commercial', `got ${realLuxuryResult.cohort}`);
+check('seller likelihood > 0 (still scored)', realLuxuryResult.sellerLikelihood > 0, `got ${realLuxuryResult.sellerLikelihood}`);
+
+// === TEST 12: Property type already classified as Commercial ===
+console.log('\n--- propType=Commercial guardrail ---');
+const commercial = {
+  ownerName: 'JOHN BUILDER',
+  address: '200 1ST AVE', cityStateZip: 'SEATTLE, WA 98101',
+  totalValue: 8000000, buildingValue: 6000000, landValue: 2000000,
+  ownerAddress: '200 1ST AVE SEATTLE WA', ownerState: 'WA',
+  isAbsentee: false, isOutOfState: false,
+  yearBuilt: 1995, sqft: 25000, propType: 'Commercial'
+};
+const commercialResult = scoreParcel(commercial, baseStats, null);
+check('cohort=commercial (propType filter)', commercialResult.cohort === 'commercial', `got ${commercialResult.cohort}`);
+check('seller likelihood = 0', commercialResult.sellerLikelihood === 0);
+
 console.log(`\n${'='.repeat(50)}\n${pass} passed, ${fail} failed\n${'='.repeat(50)}`);
 process.exit(fail > 0 ? 1 : 0);

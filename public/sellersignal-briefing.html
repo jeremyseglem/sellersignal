@@ -1089,7 +1089,7 @@ SOURCES.WA_KING = {
         acres: 'KCA_ACRES', subdivision: 'PLAT_NAME',
         mailAddress: 'KCTP_ADDR', mailState: 'KCTP_STATE'
     },
-    propTypeRules: { style: 'regex', field: 'PREUSE_DESC', exemptRx: /exempt|government/i, vacantRx: /vacant/i, commercialRx: /commercial|industrial/i },
+    propTypeRules: { style: 'regex', field: 'PREUSE_DESC', exemptRx: /exempt|government/i, vacantRx: /vacant/i, commercialRx: /commercial|industrial|apartment|multi.?family|multifamily|hotel|motel|\boffice\b|retail|warehouse|shopping|mobile home park/i },
     salesUrl: 'https://services.arcgis.com/Ej0PsM5Aw677QF1W/arcgis/rest/services/PARCEL_SALES3YR_AREA_287/FeatureServer/0/query',
     salesFields: 'PIN,SaleDate,SalePrice,Sellername,buyername',
     parse(f) { return parseParcel(f, this); }
@@ -1449,6 +1449,32 @@ function scoreParcel(p, stats, cal) {
     
     // Bail on exempt
     if (p.exempt) return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
+
+    // OVERSIZED-VALUE GUARDRAIL: any property assessed above $25M is functionally
+    // never a single-family residence. Catches AMLI Bellevue Park and similar
+    // misclassified apartment buildings, hotels, offices, and institutional holdings
+    // that previously got pushed to the top of residential prospect lists by the
+    // luxury bonus stacking with out-of-state-absentee bonuses.
+    if (p.totalValue && p.totalValue > 25000000) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Oversized value (>$25M) — likely commercial/institutional',type:'negative'}],cohort:'commercial',cohortLabel:'Commercial / Institutional'};
+    }
+
+    // COMMERCIAL PROPERTY TYPE GUARDRAIL: if assessor data classified this as
+    // commercial, exclude from residential scoring. The propType label was set
+    // but never used as a filter previously.
+    if (p.propType === 'Commercial') {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Commercial property — not a residential lead',type:'negative'}],cohort:'commercial',cohortLabel:'Commercial'};
+    }
+
+    // PROPERTY TAX AGENT GUARDRAIL: KE Andrews, Marvin F Poer, Ryan LLC, Altus
+    // Group, etc. appear as 'owner' on assessor records but are tax agents
+    // representing institutional commercial real estate owners. Their person-like
+    // names slip past the LLC/Corp/Inc entity detection.
+    const onAgent = (p.ownerName || '').toUpperCase();
+    const taxAgentRx = /\b(K\.?E\.?\s*ANDREWS|MARVIN\s*F\s*POER|RYAN\s*LLC|RYAN\s*PROPERTY\s*TAX|ALTUS\s*GROUP|DUFF\s*&?\s*PHELPS|TRUE\s*PARTNERS|PARADIGM\s*TAX|PROPERTY\s*TAX\s*ADVISORS|PADDOCK\s*&?\s*PARSONS|MORRIS\s*MANNING|BRUSNIAK\s*BLACKWELL|POPP\s*HUTCHESON|GUNTER\s*BENNETT)\b/i;
+    if (taxAgentRx.test(onAgent)) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Property tax agent (not actual owner)',type:'negative'}],cohort:'commercial',cohortLabel:'Tax Agent / Institutional'};
+    }
 
     // REO PRE-CHECK: Fannie Mae, Freddie Mac, HUD, etc. would otherwise be caught
     // by the FEDERAL keyword in govRx and early-exited as "institutional" with
@@ -6371,6 +6397,26 @@ async function runDeepSignalForCard(id) {
             }
             card.classList.add('expanded');
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // After Deep Signal completes, update the parent card's score circle
+            // so the user can see when DS contradicts the heuristic. Without this
+            // update, a card that the heuristic ranked at 85 but DS downgraded to
+            // 25 would still display "85" on the collapsed card view, misleading
+            // anyone scanning the prospect list. The score class also gets updated
+            // so the color shifts (high green → medium gold → low neutral).
+            const scoreEl = card.querySelector('.prospect-score');
+            if (scoreEl) {
+                // Use sellerLikelihood as the primary display since it's the most
+                // direct measure of "did the investigation confirm or contradict
+                // the heuristic". For Act Today (tier='call') prospects this is
+                // already what's shown; for other tiers it gives the user a more
+                // honest signal than the smoothed briefingRank.
+                const newScore = p.sellerLikelihood;
+                const newClass = newScore >= 55 ? 'high' : newScore >= 35 ? 'med' : 'low';
+                scoreEl.className = `prospect-score ${newClass}`;
+                // Preserve sizing/border styles by only replacing innerHTML
+                scoreEl.innerHTML = `${newScore}<div style="font-size:7px;margin-top:1px;color:var(--accent)">✓ DS</div>`;
+            }
         }
     } catch(e) {
         console.error('Deep Signal failed:', e);
