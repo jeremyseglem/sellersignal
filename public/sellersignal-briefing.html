@@ -3642,9 +3642,24 @@ async function startBriefing() {
                         const ds = dsMap.get(p.id);
                         if (ds) {
                             p._batchDeepSignal = ds;
-                            // Treat pre-computed batch DS as verified — same data quality,
-                            // just generated overnight instead of on-demand
-                            p._deepSignalVerified = true;
+                            // NOTE: do NOT set _deepSignalVerified=true here.
+                            // Batch DS is generated overnight by a faster, cheaper LLM
+                            // call with a templated prompt — it is NOT equivalent to the
+                            // full Deep Signal investigation that runs life-event detection,
+                            // sourced facts, biographical inference, and equity cascade.
+                            // Setting _deepSignalVerified=true here previously caused three
+                            // bugs: (1) it rendered the same green "✓ Deep Signal" chip as
+                            // real DS, misleading users about data quality; (2) it caused
+                            // the detail panel to render the verified-DS branch which
+                            // expects rich fields (whoTheyAre, sellerPsychology, metrics,
+                            // confirmedFacts) that batch DS does NOT populate, resulting
+                            // in N/A and Unknown everywhere; (3) it triggered an early
+                            // return in runDeepSignalForCard that prevented users from
+                            // running a real DS investigation on top prospects.
+                            // After this fix: batch DS prospects fall to the _batchDeepSignal
+                            // detail panel branch (line ~5244) which renders lite-flavored
+                            // fields properly, the chip differentiates visually, and the
+                            // run button works correctly to upgrade to a real investigation.
                             p._dsWhyNow = ds.motivation || '';
                             p._dsTimeframe = ds.timeline || '';
                             p._dsNextMove = ds.best_channel ? (ds.best_channel === 'call' ? 'Phone call' : ds.best_channel === 'mail' ? 'Letter' : 'Door knock') : '';
@@ -3655,25 +3670,12 @@ async function startBriefing() {
                                 email: ''
                             };
                             p._dsAvoid = ds.what_not_to_say || '';
-                            // Build _deepSignal object so the expanded card detail view works too
-                            p._deepSignal = {
-                                sellerLikelihood: p.sellerLikelihood,
-                                offMarketReceptivity: p.offMarketReceptivity,
-                                actionability: p.actionability,
-                                confidence: p.confidence,
-                                segment: p.cohortLabel || p.cohort,
-                                timeframe: ds.timeline || '',
-                                sellerLikelihoodBasis: ds.motivation || '',
-                                bestNextMove: p._dsNextMove,
-                                scripts: {
-                                    letter: ds.mail_script || '',
-                                    phone: ds.call_script || '',
-                                    door: ds.door_script || '',
-                                    avoid: ds.what_not_to_say || ''
-                                },
-                                signals: [],
-                                confirmedFacts: []
-                            };
+                            // Do NOT build a synthetic _deepSignal object here. The detail
+                            // panel branch at line ~5134 expects rich fields (signals,
+                            // confirmedFacts, metrics, whoTheyAre, howTheyThink, sellerPsychology)
+                            // that batch DS does not populate. Leaving _deepSignal undefined
+                            // forces the detail panel to fall to the _batchDeepSignal branch
+                            // (line ~5244) which renders the lite-flavored fields properly.
                         }
                     }
                     
@@ -5104,7 +5106,7 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                                 const label = pct < 0.5 ? `Top 0.5%` : pct < 1 ? `Top 1%` : pct < 2 ? `Top 2%` : pct < 5 ? `Top 5%` : pct < 10 ? `Top 10%` : `Top ${Math.ceil(pct)}%`;
                                 return `<span class="chip" style="background:#2C2418;color:#F5F0EB;border:1px solid #2C2418;font-weight:700">${label} · #${p._zipRank.toLocaleString()}</span>`;
                             })() : ''}
-                            ${p._deepSignalVerified ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal</span>` : p._batchDeepSignal ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal</span>` : p._liteScored ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">Ranked by AI</span>` : ''}
+                            ${p._deepSignalVerified ? `<span class="chip" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green-border)">✓ Deep Signal</span>` : p._batchDeepSignal ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border);font-weight:600">📋 Pre-Briefed</span>` : p._liteScored ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">Ranked by AI</span>` : ''}
                             <span class="chip chip-channel">${channel.icon} ${channel.channel}</span>
                             ${(p._deepSignalVerified || p._batchDeepSignal) && p._dsTimeframe ? `<span class="chip" style="background:var(--gold-dim);color:var(--accent);border:1px solid var(--gold-border)">${p._dsTimeframe}</span>` : ''}
                             ${p._isReo ? `<span class="chip" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(158,75,60,0.35);font-weight:700">🏦 Bank-Owned</span>` : ''}
@@ -5261,16 +5263,6 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                             <button class="detail-btn deep" style="margin:0 auto" onclick="event.stopPropagation();runDeepSignalForCard('${id}')">Run Full Deep Signal</button>
                         </div>
                     </div>
-                    ` : tier === 'call' ? `
-                    <div style="padding:14px;margin:12px 0;background:var(--bg);border-radius:8px;border-left:3px solid var(--green)">
-                        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--green);margin-bottom:8px">Investigation Summary</div>
-                        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
-                            ${p._claimSummary ? `${p._claimSummary.accepted} verified claims across ${p._claimSummary.categories} evidence categories` : 'Scored from parcel evidence'}
-                            ${p._lifeEvents && p._lifeEvents.length > 0 ? '<br>Life events: ' + p._lifeEvents.map(e => e.signal || e.type).join(', ') : ''}
-                            ${p._contradictions && p._contradictions.contradictions.length > 0 ? '<br><span style="color:var(--red)">Contradictions: ' + p._contradictions.contradictions.map(c => c.type).join(', ') + '</span>' : ''}
-                        </div>
-                        ${!p._deepSignalVerified ? '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Deep Signal upgrading in background...</div>' : ''}
-                    </div>
                     ` : p._batchDeepSignal ? `
                     <div style="padding:16px;margin:12px 0;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border)">
                         <div style="display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
@@ -5294,9 +5286,19 @@ function renderSection(icon, iconClass, title, countText, prospects, actions, ti
                         </div>` : ''}
                         ${p._batchDeepSignal.what_not_to_say ? `<div style="padding:10px 14px;background:rgba(248,113,113,0.04);border-left:3px solid rgba(248,113,113,0.3);border-radius:4px;margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;margin-bottom:4px">WHAT NOT TO SAY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${p._batchDeepSignal.what_not_to_say}</div></div>` : ''}
                         <div style="padding:14px;margin-top:14px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center">
-                            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Get the full analysis — signals, seller psychology, market value, confirmed facts, and detailed scripts</div>
+                            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">This is a pre-briefed snapshot. Get the full analysis — signals, seller psychology, market value, confirmed facts, and detailed scripts</div>
                             <button class="detail-btn deep" style="margin:0 auto" onclick="event.stopPropagation();runDeepSignalForCard('${id}')">Run Full Deep Signal</button>
                         </div>
+                    </div>
+                    ` : tier === 'call' ? `
+                    <div style="padding:14px;margin:12px 0;background:var(--bg);border-radius:8px;border-left:3px solid var(--green)">
+                        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--green);margin-bottom:8px">Investigation Summary</div>
+                        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
+                            ${p._claimSummary ? `${p._claimSummary.accepted} verified claims across ${p._claimSummary.categories} evidence categories` : 'Scored from parcel evidence'}
+                            ${p._lifeEvents && p._lifeEvents.length > 0 ? '<br>Life events: ' + p._lifeEvents.map(e => e.signal || e.type).join(', ') : ''}
+                            ${p._contradictions && p._contradictions.contradictions.length > 0 ? '<br><span style="color:var(--red)">Contradictions: ' + p._contradictions.contradictions.map(c => c.type).join(', ') + '</span>' : ''}
+                        </div>
+                        ${!p._deepSignalVerified ? '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Deep Signal upgrading in background...</div>' : ''}
                     </div>
                     ` : `
                     <div style="padding:16px;margin:12px 0;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;text-align:center">
