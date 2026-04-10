@@ -108,19 +108,40 @@ const zipNames = {
     // Bend, OR
     '97701':'Bend Central, Oregon','97702':'Bend SW, Oregon','97703':'Bend West, Oregon','97707':'Sunriver, Oregon',
     '97756':'Redmond, Oregon','97759':'Sisters, Oregon',
+    // Philadelphia, PA
+    '19102':'Center City, Philadelphia','19103':'Rittenhouse, Philadelphia','19104':'University City, Philadelphia',
+    '19106':'Old City, Philadelphia','19107':'Washington Square, Philadelphia','19118':'Chestnut Hill, Philadelphia',
+    '19119':'Chestnut Hill, Philadelphia','19122':'Temple, Philadelphia','19123':'Northern Liberties, Philadelphia',
+    '19125':'Fishtown, Philadelphia','19127':'Roxborough, Philadelphia','19128':'Manayunk, Philadelphia',
+    '19130':'Fairmount, Philadelphia','19131':'Overbrook, Philadelphia','19139':'Cobbs Creek, Philadelphia',
+    '19142':'Southwest Philadelphia','19143':'Kingsessing, Philadelphia','19144':'Germantown, Philadelphia',
+    '19145':'South Philadelphia','19146':'Graduate Hospital, Philadelphia','19147':'Queen Village, Philadelphia',
+    '19148':'Passyunk, Philadelphia','19151':'Wynnefield, Philadelphia','19153':'Eastwick, Philadelphia',
+    '19154':'Northeast Philadelphia',
+    // Nashville, TN
+    '37027':'Brentwood, Tennessee','37203':'The Gulch, Nashville','37204':'Green Hills, Nashville',
+    '37205':'West End, Nashville','37206':'East Nashville, Tennessee','37207':'Germantown, Nashville',
+    '37208':'Salemtown, Nashville','37209':'Sylvan Park, Nashville','37210':'Wedgewood-Houston, Nashville',
+    '37211':'Antioch, Nashville','37212':'12 South, Nashville','37215':'Belle Meade, Nashville',
+    '37216':'Inglewood, Nashville','37220':'Oak Hill, Nashville',
+    // Charlotte additions
+    '28203':'Dilworth, Charlotte','28204':'Plaza Midwood, Charlotte','28205':'NoDa, Charlotte','28210':'Montford, Charlotte',
 };
 const zipGradients = {
     'MT':'linear-gradient(135deg,#4A5E6E,#6A8A78)','WA':'linear-gradient(135deg,#2A3D4A,#6A8E9A)',
     'AZ':'linear-gradient(135deg,#5C4A38,#C4A87A)','FL':'linear-gradient(135deg,#1A3A4A,#5AABB8)',
     'NC':'linear-gradient(135deg,#3A4A3A,#7AAA72)','NY':'linear-gradient(135deg,#3A3A42,#7A7A8A)',
     'OR':'linear-gradient(135deg,#3A4A3A,#5A7058)',
+    'PA':'linear-gradient(135deg,#4A2E28,#A87060)',
+    'TN':'linear-gradient(135deg,#3A2E1A,#A87A4A)',
 };
 
 function getState(zip) {
     if (/^59/.test(zip)) return 'MT'; if (/^98/.test(zip)) return 'WA';
     if (/^85/.test(zip)) return 'AZ'; if (/^33/.test(zip)) return 'FL';
     if (/^28|^27/.test(zip)) return 'NC'; if (/^1[01]/.test(zip)) return 'NY';
-    if (/^97/.test(zip)) return 'OR'; return 'MT';
+    if (/^97/.test(zip)) return 'OR'; if (/^19/.test(zip)) return 'PA';
+    if (/^37/.test(zip)) return 'TN'; return 'MT';
 }
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -220,13 +241,13 @@ window.signOut = async () => { try { await sb.auth.signOut(); } catch(e) {} loca
                 <div class="quick-icon">📋</div>
                 <div><div class="quick-label">Pipeline</div><div class="quick-desc">Track prospects</div></div>
             </a>
-            <a href="/sellersignal-mail.html" class="quick-card">
-                <div class="quick-icon">✉️</div>
-                <div><div class="quick-label">Direct Mail</div><div class="quick-desc">Outreach campaigns</div></div>
-            </a>
             <a href="/sellersignal-map.html" class="quick-card">
                 <div class="quick-icon">🗺️</div>
                 <div><div class="quick-label">Map</div><div class="quick-desc">Visual intelligence</div></div>
+            </a>
+            <a href="/beta-guide.html" class="quick-card">
+                <div class="quick-icon">📖</div>
+                <div><div class="quick-label">Beta Guide</div><div class="quick-desc">How everything works</div></div>
             </a>
             <a href="/territories.html" class="quick-card">
                 <div class="quick-icon">🏷️</div>
