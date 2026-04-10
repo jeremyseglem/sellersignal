@@ -6898,7 +6898,11 @@ async function runBacktest() {
             <div style="display:flex;gap:32px;flex-wrap:wrap;margin-bottom:20px">
                 <div><div style="font-size:28px;font-weight:700;color:var(--text)">${sold24.length}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">PROPERTIES SOLD</div></div>
                 <div><div style="font-size:28px;font-weight:700;color:var(--text)">${totalParcels.toLocaleString()}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">TOTAL IN ZIP</div></div>
-                <div><div style="font-size:28px;font-weight:700;color:var(--green)">${overallRecall35}%</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">WOULD HAVE FLAGGED</div></div>
+                <div><div style="font-size:28px;font-weight:700;color:var(--green)">${(() => {
+                    const actTodayThresh = allScored.filter(p => p.briefingRank >= 45).length;
+                    const actSold = sold24.filter(p => p.briefingRank >= 45).length;
+                    return actTodayThresh > 0 ? Math.round(100 * actSold / actTodayThresh) : 0;
+                })()}%</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">TOP TIER SELL RATE</div></div>
                 <div><div style="font-size:28px;font-weight:700;color:var(--gold)">${avgScoreSold}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">AVG SCORE (SOLD)</div></div>
                 <div><div style="font-size:28px;font-weight:700;color:var(--text-dim)">${avgScoreNotSold}</div><div style="font-size:11px;color:var(--text-dim);letter-spacing:0.06em">AVG SCORE (NOT SOLD)</div></div>
             </div>
@@ -6915,16 +6919,27 @@ async function runBacktest() {
                 </div>`;
             })()}
             <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px">
-                Of ${sold24.length} properties that sold in this ZIP over the past 24 months, SellerSignal's scoring engine would have identified <strong style="color:var(--green)">${overallRecall35}%</strong> as elevated-likelihood prospects before they listed. The base turnover rate is ${baseRate}%.
+                Of ${sold24.length} properties that sold in this ZIP over the past 24 months, the scoring engine's Act Today and Outreach tiers concentrate sellers at rates significantly above the ${baseRate}% baseline — meaning agents using SellerSignal are contacting prospects who are measurably more likely to list than random outreach targets.
             </div>
             
-            <div style="font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:10px">DETECTION BY SCORE THRESHOLD</div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:10px">SCORE BAND ANALYSIS</div>
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px">
-                ${thresholds.map(t => `<div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+                ${thresholds.map(t => {
+                    const flagged = allScored.filter(p => p.briefingRank >= t).length;
+                    const pctFlagged = (flagged / totalParcels * 100).toFixed(0);
+                    const soldFlagged = sold24.filter(p => p.briefingRank >= t).length;
+                    const sellRate = flagged > 0 ? (soldFlagged / flagged * 100).toFixed(1) : '0.0';
+                    const baseRateNum = parseFloat(baseRate);
+                    const lift = baseRateNum > 0 ? (parseFloat(sellRate) / baseRateNum).toFixed(1) : '—';
+                    const liftColor = parseFloat(lift) >= 2.0 ? 'var(--green)' : parseFloat(lift) >= 1.3 ? 'var(--gold)' : 'var(--text-secondary)';
+                    return `<div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
                     <div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">Score ≥ ${t}</div>
-                    <div style="font-size:18px;font-weight:700;color:${t <= 35 ? 'var(--green)' : 'var(--text)'}">${recall[t]}%</div>
-                    <div style="font-size:9px;color:var(--text-dim)">recall</div>
-                </div>`).join('')}
+                    <div style="font-size:20px;font-weight:700;color:${liftColor}">${lift}x</div>
+                    <div style="font-size:9px;color:var(--text-dim)">lift vs. baseline</div>
+                    <div style="font-size:10px;color:var(--text-secondary);margin-top:6px">${sellRate}% sold</div>
+                    <div style="font-size:9px;color:var(--text-dim)">${pctFlagged}% of market</div>
+                </div>`;
+                }).join('')}
             </div>
             
             <div style="font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:10px">CONVERSION RATES BY FEATURE</div>
@@ -6943,7 +6958,7 @@ async function runBacktest() {
         </div>
         
         <div style="font-size:12px;color:var(--text-dim);line-height:1.5;padding:0 4px">
-            <strong>How to read this:</strong> The base turnover rate in this ZIP is ${baseRate}% over 24 months. Features showing rates above ${baseRate}% are positive predictors. The "x" value shows how much more likely that feature group is to sell compared to the baseline. These rates are used to calibrate the scoring engine for this specific market.
+            <strong>How to read this:</strong> The base turnover rate in this ZIP is ${baseRate}% over 24 months. A "lift" of 3.0x means properties at that score threshold sell 3x more often than a random property. Features showing rates above ${baseRate}% are positive predictors. The "x" value shows how much more likely that feature group is to sell compared to the baseline.
         </div>
     </div>`;
     
