@@ -101,7 +101,109 @@ MARKETS.NC = {
     if (!p.buildingValue && p.totalValue > p.landValue) p.buildingValue = p.totalValue - p.landValue;
     return p;
   },
-  zips: ['28202','28207','28209','28211','28226','28277','28270','28105','27613','27517','27707'],
+  zips: ['28202','28207','28209','28211','28226','28277','28270','28105','28203','28204','28205','28210'],
+};
+
+// =============================================
+// PHILADELPHIA, PA (CITY)
+// =============================================
+MARKETS.PA_PHILLY = {
+  key: 'PA_PHILLY', name: 'Philadelphia, PA', homeState: 'PA',
+  url: 'https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/OPA_Properties_Public/FeatureServer/0/query',
+  fields: 'owner_1,owner_2,location,zip_code,market_value,taxable_building,taxable_land,sale_date,sale_price,year_built,category_code_description,total_livable_area,total_area,mailing_street,mailing_city_state,mailing_zip,state_code,parcel_number,number_of_bedrooms,number_of_bathrooms,zoning,central_air,garage_spaces,number_stories',
+  max: 2000,
+  zipWhere: (zip) => `zip_code='${zip}'`,
+  fieldMap: {
+    id: 'parcel_number',
+    ownerName: 'owner_1',
+    address: 'location',
+    situsZip: 'zip_code',
+    totalValue: 'market_value',
+    buildingValue: 'taxable_building',
+    landValue: 'taxable_land',
+    saleDate: 'sale_date',
+    salePrice: 'sale_price',
+    yearBuilt: 'year_built',
+    sqft: 'total_livable_area',
+    mailAddress: 'mailing_street',
+    mailState: 'state_code',
+    mailZip: 'mailing_zip',
+  },
+  propTypeRules: {
+    style: 'regex', field: 'category_code_description',
+    exemptRx: /EXEMPT|CHURCH|RELIGIOUS|SCHOOL|HOSPITAL|GOVERNMENT|MUNICIPAL|CEMETERY|LIBRARY|UNIVERSITY|COLLEGE/i,
+    commercialRx: /COMMERCIAL|OFFICE|WAREHOUSE|STORE|RESTAURANT|RETAIL|INDUSTRIAL|HOTEL|MOTEL|MIXED USE/i,
+    vacantRx: /^VACANT/i,
+  },
+  parse(f) {
+    const p = parseParcel(f, this);
+    const a = f.attributes || {};
+    // Philadelphia mailing_city_state is "PHILADELPHIA PA" format — parse into parts
+    const mcs = (a.mailing_city_state || '').trim();
+    if (mcs && !p.mailCity) {
+      const parts = mcs.split(/\s+/);
+      if (parts.length >= 2) {
+        p.mailState = p.mailState || parts[parts.length - 1];
+        p.mailCity = parts.slice(0, -1).join(' ');
+      }
+    }
+    // owner_2 as secondary owner (co-owner / spouse)
+    if (a.owner_2 && !p.ownerName2) p.ownerName2 = a.owner_2;
+    // Build cityStateZip
+    if (!p.cityStateZip || p.cityStateZip === ', ') {
+      p.cityStateZip = `Philadelphia, PA ${a.zip_code || ''}`;
+    }
+    return p;
+  },
+  zips: ['19103','19102','19106','19107','19119','19118','19128','19127','19144',
+         '19130','19123','19122','19125','19147','19146','19145','19148',
+         '19104','19131','19151','19139','19143','19142','19153','19154'],
+  marketProfile: 'Major East Coast metro. Rittenhouse, Chestnut Hill, Manayunk, Fishtown, Old City, Society Hill, Queen Village, Graduate Hospital, Fairmount, Northern Liberties.',
+};
+
+// =============================================
+// NASHVILLE, TN (DAVIDSON COUNTY)
+// =============================================
+MARKETS.TN_DAVIDSON = {
+  key: 'TN_DAVIDSON', name: 'Nashville / Davidson County, TN', homeState: 'TN',
+  url: 'https://services2.arcgis.com/HdTo6HJqh92wn4D8/arcgis/rest/services/Parcels_view/FeatureServer/0/query',
+  fields: 'Owner,OwnAddr1,OwnCity,OwnState,OwnZip,PropAddr,PropCity,PropZip,TotlAppr,LandAppr,ImprAppr,OwnDate,SalePrice,LUDesc,Acres,Lat,Lon,STANPAR,Zoning',
+  max: 2000,
+  zipWhere: (zip) => `PropZip='${zip}'`,
+  latField: 'Lat', lngField: 'Lon',
+  fieldMap: {
+    id: 'STANPAR',
+    ownerName: 'Owner',
+    address: 'PropAddr',
+    situsCity: 'PropCity',
+    situsZip: 'PropZip',
+    totalValue: 'TotlAppr',
+    buildingValue: 'ImprAppr',
+    landValue: 'LandAppr',
+    saleDate: 'OwnDate',
+    salePrice: 'SalePrice',
+    acres: 'Acres',
+    mailAddress: 'OwnAddr1',
+    mailCity: 'OwnCity',
+    mailState: 'OwnState',
+    mailZip: 'OwnZip',
+  },
+  propTypeRules: {
+    style: 'regex', field: 'LUDesc',
+    exemptRx: /EXEMPT|CHURCH|RELIGIOUS|SCHOOL|HOSPITAL|GOVERNMENT|CEMETERY|LIBRARY|UNIVERSITY|COLLEGE|MUNICIPAL|STATE|FEDERAL/i,
+    commercialRx: /COMMERCIAL|OFFICE|WAREHOUSE|RETAIL|RESTAURANT|INDUSTRIAL|HOTEL|MOTEL|SHOPPING|APARTMENT/i,
+    vacantRx: /^VACANT|RES VACANT/i,
+  },
+  parse(f) {
+    const p = parseParcel(f, this);
+    const a = f.attributes || {};
+    if (!p.cityStateZip || p.cityStateZip === ', ') {
+      p.cityStateZip = `${(a.PropCity || 'Nashville').trim()}, TN ${a.PropZip || ''}`;
+    }
+    return p;
+  },
+  zips: ['37215','37205','37212','37206','37203','37204','37216','37220','37211','37210','37207','37208','37209','37027'],
+  marketProfile: 'Fastest-growing Southeast metro. Belle Meade, Green Hills, 12 South, East Nashville, The Gulch, Germantown, Brentwood (partial). High in-migration, strong agent community.',
 };
 
 MARKETS.FL_PB = {
