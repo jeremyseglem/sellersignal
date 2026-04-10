@@ -1369,6 +1369,7 @@ SOURCES.PA_PHILLY = {
     key: 'PA_PHILLY', name: 'Philadelphia, PA', homeState: 'PA',
     marketProfile: 'Major East Coast metro. Rittenhouse Square, Chestnut Hill, Manayunk, Fishtown, Old City, Society Hill, Queen Village. 78-field dataset — one of the richest municipal property databases in the country.',
     url: 'https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/OPA_Properties_Public/FeatureServer/0/query',
+    max: 2000, bounds: { south: 39.86, north: 40.14, west: -75.28, east: -74.96 },
     fields: 'owner_1,owner_2,location,zip_code,market_value,taxable_building,taxable_land,sale_date,sale_price,year_built,category_code_description,total_livable_area,total_area,mailing_street,mailing_city_state,mailing_zip,state_code,parcel_number,number_of_bedrooms,number_of_bathrooms,zoning,central_air,garage_spaces,number_stories',
     max: 2000,
     zipWhere: (zip) => `zip_code='${zip}'`,
@@ -1420,6 +1421,7 @@ SOURCES.TN_DAVIDSON = {
     key: 'TN_DAVIDSON', name: 'Nashville / Davidson County, TN', homeState: 'TN',
     marketProfile: 'Fastest-growing Southeast metro. Belle Meade, Green Hills, 12 South, East Nashville, The Gulch, Germantown. High in-migration, 6000+ active agents, diverse neighborhoods from ultra-luxury Belle Meade to hip East Nashville.',
     url: 'https://services2.arcgis.com/HdTo6HJqh92wn4D8/arcgis/rest/services/Parcels_view/FeatureServer/0/query',
+    max: 2000, bounds: { south: 35.95, north: 36.40, west: -87.05, east: -86.51 },
     fields: 'Owner,OwnAddr1,OwnCity,OwnState,OwnZip,PropAddr,PropCity,PropZip,TotlAppr,LandAppr,ImprAppr,OwnDate,SalePrice,LUDesc,Acres,Lat,Lon,STANPAR,Zoning',
     max: 2000,
     zipWhere: (zip) => `PropZip='${zip}'`,
@@ -3924,7 +3926,7 @@ async function startBriefing() {
         }
         
         if (!source) {
-            document.getElementById('briefingContent').innerHTML = '<div class="empty-state">ZIP code not found in covered areas. Currently available: Montana, King County WA, Maricopa County AZ, Palm Beach County FL, New York State, North Carolina, Deschutes County OR.</div>';
+            document.getElementById('briefingContent').innerHTML = '<div class="empty-state">ZIP code not found in covered areas. Currently available: Montana, King County WA, Maricopa County AZ, Palm Beach FL, Miami-Dade FL, Charlotte NC, Philadelphia PA, Nashville TN.</div>';
             return;
         }
     } else {
@@ -3943,7 +3945,7 @@ async function startBriefing() {
         }
         
         if (!source) {
-            document.getElementById('briefingContent').innerHTML = '<div class="empty-state">This area isn\'t covered yet. Currently available: Montana, King County WA, Maricopa County AZ, Palm Beach County FL, New York State, North Carolina, Deschutes County OR.</div>';
+            document.getElementById('briefingContent').innerHTML = '<div class="empty-state">This area isn\'t covered yet. Currently available: Montana, King County WA, Maricopa County AZ, Palm Beach FL, Miami-Dade FL, Charlotte NC, Philadelphia PA, Nashville TN.</div>';
             return;
         }
     }
