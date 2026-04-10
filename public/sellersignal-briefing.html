@@ -436,16 +436,29 @@ body.demo-mode .mf-toast{display:none!important}
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='28270';startBriefing()">28270 · Providence</button>
             <button class="quick-btn" onclick="document.getElementById('farmInput').value='28105';startBriefing()">28105 · Matthews</button>
         </div>
-        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px">RALEIGH / DURHAM / ASHEVILLE, NC</div>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px;margin-top:12px">PHILADELPHIA, PA</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='27609';startBriefing()">27609 · N Raleigh</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='27615';startBriefing()">27615 · N Hills</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='27613';startBriefing()">27613 · W Raleigh</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='27517';startBriefing()">27517 · Chapel Hill</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='27707';startBriefing()">27707 · Durham</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='28803';startBriefing()">28803 · S Asheville</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='28804';startBriefing()">28804 · N Asheville</button>
-            <button class="quick-btn" onclick="document.getElementById('farmInput').value='28401';startBriefing()">28401 · Wilmington</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19103';startBriefing()">19103 · Rittenhouse</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19106';startBriefing()">19106 · Old City</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19119';startBriefing()">19119 · Chestnut Hill</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19118';startBriefing()">19118 · Chestnut Hill W</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19128';startBriefing()">19128 · Manayunk</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19125';startBriefing()">19125 · Fishtown</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19130';startBriefing()">19130 · Fairmount</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19147';startBriefing()">19147 · Queen Village</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19123';startBriefing()">19123 · N Liberties</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='19146';startBriefing()">19146 · Grad Hospital</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px;margin-top:12px">NASHVILLE, TN</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37215';startBriefing()">37215 · Belle Meade</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37205';startBriefing()">37205 · West End</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37212';startBriefing()">37212 · 12 South</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37206';startBriefing()">37206 · East Nashville</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37203';startBriefing()">37203 · The Gulch</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37204';startBriefing()">37204 · Green Hills</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37220';startBriefing()">37220 · Oak Hill</button>
+            <button class="quick-btn" onclick="document.getElementById('farmInput').value='37027';startBriefing()">37027 · Brentwood</button>
         </div>
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;margin-bottom:8px">KING COUNTY, WA</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px">
@@ -559,10 +572,13 @@ const ZIP_NAMES = {
     '33480':'Palm Beach','33486':'Boca Raton','33496':'Boca W','33432':'Boca E','33433':'Boca S','33487':'Boca Beach','33458':'Jupiter','33408':'N Palm Beach','33462':'Lantana','33434':'W Boca',
     '33139':'Miami Beach','33140':'N Miami Beach','33131':'Brickell','33133':'Coconut Grove','33134':'Coral Gables','33149':'Key Biscayne','33156':'Pinecrest','33143':'South Miami',
     '28202':'Uptown','28207':'Elizabeth','28209':'Myers Park','28211':'SouthPark','28226':'Ballantyne','28277':'Ballantyne W','28270':'Providence','28105':'Matthews',
+    '28203':'Dilworth','28204':'Plaza Midwood','28205':'NoDa','28210':'Montford',
     '27609':'N Raleigh','27615':'N Hills','27613':'W Raleigh','27517':'Chapel Hill','27707':'Durham','28803':'S Asheville','28804':'N Asheville','28401':'Wilmington',
     '98112':'Capitol Hill','98004':'Bellevue','98033':'Kirkland','98040':'Mercer Island','98039':'Medina','98074':'Sammamish','98103':'Fremont','98109':'Queen Anne','98105':'U District','98199':'Magnolia',
     '10021':'Upper East','10024':'Upper West','10014':'West Village','10013':'Tribeca','11201':'Brooklyn Hts','10583':'Scarsdale',
-    '97701':'Bend Central','97702':'Bend SW','97703':'Bend W','97707':'Sunriver','97756':'Redmond','97759':'Sisters'
+    '97701':'Bend Central','97702':'Bend SW','97703':'Bend W','97707':'Sunriver','97756':'Redmond','97759':'Sisters',
+    '19103':'Rittenhouse','19102':'Center City','19106':'Old City','19107':'Washington Sq','19119':'Chestnut Hill','19118':'Chestnut Hill W','19128':'Manayunk','19127':'Roxborough','19144':'Germantown','19130':'Fairmount','19123':'N Liberties','19122':'Temple','19125':'Fishtown','19147':'Queen Village','19146':'Grad Hospital','19145':'S Philly','19148':'Passyunk','19104':'University City','19131':'Overbrook','19151':'Wynnefield','19139':'Cobbs Creek','19143':'Kingsessing','19142':'SW Philly','19153':'Eastwick','19154':'NE Philly',
+    '37215':'Belle Meade','37205':'West End','37212':'12 South','37206':'East Nashville','37203':'The Gulch','37204':'Green Hills','37216':'Inglewood','37220':'Oak Hill','37211':'Antioch','37210':'Wedgewood-Houston','37207':'Germantown','37208':'Salemtown','37209':'Sylvan Park','37027':'Brentwood'
 };
 
 (async function checkAuth() {
@@ -4985,6 +5001,10 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         '10013':'Tribeca, New York','10014':'West Village, New York','10021':'Upper East Side, New York','10024':'Upper West Side, New York','10583':'Scarsdale, New York','11201':'Brooklyn Heights, New York',
         // Oregon
         '97701':'Bend, Oregon','97702':'South Bend, Oregon','97703':'Tumalo, Oregon','97707':'Sunriver, Oregon','97756':'Redmond, Oregon','97759':'Sisters, Oregon',
+        // Philadelphia PA
+        '19103':'Rittenhouse Square, Philadelphia','19102':'Center City, Philadelphia','19106':'Old City, Philadelphia','19107':'Washington Square, Philadelphia','19119':'Chestnut Hill, Philadelphia','19118':'Chestnut Hill, Philadelphia','19128':'Manayunk, Philadelphia','19127':'Roxborough, Philadelphia','19144':'Germantown, Philadelphia','19130':'Fairmount, Philadelphia','19123':'Northern Liberties, Philadelphia','19122':'Temple, Philadelphia','19125':'Fishtown, Philadelphia','19147':'Queen Village, Philadelphia','19146':'Graduate Hospital, Philadelphia','19145':'South Philadelphia','19148':'Passyunk, Philadelphia','19104':'University City, Philadelphia','19131':'Overbrook, Philadelphia','19151':'Wynnefield, Philadelphia','19139':'Cobbs Creek, Philadelphia','19143':'Kingsessing, Philadelphia','19142':'Southwest Philadelphia','19153':'Eastwick, Philadelphia','19154':'Northeast Philadelphia',
+        // Nashville TN
+        '37215':'Belle Meade, Nashville','37205':'West End, Nashville','37212':'12 South, Nashville','37206':'East Nashville, Tennessee','37203':'The Gulch, Nashville','37204':'Green Hills, Nashville','37216':'Inglewood, Nashville','37220':'Oak Hill, Nashville','37211':'Antioch, Nashville','37210':'Wedgewood-Houston, Nashville','37207':'Germantown, Nashville','37208':'Salemtown, Nashville','37209':'Sylvan Park, Nashville','37027':'Brentwood, Tennessee',
     };
     const zipAtmospheres = {
         // Montana — mountain green
@@ -5001,6 +5021,10 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
         '10013':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10014':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10021':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10024':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','10583':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)','11201':'linear-gradient(135deg,#3A3A42 0%,#4A4A55 30%,#5A5A68 60%,#7A7A8A 100%)',
         // Oregon — pine forest
         '97701':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97702':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97703':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97707':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97756':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)','97759':'linear-gradient(135deg,#3A4A3A 0%,#4A5E48 30%,#5A7058 60%,#3A5040 100%)',
+        // Philadelphia — red brick / independence blue
+        '19103':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19102':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19106':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19107':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19119':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19118':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19128':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19127':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19144':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19130':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19123':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19122':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19125':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19147':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19146':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19145':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19148':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19104':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19131':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19151':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19139':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19143':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19142':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19153':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)','19154':'linear-gradient(135deg,#4A2E28 0%,#6B4038 30%,#8A5848 60%,#A87060 100%)',
+        // Nashville — warm bourbon amber
+        '37215':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37205':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37212':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37206':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37203':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37204':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37216':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37220':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37211':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37210':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37207':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37208':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37209':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)','37027':'linear-gradient(135deg,#3A2E1A 0%,#5A4428 30%,#7A5A38 60%,#A87A4A 100%)',
     };
     const farmEl = document.getElementById('briefFarm');
     const farmZip = farmEl?.textContent?.trim() || '';
