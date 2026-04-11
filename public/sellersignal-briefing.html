@@ -4912,14 +4912,15 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     // RANK + PERCENTILE WITHIN ZIP — computed against the ADDRESSABLE population
     // (after resort/fractional and active-listing filters), so ranks reflect what
     // users actually see in the briefing. Rank #1 is the #1 prospect they could
-    // contact today, not the #1 absolute score (which might be a Marriott condo
-    // we filtered out).
+    // contact today. Uses the SAME sort as tier assignment (_sortRank) so that
+    // the visible rank matches the tier ordering — rank #1 is always in Act Today,
+    // rank #2 is the second card, etc. No gaps.
     const addressable = liveEnriched.filter(p => !p._activeListingBlocker && !isResortFractional(p));
-    const rankSorted = [...addressable].sort((a, b) => 
-        (b.sellerLikelihood || b.briefingRank || 0) - (a.sellerLikelihood || a.briefingRank || 0)
-    );
-    const zipTotal = rankSorted.length;
-    rankSorted.forEach((p, i) => {
+    // Already sorted by _sortRank from renderBriefing() step, but re-sort to be safe
+    // in case upstream filtering changed the order
+    addressable.sort((a, b) => (b._sortRank || 0) - (a._sortRank || 0));
+    const zipTotal = addressable.length;
+    addressable.forEach((p, i) => {
         p._zipRank = i + 1;
         p._zipTotal = zipTotal;
         p._zipPercentile = zipTotal > 0 ? ((i + 1) / zipTotal) * 100 : 100;
@@ -5050,9 +5051,8 @@ function renderBriefing(prospects, totalAnalyzed, marketMatches, totalMarketSign
     }
 
     document.getElementById('briefStats').innerHTML = `
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(44,36,24,0.06)">
-            <div style="background:var(--bg-card);padding:16px 10px;text-align:center;cursor:pointer" onclick="window.open('sellersignal-map.html','_blank')"><div style="font-size:22px;font-weight:700;color:var(--text)">${totalAnalyzed.toLocaleString()}</div><div style="font-size:8px;color:var(--text-dim);letter-spacing:0.08em;margin-top:3px">PARCELS</div></div>
-            <div style="background:var(--bg-card);padding:16px 10px;text-align:center"><div style="font-size:22px;font-weight:700;color:var(--text)">${(window._precomputedBriefing?.unique_owners || collapsed.length).toLocaleString()}</div><div style="font-size:8px;color:var(--text-dim);letter-spacing:0.08em;margin-top:3px">PROSPECTS</div></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(44,36,24,0.06)">
+            <div style="background:var(--bg-card);padding:16px 10px;text-align:center"><div style="font-size:22px;font-weight:700;color:var(--text)">${(window._precomputedBriefing?.unique_owners || collapsed.length).toLocaleString()}</div><div style="font-size:8px;color:var(--text-dim);letter-spacing:0.08em;margin-top:3px">OWNERS</div></div>
             <div style="background:var(--bg-card);padding:16px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('section-call')?.scrollIntoView({behavior:'smooth'})"><div style="font-size:22px;font-weight:700;color:var(--green)">${high}</div><div style="font-size:8px;color:var(--text-dim);letter-spacing:0.08em;margin-top:3px">ACT TODAY</div></div>
             <div style="background:var(--bg-card);padding:16px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('section-mail')?.scrollIntoView({behavior:'smooth'})"><div style="font-size:22px;font-weight:700;color:var(--gold)">${med}</div><div style="font-size:8px;color:var(--text-dim);letter-spacing:0.08em;margin-top:3px">OUTREACH</div></div>
             <div style="background:var(--bg-card);padding:16px 10px;text-align:center;cursor:pointer" onclick="document.getElementById('section-watch')?.scrollIntoView({behavior:'smooth'})"><div style="font-size:22px;font-weight:700;color:var(--text-dim)">${watchList.length}</div><div style="font-size:8px;color:var(--text-dim);letter-spacing:0.08em;margin-top:3px">WATCH</div></div>
