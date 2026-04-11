@@ -608,6 +608,124 @@ function getCacheKey(ownerName, propertyAddress) {
   return `${ownerName.toLowerCase().trim()}|${propertyAddress.toLowerCase().trim()}|${DEEP_SIGNAL_VERSION}`;
 }
 
+// ===================================================================
+// SANITIZE SIGNALS — strip hollow/fabricated signals before caching
+// ===================================================================
+// The LLM will sometimes generate signals that aren't real evidence:
+//   - "No digital footprint" = absence of evidence, not positive signal
+//   - "In gentrifying neighborhood" = macro-market fact, applies to all
+//   - "Complete absence of owner data" = contradicts anything else
+//   - "No recent listing history" = expected default, not a signal
+// These patterns destroy user trust by manufacturing false confidence.
+// This filter runs on every Deep Signal result before it hits the cache.
+// ===================================================================
+const HOLLOW_SIGNAL_PATTERNS = [
+  // Absence-of-evidence patterns (most common failure mode)
+  /no\s+digital\s+footprint/i,
+  /no\s+online\s+presence/i,
+  /no\s+public\s+records?/i,
+  /no\s+recent\s+listing/i,
+  /no\s+listing\s+history/i,
+  /no\s+social\s+media/i,
+  /no\s+search\s+results/i,
+  /no\s+information\s+(available|found)/i,
+  /limited\s+public\s+information/i,
+  /minimal\s+online\s+presence/i,
+  /not\s+found\s+in\s+search/i,
+  /complete\s+absence\s+of/i,
+  /absence\s+of\s+owner\s+data/i,
+  /lack\s+of\s+(public|digital|online)/i,
+  /unable\s+to\s+(find|locate|verify)/i,
+  /cannot\s+(find|locate|verify)/i,
+  /insufficient\s+data/i,
+  // Macro-market observations (apply to entire neighborhood, not individual)
+  /rapidly\s+gentrifying/i,
+  /in\s+a?\s*gentrifying/i,
+  /neighborhood\s+is\s+(gentrifying|appreciating|rising)/i,
+  /property\s+in\s+.{0,30}(gentrifying|appreciating|booming|hot)/i,
+  /market\s+is\s+(hot|appreciating|rising)/i,
+  /area\s+property\s+values/i,
+  /rising\s+property\s+values?\s+in/i,
+  // Tautological "based on name format" claims
+  /based\s+on\s+name\s+format/i,
+  /individual\s+ownership\s+based\s+on/i,
+  // Self-contradictory filler
+  /based\s+on\s+limited\s+data/i,
+  /based\s+on\s+available\s+information/i,
+];
+
+function isHollowSignal(signal) {
+  if (!signal || typeof signal !== 'object') return true;
+  const text = (signal.text || '').trim();
+  if (!text || text.length < 5) return true;
+  // Check against all hollow patterns
+  for (const pattern of HOLLOW_SIGNAL_PATTERNS) {
+    if (pattern.test(text)) return true;
+  }
+  return false;
+}
+
+function sanitizeDeepSignalResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  
+  // 1. Filter signals array — drop hollow entries
+  if (Array.isArray(result.signals)) {
+    const before = result.signals.length;
+    result.signals = result.signals.filter(s => !isHollowSignal(s));
+    const removed = before - result.signals.length;
+    if (removed > 0) {
+      console.log(`[sanitize] Stripped ${removed} hollow signals from Deep Signal result`);
+    }
+  }
+  
+  // 2. Filter confirmedFacts — drop tautological "owner name appears as X" entries
+  if (Array.isArray(result.confirmedFacts)) {
+    result.confirmedFacts = result.confirmedFacts.filter(f => {
+      const text = (typeof f === 'string' ? f : (f.text || f.fact || '')).trim();
+      if (!text) return false;
+      // Drop "Owner name appears as X" — that's just restating the input
+      if (/owner\s+name\s+appears\s+as/i.test(text)) return false;
+      if (/based\s+on\s+name\s+format/i.test(text)) return false;
+      return true;
+    });
+  }
+  
+  // 3. If sellerPsychology contains only generic hedges, null it out
+  if (result.sellerPsychology && typeof result.sellerPsychology === 'object') {
+    const psych = result.sellerPsychology;
+    const isGenericHedge = (text) => {
+      if (!text || text.length < 15) return true;
+      // "May be motivated by rising property values" / "Privacy concerns likely create"
+      // — these are boilerplate that apply to everyone
+      const boilerplate = [
+        /privacy\s+concerns\s+likely\s+create/i,
+        /may\s+be\s+motivated\s+by\s+(rising|gentrifying|appreciation)/i,
+        /long-term\s+resident\s+watching/i,
+        /emotional\s+attachment\s+to\s+property\s+or\s+neighborhood/i,
+        /continued\s+gentrification\s+and\s+rising/i,
+      ];
+      return boilerplate.some(p => p.test(text));
+    };
+    if (isGenericHedge(psych.motivations) && isGenericHedge(psych.hesitations)) {
+      // Both sides are generic — kill the whole section
+      result.sellerPsychology = null;
+      console.log('[sanitize] Stripped generic sellerPsychology section');
+    }
+  }
+  
+  // 4. Mark the result as low-evidence if nothing real survived
+  const hasRealSignals = Array.isArray(result.signals) && result.signals.length > 0;
+  const hasRealFacts = Array.isArray(result.confirmedFacts) && result.confirmedFacts.length > 0;
+  const hasPsych = result.sellerPsychology && (result.sellerPsychology.motivations || result.sellerPsychology.hesitations);
+  
+  if (!hasRealSignals && !hasRealFacts && !hasPsych) {
+    result._lowEvidence = true;
+    result.dataQuality = 'Limited';
+  }
+  
+  return result;
+}
+
 async function getFromCache(ownerName, propertyAddress) {
   if (!supabase) return null;
   const cacheKey = getCacheKey(ownerName, propertyAddress);
@@ -617,7 +735,9 @@ async function getFromCache(ownerName, propertyAddress) {
     .eq('cache_key', cacheKey)
     .gt('expires_at', new Date().toISOString())
     .single();
-  return data?.result || null;
+  // Sanitize on read too — cleans old cached entries that were written before
+  // the sanitizer existed. Safe to call on already-clean results (idempotent).
+  return data?.result ? sanitizeDeepSignalResult(data.result) : null;
 }
 
 async function saveToCache(ownerName, propertyAddress, result) {
@@ -834,6 +954,9 @@ Extract all relevant information and generate the JSON report. Only include info
     if (!jsonMatch) throw new Error('Could not parse response');
 
     const result = JSON.parse(jsonMatch[0]);
+    
+    // Strip hollow signals before caching — prevents false confidence on low-evidence prospects
+    sanitizeDeepSignalResult(result);
     
     // Save to cache
     await saveToCache(ownerName, propertyAddress, result);
@@ -1995,6 +2118,52 @@ CRITICAL RULES:
 - If the owner is an entity and a principal/member has been identified, build the profile around THAT PERSON.
 - COUNTY ASSESSED VALUES ARE TAX BASIS ONLY — they are often 30-80% below actual market value, especially in Montana. NEVER use assessed value as estimated market value. Use Zillow/Redfin/Realtor estimates from search results for the estimatedMarketValue field. If no listing-site estimate is found, note "Not found from search data" — do NOT fall back to assessed value.
 
+DATA HONESTY RULES — VIOLATIONS DESTROY USER TRUST:
+
+Signals must represent REAL evidence about THIS specific owner. A signal is only valid if it meets ALL three tests:
+  1. EVIDENCE-BASED: You found something concrete — a fact, a record, a search result. Not "I couldn't find anything."
+  2. INDIVIDUAL: It's about THIS person or THIS property. Not a neighborhood-wide observation.
+  3. DIFFERENTIATING: It wouldn't apply equally to every other parcel in this ZIP code.
+
+FORBIDDEN SIGNAL PATTERNS — never include these in the signals array:
+
+A. ABSENCE-OF-EVIDENCE as positive signals. These are invalid:
+   ❌ "No digital footprint" / "No online presence" / "No social media"
+   ❌ "No recent listing history" / "Not in MLS"
+   ❌ "Limited public information" / "Minimal search results"
+   ❌ "Complete absence of owner data"
+   ❌ "Unable to verify X" / "Cannot locate Y"
+   The absence of information is not a seller signal. It is a data quality limitation.
+
+B. MACRO-MARKET OBSERVATIONS as individual signals. These apply to every parcel in the ZIP:
+   ❌ "Property in rapidly gentrifying [neighborhood]"
+   ❌ "Rising property values in the area"
+   ❌ "Hot market / appreciating neighborhood"
+   ❌ "Market conditions favor sellers"
+   If the signal applies to 1000+ other parcels in this ZIP, it is not a signal about THIS owner.
+
+C. TAUTOLOGICAL RESTATEMENTS of the input:
+   ❌ "Owner name appears as [input name]"
+   ❌ "Individual ownership based on name format"
+   ❌ "Property located at [input address]"
+   These are not confirmed facts — they are just echoing what was given to you.
+
+D. GENERIC BOILERPLATE psychology that applies to everyone:
+   ❌ "Privacy concerns likely create resistance"
+   ❌ "May be emotionally attached to property"
+   ❌ "Motivated by rising values if long-term resident"
+   Only include sellerPsychology claims grounded in something specific — segment, tenure, age, family situation, entity type — not generic hedges.
+
+WHEN YOU HAVE NO REAL EVIDENCE:
+If search results returned nothing meaningful about this owner, the correct response is:
+  - signals: []  (empty array — it is better to show nothing than fabricate)
+  - confirmedFacts: [only facts you actually confirmed, or []]
+  - sellerPsychology: null or {} if you cannot ground it in specific evidence
+  - dataQuality: "Limited"
+  - sellerLikelihood: keep close to the preliminary heuristic score; do not inflate
+
+An empty signals array is a HONEST result. Manufactured signals are a BROKEN result that makes users distrust the entire system. When in doubt, return less — not more.
+
 STEP 1: SEGMENT THE OWNER
 
 Classify the property owner into the PRIMARY cohort that best fits. Choose one:
@@ -3012,6 +3181,9 @@ Generate the Deep Signal report. Use Zillow/Redfin/Realtor estimates for market 
     if (!jsonMatch) throw new Error('Could not parse response');
     const result = JSON.parse(jsonMatch[0]);
 
+    // Strip hollow signals before caching
+    sanitizeDeepSignalResult(result);
+
     // Cache
     await saveToCache(searchName, propertyAddress, result);
     res.json(result);
@@ -3251,6 +3423,9 @@ Generate the Deep Signal report. Use Zillow/Redfin/Realtor estimates for market 
     const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Could not parse response');
     const result = JSON.parse(jsonMatch[0]);
+
+    // Strip hollow signals before sending + caching
+    sanitizeDeepSignalResult(result);
 
     send('progress', { stage: 'complete', message: 'Deep Signal complete' });
     send('result', result);
