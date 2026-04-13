@@ -169,13 +169,45 @@ async function processZip(zip, market) {
   let ranked = parcels.map((p,i) => ({p, s: scores[i]})).filter(x => x.s.briefingRank > 0).sort((a,b) => b.s.briefingRank - a.s.briefingRank);
 
   // === LISTING HISTORY ENRICHMENT ===
-  // Search Zillow/Redfin for top prospects — boost score if previously listed
+  // Cache-first architecture: the investigation_cache table (populated by
+  // batch/worker-v2.js Layer 3 runs) already contains listing history data for
+  // hundreds of parcels with a 30-day TTL. Before burning fresh SerpAPI calls,
+  // we batch-fetch the cache for every parcel we're about to check, apply the
+  // cached listing signals, and ONLY call searchGoogle for parcels with no
+  // cache hit. This eliminates redundant work — we're no longer re-searching
+  // the same Zillow pages every batch run for parcels that were already
+  // investigated.
+  //
+  // Impact: for markets with existing investigation_cache coverage (59715
+  // Bozeman ~246 parcels, 98004 Bellevue ~193 parcels as of Apr 13 2026),
+  // listing enrichment runs with near-zero SerpAPI cost. For markets without
+  // coverage, falls through to live search as before. Cache fills naturally
+  // over time as worker-v2 runs investigate more parcels.
   const skipListing = process.argv.includes('--nolisting');
   if (!skipListing && process.env.SERPAPI_KEY) {
     const { searchGoogle } = require('./investigate');
     const listingCheckCount = Math.min(ranked.length, 150);
     log(`  Listing check: ${listingCheckCount} parcels...`);
+    
+    // Batch-fetch investigation_cache for every parcel we might check.
+    // This is ONE round-trip to Supabase instead of 150 potential cache queries.
+    const checkIds = ranked.slice(0, listingCheckCount).map(r => r.p.id);
+    const { data: cachedRows } = await supabase
+      .from('investigation_cache')
+      .select('parcel_id, enhanced_claims, expires_at')
+      .in('parcel_id', checkIds);
+    
+    const now = new Date();
+    const listingCacheMap = new Map();
+    for (const cr of (cachedRows || [])) {
+      if (new Date(cr.expires_at) > now) {
+        listingCacheMap.set(cr.parcel_id, cr.enhanced_claims || {});
+      }
+    }
+    log(`  Listing cache: ${listingCacheMap.size}/${checkIds.length} parcels have cached research`);
+    
     let boosted = 0;
+    let freshSearches = 0;
     
     for (let i = 0; i < listingCheckCount; i++) {
       const r = ranked[i];
@@ -197,7 +229,41 @@ async function processZip(zip, market) {
         continue;
       }
       
+      // CACHE HIT — use stored listing signals instead of re-searching.
+      // enhanced_claims.listingSignals is an array of pre-extracted detail
+      // strings like "Property was listed but is now off market", "Price
+      // reductions in history — motivated seller", "Has listing platform
+      // history", "$193,552" (historical_price). We match the same patterns
+      // the live path uses to decide boost and signal text.
+      const cached = listingCacheMap.get(r.p.id);
+      if (cached) {
+        const listingSignals = cached.listingSignals || [];
+        const joined = listingSignals.join(' ').toLowerCase();
+        
+        const wasListed = /off\s*market|removed|delisted|withdrawn|expired|cancelled|previously listed/.test(joined);
+        const priceReduced = /price (cut|drop|reduced|change)|reduced by|motivated seller/.test(joined);
+        const hasHistory = listingSignals.some(s => /listing platform history|zillow/i.test(s));
+        
+        if (wasListed) {
+          r.s.briefingRank = Math.min(100, r.s.briefingRank + 20);
+          r.s._listingBoost = 20;
+          r.s._listingSignal = 'Previously listed — off market / withdrawn / expired (cached)';
+          boosted++;
+        } else if (priceReduced) {
+          r.s.briefingRank = Math.min(100, r.s.briefingRank + 15);
+          r.s._listingBoost = 15;
+          r.s._listingSignal = 'Price reductions in listing history (cached)';
+          boosted++;
+        } else if (hasHistory) {
+          r.s._listingSignal = 'Has Zillow listing page (cached)';
+        }
+        continue; // cache hit — no SerpAPI call needed
+      }
+      
+      // CACHE MISS — fall through to live Zillow search. This is the only
+      // path that burns SerpAPI budget in the listing enrichment loop.
       const city = r.p.ownerCity || r.p.city || 'Bozeman';
+      freshSearches++;
       try {
         const results = await searchGoogle(`"${addr}" "${city}" site:zillow.com`);
         if (results && results.length > 0) {
@@ -223,13 +289,13 @@ async function processZip(zip, market) {
         }
       } catch(e) { /* skip */ }
       
-      // Rate limit
-      if (i % 8 === 7) await new Promise(resolve => setTimeout(resolve, 300));
+      // Rate limit — only when we actually made a live call
+      if (freshSearches % 8 === 0) await new Promise(resolve => setTimeout(resolve, 300));
     }
     
     // Re-sort after boosts
     ranked.sort((a,b) => (b.s.lite_score || b.s.briefingRank) - (a.s.lite_score || a.s.briefingRank));
-    log(`  Listing: ${boosted} boosted out of ${listingCheckCount} checked`);
+    log(`  Listing: ${boosted} boosted out of ${listingCheckCount} checked (${freshSearches} SerpAPI calls, ${listingCacheMap.size} cache hits)`);
   } else if (skipListing) {
     log(`  Listing check: skipped (--nolisting)`);
   }
@@ -272,24 +338,199 @@ ${d}`}] });
   }
 
   // === DEEP SIGNAL ===
+  // Reads investigation_cache (populated by worker-v2 AND by this worker's own
+  // fresh-investigation path below) for grounded psychological profiling data.
+  // When cached research exists for a top-5 parcel, we pass the extracted
+  // signals + enhanced_claims into the LLM prompt so it can produce rich,
+  // fact-grounded reports referencing real life events, identity markers,
+  // demographics, and financial signals.
+  //
+  // CRITICAL CHANGE (Apr 13 2026): Previously this block only READ the cache
+  // and never populated it. That meant rich Deep Signals only existed for
+  // parcels worker-v2 had already investigated (439 parcels as of the April 4
+  // worker-v2 run), with very low overlap against today's top-5 due to
+  // scoring model changes (post-Rhythm-cap, post-Act-Today-floor, post-float-
+  // fix). In practice: 1/5 Bellevue top-5 had cache hits, 0/5 Bozeman.
+  //
+  // Fix: for every top-5 parcel that doesn't have a cache hit, run
+  // investigateParcel LIVE, write the result to investigation_cache with
+  // 30-day TTL, and include it in this run's Deep Signal prompt. On the
+  // first post-deploy batch across all 113 ZIPs, this costs roughly
+  // 5 prospects × ~16 searches × 113 ZIPs = ~9,000 SerpAPI calls (a one-time
+  // investment inside the Big Data 30K/mo plan). On subsequent batches, the
+  // cost drops to near-zero because most top-5 parcels will already be
+  // cached; only parcels that churn into the top 5 AND weren't previously
+  // cached need fresh investigation.
   let pendingDS = [];
   if (!skipAI && anthropic) {
     const top = ranked.slice(0, 5);
     try {
       log(`  Deep Signal ${top.length}...`);
-      const d = top.map((r,i) => `[${i+1}] ${r.p.ownerName} — ${r.p.address}, ${r.p.cityStateZip}\n  ${r.s.cohortLabel} | $${(r.p.totalValue||0).toLocaleString()} | Mail: ${r.p.ownerAddress||'?'}\n  Tenure: ${r.p.tenureYears!=null?r.p.tenureYears+'yr':'?'} | AI: ${r.s.lite_score||'?'} ${r.s.lite_headline||''}`).join('\n\n');
-      const p = anthropic.messages.create({ model:'claude-sonnet-4-20250514', max_tokens:8000,
-        messages:[{role:'user',content:`You are SellerSignal's Deep Signal engine. For each prospect, produce a DETAILED intelligence report. Scripts should be FULL PARAGRAPHS (4-6 sentences) that an agent can use verbatim.
+      
+      // Fetch cached investigation data for the top 5 parcels
+      const topIds = top.map(r => r.p.id);
+      const { data: cachedInvs } = await supabase
+        .from('investigation_cache')
+        .select('parcel_id, signals, enhanced_claims, summary, investigated_at, expires_at')
+        .in('parcel_id', topIds);
+      
+      const now = new Date();
+      const invMap = new Map();
+      let cacheHits = 0;
+      for (const ci of (cachedInvs || [])) {
+        if (new Date(ci.expires_at) > now) {
+          invMap.set(ci.parcel_id, ci);
+          cacheHits++;
+        }
+      }
+      
+      // FRESH INVESTIGATION for top-5 parcels with no cache hit.
+      // This is where we actually populate the rich research data that the
+      // Deep Signal prompt depends on. Respects the --noinvest flag for
+      // cost control and handles SerpAPI unavailability gracefully.
+      const skipInvest = process.argv.includes('--noinvest') || !process.env.SERPAPI_KEY;
+      let freshInvestigations = 0;
+      if (!skipInvest) {
+        const { investigateParcel } = require('./investigate');
+        const needFresh = top.filter(r => !invMap.has(r.p.id));
+        if (needFresh.length > 0) {
+          log(`  Deep Signal: investigating ${needFresh.length} uncached top-5 parcels...`);
+          for (const r of needFresh) {
+            try {
+              // Normalize parcel shape for investigateParcel
+              const parcelForInvest = {
+                id: r.p.id,
+                owner_name: r.p.ownerName,
+                address: r.p.address,
+                city: r.p.ownerCity || r.p.city || r.p.situs_city || '',
+                state: market.homeState || r.p.state || '',
+              };
+              const invResult = await investigateParcel(parcelForInvest);
+              freshInvestigations++;
+              
+              // Upsert into investigation_cache with 30-day TTL so future
+              // runs (and the on-demand /api/beta-research cache gate) can
+              // read it without burning SerpAPI again.
+              const invRow = {
+                parcel_id: r.p.id,
+                zip_code: zip,
+                search_count: invResult.searchCount || 0,
+                signal_count: (invResult.signals || []).length,
+                signals: invResult.signals || [],
+                enhanced_claims: invResult.enhancedClaims || {},
+                summary: invResult.summary || {},
+                raw_result_count: invResult.rawResultCount || 0,
+                investigated_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              };
+              await supabase.from('investigation_cache').upsert(invRow, { onConflict: 'parcel_id' });
+              
+              // Add to the live invMap so the prompt builder picks it up
+              invMap.set(r.p.id, invRow);
+              
+              // Rate limit between investigations — investigateParcel itself
+              // runs 14-25 searches in ~15-20s. Adding 1s spacing keeps us
+              // well under SerpAPI's concurrent request limit.
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch(e) {
+              log(`    Investigation failed for ${r.p.id}: ${e.message}`);
+            }
+          }
+        }
+      }
+      
+      log(`  Deep Signal: ${cacheHits} cache hits, ${freshInvestigations} fresh investigations, ${top.length - cacheHits - freshInvestigations} with no research`);
+      
+      // Build per-parcel prompt sections. When research is available, format
+      // the findings prominently and instruct the LLM to ground claims in them.
+      // When not, pass cohort context only and require honest acknowledgment.
+      const promptSections = top.map((r, i) => {
+        const inv = invMap.get(r.p.id);
+        const base = `[${i+1}] ${r.p.ownerName} — ${r.p.address}, ${r.p.cityStateZip}
+  ${r.s.cohortLabel} | $${(r.p.totalValue||0).toLocaleString()} | Mail: ${r.p.ownerAddress||'?'}
+  Tenure: ${r.p.tenureYears!=null?r.p.tenureYears+'yr':'?'} | Heuristic score: ${r.s.briefingRank}`;
+        
+        if (!inv) {
+          return base + `
+  RESEARCH: None available. Write motivation based on cohort structure only, and explicitly note "limited public research surface" in the psychological profile. Do NOT fabricate life events or personal details. Use "The owner's [cohort type] structure suggests..." framing rather than inventing specifics.`;
+        }
+        
+        const claims = inv.enhanced_claims || {};
+        const lifeEvents = (claims.lifeEventSignals || []).join('; ');
+        const identity = (claims.identitySignals || []).join('; ');
+        const demographics = (claims.demographicSignals || []).join('; ');
+        const financial = (claims.financialSignals || []).join('; ');
+        const listing = (claims.listingSignals || []).join('; ');
+        const blockers = (claims.blockerSignals || []).join('; ');
+        const summary = inv.summary || {};
+        
+        const researchBlock = [
+          lifeEvents && `  LIFE EVENTS: ${lifeEvents}`,
+          identity && `  IDENTITY: ${identity}`,
+          demographics && `  DEMOGRAPHICS: ${demographics}`,
+          financial && `  FINANCIAL: ${financial}`,
+          listing && `  LISTING HISTORY: ${listing}`,
+          blockers && `  ⚠ BLOCKERS: ${blockers}`,
+        ].filter(Boolean).join('\n');
+        
+        const signalTypes = (inv.signals || []).map(s => s.type).filter(Boolean);
+        
+        return base + `
+  RESEARCH FINDINGS (from ${inv.signals?.length || 0} verified signals, investigated ${inv.investigated_at?.substring(0,10)}):
+${researchBlock || '  (no categorized signals)'}
+  Signal types detected: ${signalTypes.join(', ') || 'none'}`;
+      }).join('\n\n');
+      
+      const p = anthropic.messages.create({ 
+        model:'claude-sonnet-4-20250514', 
+        max_tokens:8000,
+        messages:[{role:'user',content:`You are SellerSignal's Deep Signal engine. You produce grounded psychological profiles and outreach strategies for real estate prospects.
 
-Respond with ONLY a JSON array. Each entry:
-{"idx":1,"motivation":"3-4 sentence analysis referencing specific data: tenure, mailing state, trust structure, portfolio.","timeline":"3-6 months","best_channel":"call|mail|door","call_script":"Full 4-6 sentence phone script. Reference property, owner situation, position yourself as problem solver, soft close.","mail_script":"Full 4-6 sentence letter. Professional, specific to their property and situation.","door_script":"Full 4-6 sentence door knock. Warm, specific, leave-behind offer.","what_not_to_say":"2-3 specific things to avoid and WHY for this owner type."}
+CRITICAL DATA HONESTY RULES:
+1. When research findings are provided, GROUND every claim in them. Reference specific life events, identity markers, and demographic signals by name. If research shows "Retirement indicator from LinkedIn", say "LinkedIn signals suggest recent retirement" — not "the owner may be contemplating life changes."
+2. When research findings show NONE or are not provided, SAY SO HONESTLY. Write "Limited public research surface on this owner — analysis based on parcel structure only" as the opening of your psychological profile. Do NOT fabricate life events, family situations, or demographic details.
+3. NEVER use cohort pattern-matching as your primary content. "Trust + absentee = sophisticated wealth management" is NOT a psychological profile — it's a tautology. Trust structures are a COHORT LABEL, not a psychological insight.
+4. Rich psychological profiling means: specific to this person, grounded in evidence, actionable by an agent. If you don't have specifics, say you don't have them.
 
-PROSPECTS:\n${d}`}] });
+OUTPUT FORMAT:
+Respond with ONLY a JSON array (one entry per prospect). Each entry:
+{
+  "idx": 1,
+  "motivation": "3-5 sentences grounded in research findings. When findings are present, reference them specifically. When absent, acknowledge 'Limited public research' and speak only to cohort structure.",
+  "timeline": "0-3 months | 3-6 months | 6-12 months | 12+ months",
+  "best_channel": "call | mail | door",
+  "call_script": "Full 4-6 sentence phone script. When research is present, reference at least 2 specific findings naturally. When absent, keep it simple and respectful — do not fabricate context.",
+  "mail_script": "Full 4-6 sentence letter. Same grounding rules as call_script.",
+  "door_script": "Full 4-6 sentence door knock. Should feel informed when research is present, respectful and generic when not.",
+  "what_not_to_say": "2-3 specific things to avoid, tied to either (a) what research reveals or (b) cohort-appropriate respect. Not generic 'do not be pushy.'",
+  "research_grounded": true | false
+}
+
+Set research_grounded to TRUE only if the prospect had actual research findings. Set to FALSE for parcels with no research — this tells the UI to display the appropriate badge.
+
+PROSPECTS:
+${promptSections}`}] 
+      });
       const r = await Promise.race([p, new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 120000))]);
       const arr = JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
       if (Array.isArray(arr)) {
-        for (const ds of arr) { const i=(ds.idx||ds.index)-1; if(i>=0&&i<top.length) pendingDS.push({parcel_id:top[i].p.id,zip_code:zip,report:ds,motivation:ds.motivation||null,timeline:ds.timeline||null,best_channel:ds.best_channel||null,call_script:ds.call_script||null,mail_script:ds.mail_script||null,door_script:ds.door_script||null,what_not_to_say:ds.what_not_to_say||null,generated_at:new Date().toISOString()}); }
-        log(`  DS: ${pendingDS.length} generated`);
+        for (const ds of arr) { 
+          const i=(ds.idx||ds.index)-1; 
+          if(i>=0&&i<top.length) pendingDS.push({
+            parcel_id:top[i].p.id,
+            zip_code:zip,
+            report:ds,
+            motivation:ds.motivation||null,
+            timeline:ds.timeline||null,
+            best_channel:ds.best_channel||null,
+            call_script:ds.call_script||null,
+            mail_script:ds.mail_script||null,
+            door_script:ds.door_script||null,
+            what_not_to_say:ds.what_not_to_say||null,
+            generated_at:new Date().toISOString()
+          }); 
+        }
+        log(`  DS: ${pendingDS.length} generated (${cacheHits} with research)`);
       }
     } catch(e) { log(`  DS failed: ${e.message}`); }
   }

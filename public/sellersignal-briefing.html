@@ -1941,7 +1941,20 @@ function scoreParcel(p, stats, cal) {
 // ========================
 function normalizeName(raw) {
     if (!raw) return '';
-    let n = raw.replace(/&.*$/,'').replace(/\+.*$/,'').trim();
+    // Strip co-owner suffixes: " & SPOUSE NAME", "+SPOUSE NAME" — but ONLY when
+    // the remainder isn't part of an entity name. "SMITH, JOHN & MARY" should
+    // become "SMITH, JOHN" (co-owner spouse), but "L & F TRUST, THE" must stay
+    // intact because the "&" is part of the trust/entity name itself.
+    //
+    // Rule: only strip at "&" if the name does NOT contain entity keywords
+    // (TRUST, LLC, CORP, INC, PROPERTIES, HOLDINGS, FOUNDATION, GROUP, PARTNERS,
+    // LTD, LLP, LP, REALTY, MANAGEMENT, INVESTMENTS, ESTATE).
+    const hasEntityKeyword = /\b(TRUST|LLC|CORP|INC|PROPERTIES|HOLDINGS|FOUNDATION|GROUP|PARTNERS|LTD|LLP|LP|REALTY|MANAGEMENT|INVESTMENTS|ESTATE|ENTERPRISES|COMPANY|BANK|ASSOC|ASSOCIATION)\b/i.test(raw);
+    let n = raw;
+    if (!hasEntityKeyword) {
+        n = n.replace(/&.*$/,'').replace(/\+.*$/,'');
+    }
+    n = n.trim();
     const toTitle = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
     
     // Entity names — title case them but preserve acronyms
@@ -4608,6 +4621,8 @@ async function startBriefing() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        parcelId: p.id || null,
+                        zipCode: p.zipCode || p.zip_code || null,
                         ownerName: p.ownerName || '',
                         propertyAddress: fullAddr,
                         preliminaryScore: p.briefingRank,
@@ -6520,6 +6535,8 @@ async function runDeepSignalForCard(id) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                parcelId: p.id || null,
+                zipCode: p.zipCode || p.zip_code || null,
                 ownerName: p.ownerName || '',
                 propertyAddress: fullAddr,
                 preliminaryScore: p.briefingRank,
