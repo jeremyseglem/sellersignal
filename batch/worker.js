@@ -273,23 +273,41 @@ PROSPECTS:\n${d}`}] });
   const cohortMap = {};
   for (const r of uR) cohortMap[r.p.id] = r.s.cohort || 'residential';
   
+  // Helper: coerce a value to integer or null for INTEGER-typed columns.
+  // Philadelphia OPA returns market_value / taxable_building / taxable_land
+  // as floats with decimals (e.g. "577523.44"), which Postgres rejects when
+  // inserted into our INTEGER columns with "invalid input syntax for type
+  // integer". This silently killed the Philly parcels upsert: every batch
+  // containing a float-valued parcel got rolled back, which then cascaded
+  // into FK violations on parcel_scores and deep_signals (parent rows
+  // never got written). Only the handful of batches with all-integer values
+  // survived, and by survivorship bias those were all plain residentials
+  // that scored to rank 33 — which looked like a scoring bug but was
+  // actually a data-type bug.
+  //
+  // Fix: round every INTEGER-column value to an integer at the upsert site.
+  // We keep parseNumericValue as-is because acres (DOUBLE PRECISION) still
+  // needs decimal precision. Integer columns: assessed_value, building_value,
+  // land_value, sqft, bedrooms, multi_count, sale_price.
+  const asInt = v => (v == null || v === '' || isNaN(v)) ? null : Math.round(Number(v));
+  
   for (let i = 0; i < uP.length; i += 500) {
     const batch = uP.slice(i, i+500).map(p => ({
       id:p.id, zip_code:zip, market_key:market.key,
       owner_name:p.ownerName, owner_type:cohortMap[p.id]||'residential',
       address:p.address, city:p.ownerCity||'', state:market.homeState,
       lat:p.lat||null, lng:p.lng||null,
-      assessed_value:p.totalValue||null, building_value:p.buildingValue||null, land_value:p.landValue||null,
-      year_built:p.yearBuilt||null, sqft:p.sqft||null, bedrooms:p.bedrooms||null,
+      assessed_value:asInt(p.totalValue), building_value:asInt(p.buildingValue), land_value:asInt(p.landValue),
+      year_built:asInt(p.yearBuilt), sqft:asInt(p.sqft), bedrooms:asInt(p.bedrooms),
       acres:p.acres||null, subdivision:p.subdivision||null,
       prop_type:p.propType||'Residential', is_vacant_land:!!p.isVacantLand,
       is_absentee:!!p.isAbsentee, is_out_of_state:!!p.isOutOfState,
       owner_state:p.ownerState||null,
       mailing_address:p.ownerAddress||null, mailing_city:p.ownerCity||null,
       mailing_state:p.ownerState||null, mailing_zip:p.ownerZip||null,
-      multi_count:p.multiCount||1,
-      last_transfer_year:p.lastTransferYear||null, last_transfer_date:p.lastTransferDate||null,
-      sale_price:p.salePrice||null, tenure_years:p.tenureYears,
+      multi_count:asInt(p.multiCount) || 1,
+      last_transfer_year:asInt(p.lastTransferYear), last_transfer_date:p.lastTransferDate||null,
+      sale_price:asInt(p.salePrice), tenure_years:p.tenureYears,
       fetched_at:new Date().toISOString(), updated_at:new Date().toISOString(),
     }));
     const { error } = await supabase.from('parcels').upsert(batch, { onConflict: 'id' });
