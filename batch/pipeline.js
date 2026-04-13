@@ -550,10 +550,31 @@ function scoreParcel(p, stats, cal) {
     
     confidence = clamp(confidence, 0, 100);
     
-    const briefingRank = Math.round(
+    let briefingRank = Math.round(
         (sellerLikelihood * 0.50) + (actionability * 0.30) +
         (offMarketReceptivity * 0.15) + (confidence * 0.05)
     );
+    
+    // RECENT-PURCHASE CAP — dominant override, not a subtraction.
+    // An owner who literally just bought the property is not a seller,
+    // regardless of what other structural markers (trust, absentee, high
+    // value) look like. The trust bonus in Seattle can reach +40 due to
+    // a high Trusts lift, and the prior -15 tenure penalty was easily
+    // dwarfed — which surfaced the Rhythm & Reason Trust at 1658 10TH ST W
+    // (0.6yr tenure, $6.2M, top 0.5% of Kirkland) as Brian's test-case
+    // false positive. Fix: cap the final briefingRank outright when
+    // tenure is very recent. Transaction costs alone make selling within
+    // a year of purchase economically irrational absent genuine distress,
+    // and the base rate for "sold within first year" is ~2-3% nationally.
+    // Hard caps here ensure recent buyers can never rank highly no matter
+    // how many otherwise-positive signals stack on top.
+    if (p.tenureYears !== undefined && p.tenureYears !== null) {
+        if (p.tenureYears <= 0.5)      briefingRank = Math.min(briefingRank, 8);
+        else if (p.tenureYears <= 1)   briefingRank = Math.min(briefingRank, 15);
+        else if (p.tenureYears <= 1.5) briefingRank = Math.min(briefingRank, 22);
+        else if (p.tenureYears <= 2)   briefingRank = Math.min(briefingRank, 28);
+    }
+    
     const scoreClass = briefingRank >= 55 ? 'high' : briefingRank >= 35 ? 'medium' : 'low';
     
     let cohort = 'residential', cohortLabel = 'Residential';

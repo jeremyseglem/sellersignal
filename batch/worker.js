@@ -182,6 +182,21 @@ async function processZip(zip, market) {
       const addr = (r.p.address || '').replace(/\s+(BOZEMAN|SCOTTSDALE|CHARLOTTE|SEATTLE|BELLEVUE|MT|AZ|NC|WA|FL|NY|\d{5}).*/i, '').trim();
       if (!addr || addr.length < 5) continue;
       
+      // RECENT-BUYER GUARD — skip listing history enrichment for parcels
+      // whose current owner took ownership in the last 2 years. Any
+      // "withdrawn / expired / off market" listing Zillow finds for a
+      // recently-transacted property almost certainly belongs to the
+      // PREVIOUS owner's failed sale attempt (list → withdraw → accept
+      // different offer → close), not the current owner's intent. The
+      // Rhythm & Reason Trust case at 1658 10TH ST W shipped with this
+      // bug: the withdrawn listing was from the previous owner who sold
+      // to the trust in Sep 2025, but the enrichment attributed it to
+      // the trust and added +20 to rank. If the trust themselves try to
+      // list next year, the scoring will detect it on that run.
+      if (r.p.tenureYears !== undefined && r.p.tenureYears !== null && r.p.tenureYears <= 2) {
+        continue;
+      }
+      
       const city = r.p.ownerCity || r.p.city || 'Bozeman';
       try {
         const results = await searchGoogle(`"${addr}" "${city}" site:zillow.com`);
@@ -226,12 +241,31 @@ async function processZip(zip, market) {
       log(`  AI scoring ${top.length}...`);
       const d = top.map((r,i) => `[${i+1}] ${r.p.ownerName} — ${r.p.address}\n  ${r.s.cohortLabel} | $${(r.p.totalValue||0).toLocaleString()} | Abs:${r.p.isAbsentee?'Y':'N'} OOS:${r.p.isOutOfState?'Y':'N'} | Ten:${r.p.tenureYears!=null?r.p.tenureYears+'yr':'?'} | Multi:${r.s._multiCount}`).join('\n\n');
       const calCtx = calibration ? `\nCalibration: base ${(calibration.baseRate*100).toFixed(1)}%, trust ${(calibration.lifts['Trusts']||1).toFixed(2)}x` : '';
+      // RECENT-BUYER RULE in the prompt so the AI respects tenure as a
+      // dominant disqualifier. Without this, the AI was rubber-stamping
+      // trust+absentee+high-value parcels at 90+ regardless of tenure.
       const aiP = anthropic.messages.create({ model:'claude-sonnet-4-20250514', max_tokens:2000,
-        messages:[{role:'user',content:`Score seller likelihood 0-100. ONLY JSON: [{"idx":1,"score":72,"headline":"..."}]${calCtx}\n\n${d}`}] });
+        messages:[{role:'user',content:`Score seller likelihood 0-100. ONLY JSON: [{"idx":1,"score":72,"headline":"..."}]${calCtx}
+
+CRITICAL RULE: Recent purchases are NOT sellers. Owners with tenure <= 1 year must score below 15 regardless of other signals. Owners with tenure <= 2 years must score below 30. Transaction costs alone make selling within a year of purchase economically irrational. Trust/absentee/high-value markers on a recent purchase usually indicate the BUYER's structure, not a seller signal — the previous owner is the one who sold.
+
+${d}`}] });
       const r = await Promise.race([aiP, new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 60000))]);
       const arr = JSON.parse((r.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
       let u = 0;
-      if (Array.isArray(arr)) for (const a of arr) { const i=(a.idx||a.index)-1; if(i>=0&&i<top.length&&a.score){top[i].s.lite_score=a.score;top[i].s.lite_headline=a.headline||'';u++;} }
+      if (Array.isArray(arr)) for (const a of arr) {
+        const i=(a.idx||a.index)-1;
+        if(i>=0 && i<top.length && a.score) {
+          // Defensive cap: even if the AI ignored the recent-buyer rule,
+          // never let lite_score exceed the heuristic briefingRank by more
+          // than 15. The heuristic already capped briefingRank for recent
+          // buyers, so this cap enforces tenure discipline on the AI output.
+          const capped = Math.min(a.score, top[i].s.briefingRank + 15);
+          top[i].s.lite_score = capped;
+          top[i].s.lite_headline = a.headline || '';
+          u++;
+        }
+      }
       log(`  AI: ${u}/${top.length}`);
     } catch(e) { log(`  AI failed: ${e.message}`); }
     ranked.sort((a,b) => (b.s.lite_score||b.s.briefingRank) - (a.s.lite_score||a.s.briefingRank));
