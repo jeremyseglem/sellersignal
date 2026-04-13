@@ -175,6 +175,12 @@ CREATE INDEX IF NOT EXISTS idx_parcels_market ON parcels(market_key);
 CREATE INDEX IF NOT EXISTS idx_parcels_owner_type ON parcels(owner_type);
 CREATE INDEX IF NOT EXISTS idx_scores_zip ON parcel_scores(zip_code);
 CREATE INDEX IF NOT EXISTS idx_scores_rank ON parcel_scores(briefing_rank DESC);
+-- Compound index for the /api/briefing/:zip query pattern.
+-- Without this, queries like "SELECT * FROM parcel_scores WHERE zip_code = X
+-- ORDER BY briefing_rank DESC LIMIT 500" fall back to full scan + sort on large
+-- ZIPs and hit Supabase's 8-second statement timeout. This index lets Postgres
+-- stream rows in rank order directly from the index without sorting.
+CREATE INDEX IF NOT EXISTS idx_scores_zip_rank ON parcel_scores(zip_code, briefing_rank DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_calibrated ON parcel_scores(calibrated_rank DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_lite ON parcel_scores(lite_score DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_deep_signals_zip ON deep_signals(zip_code);

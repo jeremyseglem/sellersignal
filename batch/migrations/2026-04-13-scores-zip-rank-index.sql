@@ -1,0 +1,40 @@
+-- Migration: 2026-04-13 — compound index to fix briefing query timeout
+--
+-- Background:
+--   The /api/briefing/:zip endpoint runs this query on every request:
+--     SELECT * FROM parcel_scores
+--     WHERE zip_code = $1
+--     ORDER BY briefing_rank DESC
+--     LIMIT 500
+--
+--   As of 2026-04-13, this query intermittently hits Supabase's 8-second
+--   statement timeout on cold-cache requests, notably for 98004 Bellevue
+--   (6,941 scored rows). The existing single-column indexes idx_scores_zip
+--   (on zip_code alone) and idx_scores_rank (on briefing_rank alone) can't
+--   satisfy the query pattern — Postgres falls back to a full scan + sort.
+--
+--   Symptom for Jeremy:
+--     curl https://sellersignal.co/api/briefing/98004
+--     → {"scoresCount": 0, "scoresError": "canceling statement due to
+--        statement timeout", ...}
+--     Third attempt (warm cache) succeeds with scoresCount: 500.
+--
+-- Fix:
+--   Add a compound index on (zip_code, briefing_rank DESC). This lets
+--   Postgres stream rows in rank order directly from the index without
+--   sorting. Query goes from O(n) full scan + sort to O(log n) + limit.
+--
+-- How to run:
+--   Paste the CREATE INDEX statement into the Supabase SQL editor
+--   (app.supabase.com → SQL Editor → New Query) and click Run.
+--   Takes 30 seconds to a few minutes depending on table size. Safe to
+--   run while the site is live — CREATE INDEX IF NOT EXISTS without
+--   CONCURRENTLY will briefly lock the table for writes, which is fine
+--   outside of nightly batch hours (08:00 UTC / 02:00 Mountain).
+--
+-- Verification:
+--   After the index is built, hit /api/briefing/98004 three times in
+--   a row. Every response should return scoresCount: 500 with no error.
+
+CREATE INDEX IF NOT EXISTS idx_scores_zip_rank
+    ON parcel_scores(zip_code, briefing_rank DESC);
