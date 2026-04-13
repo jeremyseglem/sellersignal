@@ -361,15 +361,29 @@ PROSPECTS:\n${d}`}] });
   }
 
   // === STORE BRIEFING ===
-  // Act Today = monthly turnover estimate, ranked by score. These are who's selling NOW.
-  // Deep Signal runs on top 15-25 for full analysis. All are actionable.
+  // Act Today = number of owners to display as highest-conviction leads for the day.
+  // 
+  // The underlying goal is "match real monthly turnover" — if the ZIP actually sells
+  // ~17 homes/month, we ideally want to show 17 Act Today cards. But that creates a
+  // problem in dense urban markets where the calibration-derived count drops to
+  // single digits, which looks broken in demos compared to high-turnover luxury
+  // suburbs where the same logic produces 80-100+ cards.
+  //
+  // Fix: enforce a minimum floor of 30 Act Today cards in every ZIP regardless of
+  // calibrated turnover. This gives agents in every market a demo-viable prospect
+  // list without inflating claims — we're just showing the top 30 highest-scoring
+  // owners instead of strictly matching monthly turnover count. For markets with
+  // genuinely high turnover (Paradise Valley, Belle Meade, etc.) the calibrated
+  // count still wins since it's already well above 30.
   const sorted = uR.sort((a,b) => b.s.briefingRank - a.s.briefingRank);
+  const ACT_TODAY_FLOOR = 30;
   const monthlySellers = calibration?.sold24 ? Math.ceil(calibration.sold24 / 24) : Math.max(20, Math.ceil(parcels.length * 0.003));
+  const targetActCount = Math.max(monthlySellers, ACT_TODAY_FLOOR);
   
-  const actCands = sorted.slice(0, monthlySellers).filter(r => r.s.briefingRank >= 15);
+  const actCands = sorted.slice(0, targetActCount).filter(r => r.s.briefingRank >= 15);
   const actIds = new Set(actCands.map(r => r.p.id));
-  // Outreach = next tier beyond monthly sellers — 3-6 month horizon prospects
-  const outSize = Math.min(monthlySellers * 2, sorted.length - actCands.length);
+  // Outreach = next tier beyond Act Today — 3-6 month horizon prospects
+  const outSize = Math.min(targetActCount * 2, sorted.length - actCands.length);
   const outCands = sorted.slice(actCands.length, actCands.length + outSize).filter(r => r.s.briefingRank >= 10 && !actIds.has(r.p.id));
   
   await supabase.from('zip_briefings').upsert({
