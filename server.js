@@ -3102,6 +3102,17 @@ app.post('/api/beta-research', async (req, res) => {
     if (/\b(cyp2c19|cyp\d|annals of internal medicine|heart rate variability|pubmed|ncbi|genotype|enzyme|nih\.gov|doi:|pmid)\b/i.test(t)) return true;
     // Generic directory / practice listings that aren't about a specific owner
     if (/attorneys and agents registered to practice|matter of attorneys in violation|judiciary law/i.test(t)) return true;
+    // LinkedIn directory / browse pages — NOT personal profiles.
+    // LinkedIn indexes its directory by alphabet and paginates them, so
+    // search results routinely return titles like "People starting with
+    // 'J' - Page 2774", "People with the last name Smith", "LinkedIn
+    // Members Directory", etc. These are worthless — they're just
+    // alphabetical indexes, not profiles about the parcel owner.
+    if (/people starting with|people with the (last|first) name|linkedin members? directory|linkedin browse|public profile directory|alphabetical directory/i.test(t)) return true;
+    // Page-number pagination markers that indicate directory navigation
+    // rather than content. "Page 2774" on its own is obviously not an
+    // occupation or a fact.
+    if (/\bpage\s+\d{2,}\b/i.test(text) && text.length < 100) return true;
     // URL fragments in the middle of what should be a human fact
     if (/https?:\/\/|www\./.test(t) && text.length < 250) return true;
     // Legal case citation noise without owner context
@@ -3109,6 +3120,32 @@ app.post('/api/beta-research', async (req, res) => {
     // Ellipsis-terminated fragments that are clearly truncated search snippets
     if (/\.\.\.\s*;\s*\w/.test(text) && (text.match(/;/g) || []).length >= 2) return true;
     return false;
+  }
+  
+  // Extract occupation from a LinkedIn result title, defensively.
+  // Valid LinkedIn title format: "Name - Title at Company"
+  // Invalid examples to reject:
+  //   "People starting with 'J' - Page 2774"  (directory)
+  //   "Jane Doe - LinkedIn"                    (just the site name)
+  //   "Profiles - LinkedIn"                    (browse page)
+  //   "Members Directory - LinkedIn"           (browse page)
+  // Returns the clean occupation string or null if the title doesn't
+  // look like a real profile.
+  function extractLinkedInOccupation(titleDetail) {
+    if (!titleDetail || typeof titleDetail !== 'string') return null;
+    if (looksLikeNoise(titleDetail)) return null;
+    const parts = titleDetail.split(/\s+-\s+/);
+    if (parts.length < 2) return null;
+    const occupation = parts.slice(1).join(' - ').trim();
+    // Reject placeholder / non-occupation strings
+    if (!occupation || occupation.length < 5) return null;
+    if (/^linkedin$|^profiles?$|^members?\s+directory$|^public\s+profile$|^\d+\s+connections?$/i.test(occupation)) return null;
+    // Reject page-number noise
+    if (/^page\s+\d+$/i.test(occupation)) return null;
+    // Occupation should look like a title / role / company, not a number or URL
+    if (/^https?:\/\//.test(occupation)) return null;
+    if (/^\d+$/.test(occupation)) return null;
+    return occupation;
   }
   
   function mapInvCacheToEvidence(invCache) {
@@ -3147,15 +3184,18 @@ app.post('/api/beta-research', async (req, res) => {
       // up as a useful fact to an agent.
       if (s.category === 'identity') {
         if (s.type === 'linkedin_found') {
-          // LinkedIn detail format: "Name - Title at Company"
-          const parts = detail.split(/\s+-\s+/);
-          if (parts.length >= 2) {
-            mappedWhoTheyAre.occupation = parts.slice(1).join(' - ');
-          }
-          // Only surface as fact if it looks like a real profile reference
-          if (detail && detail.length > 5 && detail.length < 200 && !looksLikeNoise(detail)) {
+          // Use defensive extractor — rejects LinkedIn directory pages,
+          // page-number noise, and non-profile titles.
+          const occupation = extractLinkedInOccupation(detail);
+          if (occupation) {
+            mappedWhoTheyAre.occupation = occupation;
+            // Only surface as confirmed fact when we were able to extract
+            // a real occupation. This avoids showing "LinkedIn: People
+            // starting with 'J' - Page 2774" as a fact.
             mappedFacts.push({ text: `LinkedIn: ${detail}` });
           }
+          // If extraction failed, silently drop — better to show nothing
+          // than a garbage directory page reference.
         } else if (s.type === 'business_owner') {
           // Reject the generic placeholder "Business owner/executive"
           // because it provides zero information. Only use this if the
@@ -3448,33 +3488,63 @@ app.post('/api/beta-research', async (req, res) => {
         let synthesized = null;
         if (anthropic && parcelMeta) {
           try {
-            const claims = invCache.enhanced_claims || {};
-            const lifeEventsStr = (claims.lifeEventSignals || []).join('; ');
-            const identityStr = (claims.identitySignals || []).join('; ');
-            const demographicsStr = (claims.demographicSignals || []).join('; ');
-            const financialStr = (claims.financialSignals || []).join('; ');
-            const listingStr = (claims.listingSignals || []).join('; ');
-            const blockersStr = (claims.blockerSignals || []).join('; ');
+            // CRITICAL: build the research block from the noise-filtered
+            // mapped data, NOT the raw enhanced_claims. Raw enhanced_claims
+            // still contains noise like "People starting with 'J' - Page
+            // 2774" and "Entity info: CYP2C19" which would poison the LLM
+            // synthesis and produce fabricated "President and CEO with
+            // dental background" narratives.
+            //
+            // mappedSignals is category-clean positive/risk text.
+            // mappedFacts has already dropped noise strings.
+            // mappedWhoTheyAre has already had bogus occupations rejected.
+            const lifeEventLines = mappedLifeEvents
+              .map(le => `  - ${le.type}: ${le.detail}`)
+              .join('\n');
+            const signalLines = mappedSignals
+              .filter(s => s.type === 'positive')
+              .map(s => `  - ${s.text} (${s.confidence || 'medium'})`)
+              .join('\n');
+            const riskLines = mappedSignals
+              .filter(s => s.type === 'risk')
+              .map(s => `  ⚠ ${s.text}`)
+              .join('\n');
+            const factLines = mappedFacts
+              .map(f => `  - ${typeof f === 'string' ? f : f.text || ''}`)
+              .filter(line => line.trim().length > 3)
+              .join('\n');
+            const whoLines = Object.entries(mappedWhoTheyAre)
+              .map(([k, v]) => `  - ${k}: ${v}`)
+              .join('\n');
             
             const researchBlock = [
-              lifeEventsStr && `  LIFE EVENTS: ${lifeEventsStr}`,
-              identityStr && `  IDENTITY: ${identityStr}`,
-              demographicsStr && `  DEMOGRAPHICS: ${demographicsStr}`,
-              financialStr && `  FINANCIAL: ${financialStr}`,
-              listingStr && `  LISTING HISTORY: ${listingStr}`,
-              blockersStr && `  ⚠ BLOCKERS: ${blockersStr}`,
+              signalLines && `  POSITIVE SIGNALS:\n${signalLines}`,
+              lifeEventLines && `  LIFE EVENTS:\n${lifeEventLines}`,
+              whoLines && `  WHO THEY ARE:\n${whoLines}`,
+              factLines && `  CONFIRMED FACTS:\n${factLines}`,
+              riskLines && `  RISKS:\n${riskLines}`,
             ].filter(Boolean).join('\n');
             
-            const signalTypes = (invCache.signals || []).map(s => s.type).filter(Boolean);
+            // If the entire mapped evidence is empty after filtering,
+            // there's nothing for the LLM to ground on. Skip synthesis
+            // and fall through to the structured-evidence-only response
+            // (which will also be empty — caller handles this).
+            if (!researchBlock.trim()) {
+              console.log(`[beta-research] skipping synthesis for ${parcelId} — no clean research after noise filter`);
+              throw new Error('no clean research data after filtering');
+            }
+            
+            const signalTypes = (invCache.signals || [])
+              .map(s => s.type)
+              .filter(Boolean);
             const rankStr = scoreRow?.briefing_rank != null ? `Heuristic score: ${scoreRow.briefing_rank}` : '';
             const cohortStr = scoreRow?.cohort || '';
             
             const promptSection = `[1] ${parcelMeta.owner_name || '?'} — ${parcelMeta.address || '?'}, ${parcelMeta.mailing_city || ''} ${parcelMeta.mailing_state || ''}
   Cohort: ${cohortStr} | $${(parcelMeta.assessed_value||0).toLocaleString()} | Mail: ${parcelMeta.mailing_address||'?'}
   Tenure: ${parcelMeta.tenure_years!=null?parcelMeta.tenure_years+'yr':'?'} | ${rankStr}
-  RESEARCH FINDINGS (from ${(invCache.signals||[]).length} verified signals):
-${researchBlock || '  (no categorized signals)'}
-  Signal types detected: ${signalTypes.join(', ') || 'none'}`;
+  VERIFIED RESEARCH (noise-filtered):
+${researchBlock}`;
             
             const synthPromise = anthropic.messages.create({
               model: 'claude-sonnet-4-20250514',
@@ -3482,20 +3552,22 @@ ${researchBlock || '  (no categorized signals)'}
               messages: [{ role: 'user', content: `You are SellerSignal's Deep Signal engine. You produce grounded psychological profiles and outreach strategies for real estate prospects.
 
 CRITICAL DATA HONESTY RULES:
-1. GROUND every claim in the research findings provided. Reference specific life events, identity markers, and demographic signals by name. If research shows "Retirement indicator from LinkedIn", say "LinkedIn signals suggest recent retirement" — not "the owner may be contemplating life changes."
-2. NEVER use cohort pattern-matching as your primary content. "Trust + absentee = sophisticated wealth management" is NOT a psychological profile — it's a tautology.
-3. Rich psychological profiling means: specific to this person, grounded in evidence, actionable by an agent. If a specific signal isn't in the findings, don't fabricate it.
+1. GROUND every claim in the VERIFIED RESEARCH block below. Reference specific findings by exact phrasing. If the research says "Retirement indicators in public records", say "public records suggest recent retirement" — not "she's contemplating life changes."
+2. DO NOT fabricate occupations, degrees, universities, company names, titles, or personal history that aren't explicitly in the research block. If you don't see it in VERIFIED RESEARCH, it doesn't exist for this person.
+3. DO NOT invent specifics. Phrases like "his University of Washington dental background", "his role as CEO of [company]", "her 25-year career at [firm]" are FABRICATIONS unless those exact facts appear in the research. Prefer vague-but-honest ("the owner's professional background") over specific-but-fabricated.
+4. Cohort-only prospects (trust + absentee + long tenure with no life events) deserve honest acknowledgment. Say "limited public research surface — analysis based on ownership structure alone" and write generic but respectful scripts. DO NOT invent life events to fill narrative space.
+5. The WHO THEY ARE block contains the ONLY verified occupation/ownership info. If a field isn't there, do not make one up.
 
 OUTPUT FORMAT:
 Respond with ONLY a JSON object (no array, no code fence). Keys:
 {
-  "motivation": "3-5 sentences grounded in research findings. Reference at least 2 specific findings by name.",
+  "motivation": "3-5 sentences grounded STRICTLY in the VERIFIED RESEARCH block. Reference at least 2 specific findings by name. If research is thin, say so honestly.",
   "timeline": "0-3 months | 3-6 months | 6-12 months | 12+ months",
   "best_channel": "call | mail | door",
-  "call_script": "Full 4-6 sentence phone script. Reference at least 2 specific research findings naturally.",
+  "call_script": "Full 4-6 sentence phone script. Reference specific verified findings naturally. No fabrication.",
   "mail_script": "Full 4-6 sentence letter. Same grounding rules.",
-  "door_script": "Full 4-6 sentence door knock. Feel informed and specific.",
-  "what_not_to_say": "2-3 specific things to avoid, tied to what research reveals. Not generic 'do not be pushy.'",
+  "door_script": "Full 4-6 sentence door knock. Same grounding rules.",
+  "what_not_to_say": "2-3 specific things to avoid, tied to what research actually reveals. Not generic 'do not be pushy.'",
   "research_grounded": true
 }
 
@@ -3894,10 +3966,30 @@ app.get('/api/beta-research/stream', async (req, res) => {
           const t = text.toLowerCase();
           if (/\b(cyp2c19|cyp\d|annals of internal medicine|heart rate variability|pubmed|ncbi|genotype|enzyme|nih\.gov|doi:|pmid)\b/i.test(t)) return true;
           if (/attorneys and agents registered to practice|matter of attorneys in violation|judiciary law/i.test(t)) return true;
+          // LinkedIn directory / browse pages — NOT personal profiles
+          if (/people starting with|people with the (last|first) name|linkedin members? directory|linkedin browse|public profile directory|alphabetical directory/i.test(t)) return true;
+          // Page-number pagination markers
+          if (/\bpage\s+\d{2,}\b/i.test(text) && text.length < 100) return true;
           if (/https?:\/\/|www\./.test(t) && text.length < 250) return true;
           if (/\b\d+\s+f\.\s*(2d|3d|supp)\b|\b\d+\s+u\.s\.\s+\d+/i.test(t)) return true;
           if (/\.\.\.\s*;\s*\w/.test(text) && (text.match(/;/g) || []).length >= 2) return true;
           return false;
+        };
+        
+        // Defensive LinkedIn occupation extractor — see mapInvCacheToEvidence
+        // for full rationale
+        const _extractLinkedInOccupation = (titleDetail) => {
+          if (!titleDetail || typeof titleDetail !== 'string') return null;
+          if (_looksLikeNoise(titleDetail)) return null;
+          const parts = titleDetail.split(/\s+-\s+/);
+          if (parts.length < 2) return null;
+          const occ = parts.slice(1).join(' - ').trim();
+          if (!occ || occ.length < 5) return null;
+          if (/^linkedin$|^profiles?$|^members?\s+directory$|^public\s+profile$|^\d+\s+connections?$/i.test(occ)) return null;
+          if (/^page\s+\d+$/i.test(occ)) return null;
+          if (/^https?:\/\//.test(occ)) return null;
+          if (/^\d+$/.test(occ)) return null;
+          return occ;
         };
         
         const mappedSignals = [];
@@ -3929,9 +4021,9 @@ app.get('/api/beta-research/stream', async (req, res) => {
               const meaningful = detail && detail.length > 10 && !/^Business owner\/executive$/i.test(detail.trim()) && !_looksLikeNoise(detail);
               if (meaningful) mappedWhoTheyAre.ownership = detail;
             } else if (s.type === 'linkedin_found') {
-              const parts = detail.split(/\s+-\s+/);
-              if (parts.length >= 2) mappedWhoTheyAre.occupation = parts.slice(1).join(' - ');
-              if (detail && detail.length > 5 && detail.length < 200 && !_looksLikeNoise(detail)) {
+              const occ = _extractLinkedInOccupation(detail);
+              if (occ) {
+                mappedWhoTheyAre.occupation = occ;
                 mappedFacts.push({ text: `LinkedIn: ${detail}` });
               }
             } else if (s.type === 'entity_info') {
