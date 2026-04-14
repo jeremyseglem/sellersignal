@@ -6,7 +6,7 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Anthropic = require('@anthropic-ai/sdk');
 const { MARKETS, getAllZips, getMarketForZip } = require('./markets');
-const { precomputeStats, scoreParcel, enrichTenure } = require('./pipeline');
+const { precomputeStats, scoreParcel, scoreParcelNew, enrichTenure } = require('./pipeline');
 
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY) : null;
@@ -102,13 +102,44 @@ async function processZip(zip, market) {
     } catch(e) { log(`  Tenure enrichment failed: ${e.message}`); }
   }
 
-  // === COMPUTE STATS + SCORE using the EXACT same model as briefing ===
+  // === COMPUTE STATS + SCORE using investigation-driven model ===
   const stats = precomputeStats(parcels);
   
-  // First pass: score without calibration
-  let scores = parcels.map(p => scoreParcel(p, stats, null));
-
-  // Compute calibration from backtest
+  // Load investigation_cache for this ZIP so scoring can consume signals
+  // from previous runs. Parcels without cached investigation get scored
+  // by property shape alone (at lower confidence). Parcels with cached
+  // signals (life events, agent detection, previously listed, etc.)
+  // get their rank driven by those signals directly.
+  let investigationByParcelId = new Map();
+  if (supabase) {
+    try {
+      const { data: invRows, error: invErr } = await supabase
+        .from('investigation_cache')
+        .select('parcel_id, signals, enhanced_claims')
+        .eq('zip_code', zip);
+      if (invErr) throw invErr;
+      let listingOnlySkipped = 0;
+      for (const r of (invRows || [])) {
+        const ec = r.enhanced_claims || {};
+        if (ec._listingOnly) { listingOnlySkipped++; continue; }
+        investigationByParcelId.set(r.parcel_id, r.signals || []);
+      }
+      log(`  Investigation cache: ${investigationByParcelId.size} full + ${listingOnlySkipped} listing-only`);
+    } catch(e) {
+      log(`  Investigation cache load failed (will score without): ${e.message}`);
+    }
+  } else {
+    log(`  No Supabase client — scoring without investigation signals`);
+  }
+  
+  // Single-pass scoring with investigation signals — no calibration,
+  // no market-specific lifts. Uniform weights across all markets.
+  let scores = parcels.map(p => {
+    const sigs = investigationByParcelId.get(p.id || p.parcel_id) || null;
+    return scoreParcelNew(p, stats, null, sigs);
+  });
+  
+  // Compute backtest metrics for logging only — not used as input to scoring
   const cutoff24 = new Date(); cutoff24.setFullYear(cutoff24.getFullYear() - 2);
   const scored = parcels.map((p,i) => ({...p, ...scores[i]}));
   const sold24 = scored.filter(p => {
@@ -120,26 +151,15 @@ async function processZip(zip, market) {
   let calibration = null;
   if (sold24.length >= 10) {
     const baseRate = sold24.length / scored.length;
-    function fRate(fn) { const pool = scored.filter(fn), s = sold24.filter(fn); return pool.length > 0 ? s.length / pool.length : 0; }
-    const rates = { 'All Properties': baseRate, 'Trusts': fRate(p=>p.cohort==='trust'), 'Estates / Heirs': fRate(p=>p.cohort==='estate'),
-      'LLCs / Corps': fRate(p=>p.cohort==='investor'), 'Absentee Owners': fRate(p=>p._isAbsentee), 'Out-of-State': fRate(p=>p._isOutOfState),
-      'Vacant Land': fRate(p=>p._isVacant), 'Named Individuals': fRate(p=>p.cohort==='residential') };
-    const withTenure = scored.filter(p => p.tenureYears !== null && p.tenureYears !== undefined);
-    if (withTenure.length > scored.length * 0.3) {
-      rates['Tenure 0-3yr'] = fRate(p=>p.tenureYears!=null&&p.tenureYears<=3);
-      rates['Tenure 3-10yr'] = fRate(p=>p.tenureYears!=null&&p.tenureYears>3&&p.tenureYears<=10);
-      rates['Tenure 10-20yr'] = fRate(p=>p.tenureYears!=null&&p.tenureYears>10&&p.tenureYears<=20);
-      rates['Tenure 20yr+'] = fRate(p=>p.tenureYears!=null&&p.tenureYears>20);
-    }
-    const lifts = {};
-    for (const [k,r] of Object.entries(rates)) { if (k !== 'All Properties' && baseRate > 0) lifts[k] = r / baseRate; }
     
-    // For backtest: re-score sold parcels WITHOUT tenure penalty
-    // This simulates "would we have flagged them BEFORE they sold"
-    // (sold parcels have tenureYears <= 2 which penalizes them — that's post-sale data)
+    // Re-score sold parcels WITHOUT tenure penalty to simulate "would we
+    // have flagged them BEFORE they sold". Sold parcels have tenureYears <= 2
+    // post-sale which hits the recent-buyer hard zero, so we strip tenure
+    // to measure what the score would have been at decision time.
     const sold24PreSale = sold24.map(p => {
       const preSale = {...p, tenureYears: null, lastTransferDate: null, lastTransferYear: null, tenureSource: null, tenureConfidence: null, recentTransfer: false, tenureLongTerm: true};
-      const s = scoreParcel(preSale, stats, null);
+      const sigs = investigationByParcelId.get(preSale.id || preSale.parcel_id) || null;
+      const s = scoreParcelNew(preSale, stats, null, sigs);
       return {...preSale, ...s};
     });
     
@@ -154,13 +174,10 @@ async function processZip(zip, market) {
       recall[t] = Math.round(flagged / sold24PreSale.length * 100);
     }
     
-    calibration = { baseRate, lifts, rates, sold24: sold24.length, total: scored.length,
+    calibration = { baseRate, sold24: sold24.length, total: scored.length,
       avgScoreSold: Math.round(avgSold), avgScoreNotSold: Math.round(avgNotSold), scoreGap: Math.round(avgSold - avgNotSold),
       recall, wouldHaveFlagged: recall[35] };
-    log(`  Cal: base=${(baseRate*100).toFixed(1)}%, ${sold24.length} sold, gap=${calibration.scoreGap > 0 ? '+' : ''}${calibration.scoreGap}`);
-    
-    // Second pass with calibration
-    scores = parcels.map(p => scoreParcel(p, stats, calibration));
+    log(`  Cal (logging only): base=${(baseRate*100).toFixed(1)}%, ${sold24.length} sold, gap=${calibration.scoreGap > 0 ? '+' : ''}${calibration.scoreGap}`);
   } else {
     log(`  No cal (${sold24.length} sales)`);
   }
@@ -674,8 +691,9 @@ ${promptSections}`}]
       actionability:r.s.actionability, confidence:r.s.confidence,
       briefing_rank:r.s.briefingRank, score_class:r.s.scoreClass, cohort:r.s.cohort,
       calibrated_rank:r.s.briefingRank,
-      ...(r.s.lite_score ? {lite_score:r.s.lite_score, lite_headline:r.s.lite_headline||''} : {}),
-      ...(r.s._listingSignal ? {signals: [{text: r.s._listingSignal, type: 'listing'}]} : {}),
+      // scoreParcelNew builds a structured signals array (each entry has
+      // text+type) — persist it so the UI can show per-card evidence
+      signals: r.s.signals || [],
       scored_at:new Date().toISOString(),
     }));
     const { error } = await supabase.from('parcel_scores').upsert(batch, { onConflict: 'parcel_id' });
