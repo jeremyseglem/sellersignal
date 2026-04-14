@@ -390,7 +390,7 @@ async function processZip(zip, market) {
     try {
       log(`  AI scoring ${top.length}...`);
       const d = top.map((r,i) => `[${i+1}] ${r.p.ownerName} — ${r.p.address}\n  ${r.s.cohortLabel} | $${(r.p.totalValue||0).toLocaleString()} | Abs:${r.p.isAbsentee?'Y':'N'} OOS:${r.p.isOutOfState?'Y':'N'} | Ten:${r.p.tenureYears!=null?r.p.tenureYears+'yr':'?'} | Multi:${r.s._multiCount}`).join('\n\n');
-      const calCtx = calibration ? `\nCalibration: base ${(calibration.baseRate*100).toFixed(1)}%, trust ${(calibration.lifts['Trusts']||1).toFixed(2)}x` : '';
+      const calCtx = calibration ? `\nBase rate: ${(calibration.baseRate*100).toFixed(1)}% sold in last 2yr (${calibration.sold24}/${calibration.total})` : '';
       // RECENT-BUYER RULE in the prompt so the AI respects tenure as a
       // dominant disqualifier. Without this, the AI was rubber-stamping
       // trust+absentee+high-value parcels at 90+ regardless of tenure.
