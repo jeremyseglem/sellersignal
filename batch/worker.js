@@ -169,28 +169,41 @@ async function processZip(zip, market) {
   let ranked = parcels.map((p,i) => ({p, s: scores[i]})).filter(x => x.s.briefingRank > 0).sort((a,b) => b.s.briefingRank - a.s.briefingRank);
 
   // === LISTING HISTORY ENRICHMENT ===
-  // Cache-first architecture: the investigation_cache table (populated by
-  // batch/worker-v2.js Layer 3 runs) already contains listing history data for
-  // hundreds of parcels with a 30-day TTL. Before burning fresh SerpAPI calls,
-  // we batch-fetch the cache for every parcel we're about to check, apply the
-  // cached listing signals, and ONLY call searchGoogle for parcels with no
-  // cache hit. This eliminates redundant work — we're no longer re-searching
-  // the same Zillow pages every batch run for parcels that were already
-  // investigated.
+  // Cache-first architecture with write-back. The listing loop:
+  //   1. Reads investigation_cache for all parcels we're about to check
+  //   2. Uses cached listingSignals when available (zero SerpAPI cost)
+  //   3. Falls through to live Zillow search for cache misses
+  //   4. Writes results back to investigation_cache with _listingOnly marker
+  //      so subsequent runs hit cache
   //
-  // Impact: for markets with existing investigation_cache coverage (59715
-  // Bozeman ~246 parcels, 98004 Bellevue ~193 parcels as of Apr 13 2026),
-  // listing enrichment runs with near-zero SerpAPI cost. For markets without
-  // coverage, falls through to live search as before. Cache fills naturally
-  // over time as worker-v2 runs investigate more parcels.
+  // COST CONTROL — the previous version of this loop checked the top 150
+  // parcels per ZIP, and the April 14 post-cleanup full sweep demonstrated
+  // this cost ~14,000 SerpAPI searches across all markets (a single night's
+  // cron run was nearly half the monthly Big Data cap at 30K). Root cause
+  // of the sudden cost spike: previous cron runs had ~50% SerpAPI silent
+  // failure rate which nobody noticed because errors return empty results,
+  // making historical runs appear cheaper than they actually were. Once
+  // SerpAPI was reliable, the full 14K cost came through.
+  //
+  // Fix: cap the check at 30 parcels per ZIP (top Act Today candidates
+  // only, plus a small buffer for rank movement from listing boosts).
+  // First-run cost drops from ~14K to ~2,800 searches. Subsequent runs
+  // drop to near-zero because the write-back populates investigation_cache
+  // for those same 30 parcels, so the next night's cron reads from cache.
+  //
+  // Why 30: Act Today floor is 30 cards per ZIP (commit 273938f), so
+  // checking the top 30 by briefingRank covers every prospect an agent
+  // will actually see in their first screen. Listing boosts of +20 can
+  // move rank 50 → rank 30, but ranks below ~50 rarely contain the
+  // life-event sellers this enrichment is meant to detect.
   const skipListing = process.argv.includes('--nolisting');
   if (!skipListing && process.env.SERPAPI_KEY) {
     const { searchGoogle } = require('./investigate');
-    const listingCheckCount = Math.min(ranked.length, 150);
+    const listingCheckCount = Math.min(ranked.length, 30);
     log(`  Listing check: ${listingCheckCount} parcels...`);
     
     // Batch-fetch investigation_cache for every parcel we might check.
-    // This is ONE round-trip to Supabase instead of 150 potential cache queries.
+    // This is ONE round-trip to Supabase instead of 30 potential cache queries.
     const checkIds = ranked.slice(0, listingCheckCount).map(r => r.p.id);
     const { data: cachedRows } = await supabase
       .from('investigation_cache')
@@ -208,6 +221,7 @@ async function processZip(zip, market) {
     
     let boosted = 0;
     let freshSearches = 0;
+    const listingUpserts = [];  // collect for single batch write at end
     
     for (let i = 0; i < listingCheckCount; i++) {
       const r = ranked[i];
@@ -273,6 +287,13 @@ async function processZip(zip, market) {
           const priceReduced = /price (cut|drop|reduced|change)|reduced by/.test(text);
           const hasHistory = results.some(x => /zillow\.com/.test(x.link || ''));
           
+          // Build the listingSignals array that gets persisted to cache.
+          // Use the same detail strings the investigation_cache reader expects.
+          const listingSignals = [];
+          if (wasListed) listingSignals.push('Property was listed but is now off market');
+          if (priceReduced) listingSignals.push('Price reductions in history — motivated seller');
+          if (hasHistory) listingSignals.push('Has listing platform history');
+          
           if (wasListed) {
             r.s.briefingRank = Math.min(100, r.s.briefingRank + 20);
             r.s._listingBoost = 20;
@@ -286,11 +307,57 @@ async function processZip(zip, market) {
           } else if (hasHistory) {
             r.s._listingSignal = 'Has Zillow listing page';
           }
+          
+          // WRITE-BACK: persist the listing check result to investigation_cache
+          // with a _listingOnly marker so subsequent runs hit cache. We mark
+          // _listingOnly=true so the Deep Signal fresh-investigation path knows
+          // to treat this as a cache miss (it needs full identity/life-event
+          // research, not just listing signals). When a parcel rises into the
+          // top 5 and Deep Signal runs, it will overwrite this shallow row
+          // with a complete investigation_cache entry.
+          listingUpserts.push({
+            parcel_id: r.p.id,
+            zip_code: zip,
+            search_count: 1,
+            signal_count: listingSignals.length,
+            signals: [],  // raw signals only populated by full investigation
+            enhanced_claims: { listingSignals, _listingOnly: true },
+            summary: { hasListingHistory: hasHistory, hasPreviousListing: wasListed },
+            raw_result_count: results.length,
+            investigated_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        } else {
+          // Even "no results" is worth caching — otherwise we'll re-check
+          // this parcel every night forever. Mark it so the cache gate
+          // still works but no boost is applied.
+          listingUpserts.push({
+            parcel_id: r.p.id,
+            zip_code: zip,
+            search_count: 1,
+            signal_count: 0,
+            signals: [],
+            enhanced_claims: { listingSignals: [], _listingOnly: true, _noResults: true },
+            summary: { hasListingHistory: false, hasPreviousListing: false },
+            raw_result_count: 0,
+            investigated_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          });
         }
       } catch(e) { /* skip */ }
       
       // Rate limit — only when we actually made a live call
       if (freshSearches % 8 === 0) await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    // Batch-write all listing upserts in one round trip
+    if (listingUpserts.length > 0) {
+      try {
+        await supabase.from('investigation_cache').upsert(listingUpserts, { onConflict: 'parcel_id' });
+        log(`  Listing cache: wrote ${listingUpserts.length} entries`);
+      } catch(e) {
+        log(`  Listing cache write failed: ${e.message}`);
+      }
     }
     
     // Re-sort after boosts
@@ -379,6 +446,16 @@ ${d}`}] });
       let cacheHits = 0;
       for (const ci of (cachedInvs || [])) {
         if (new Date(ci.expires_at) > now) {
+          // Skip _listingOnly rows — those are shallow listing-check results
+          // written by the listing enrichment loop above. They don't contain
+          // the full identity/life-event/demographic research that Deep
+          // Signal needs. Treating them as cache hits would feed the LLM
+          // an empty prompt with just a listing signal. Instead, treat them
+          // as cache misses so the fresh-investigation path runs and
+          // overwrites the shallow row with a complete investigation_cache
+          // entry.
+          const claims = ci.enhanced_claims || {};
+          if (claims._listingOnly === true) continue;
           invMap.set(ci.parcel_id, ci);
           cacheHits++;
         }
