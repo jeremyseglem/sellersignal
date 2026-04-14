@@ -5264,7 +5264,18 @@ app.listen(PORT, () => {
     cron.schedule('0 8 * * *', async () => {
       console.log('=== NIGHTLY BATCH CRON CHECKING ===');
       
-      // Guard: skip if another batch ran or is running in the last 8 hours
+      // Guard: skip only if there is evidence of a substantive run that
+      // already covered the work this cron would do. Two cases count:
+      //   1. A run that's actually progressing — status='running' AND has
+      //      meaningful recent write activity in zip_briefings (last 10 min)
+      //   2. A completed run in the last 8 hours that covered ≥50 ZIPs
+      //      (i.e. at least half of a full sweep — small verification runs
+      //      don't count)
+      //
+      // We deliberately do NOT treat every row in the window as a blocker.
+      // Stale 'running' rows from crashed workers are common (the process
+      // dies but the row stays) and small manual runs for verification
+      // shouldn't prevent the nightly full sweep from happening.
       if (supabase) {
         try {
           const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
@@ -5274,18 +5285,52 @@ app.listen(PORT, () => {
             .gte('started_at', eightHoursAgo)
             .order('started_at', { ascending: false });
           
-          if (recentRuns && recentRuns.length > 0) {
-            // Any row that matched the last-8-hours query is a blocker.
-            // We intentionally don't check whether the run process is
-            // actually still alive (it could have crashed and left a
-            // stale 'running' row) — the 8-hour window is the real guard.
-            // A full sweep should not take 8+ hours; if one did, that's
-            // worth investigating before re-running.
-            const blocker = recentRuns[0];
+          let blocker = null;
+          
+          // Case 1: a run actively progressing right now
+          // Look for 'running' rows AND verify by checking zip_briefings
+          // for any write in the last 10 minutes. If zip_briefings is
+          // being actively updated, SOMETHING is running — don't double up.
+          const runningRows = (recentRuns || []).filter(r => r.status === 'running');
+          if (runningRows.length > 0) {
+            const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+            const { data: recentBriefings } = await supabase
+              .from('zip_briefings')
+              .select('zip_code')
+              .gte('computed_at', tenMinAgo)
+              .limit(1);
+            
+            if (recentBriefings && recentBriefings.length > 0) {
+              blocker = runningRows[0];
+              blocker._reason = `running row ${blocker.id} — zip_briefings written in last 10 min (real in-flight sweep)`;
+            }
+            // If no recent briefings, the 'running' rows are crash zombies.
+            // Ignore them and proceed.
+          }
+          
+          // Case 2: a substantive completed run already happened
+          if (!blocker) {
+            const substantive = (recentRuns || []).find(r =>
+              (r.status === 'completed' || r.status === 'completed_with_errors')
+              && (r.zips_processed || 0) >= 50
+            );
+            if (substantive) {
+              blocker = substantive;
+              blocker._reason = `completed run ${substantive.id} covered ${substantive.zips_processed} ZIPs`;
+            }
+          }
+          
+          if (blocker) {
             console.log(`=== NIGHTLY BATCH CRON SKIPPED ===`);
-            console.log(`Found batch_runs row id=${blocker.id} started=${blocker.started_at} status=${blocker.status} zips=${blocker.zips_processed || 0}`);
-            console.log(`A manual or prior run covered this 8-hour window. Cron will fire again tomorrow at 2am MT.`);
+            console.log(`Reason: ${blocker._reason}`);
+            console.log(`Blocker: id=${blocker.id} started=${blocker.started_at} status=${blocker.status} zips=${blocker.zips_processed || 0}`);
+            console.log(`Cron will fire again tomorrow at 2am MT.`);
             return;
+          }
+          
+          console.log(`Cron guard: no substantive recent run found — proceeding with batch`);
+          if (runningRows.length > 0) {
+            console.log(`(${runningRows.length} stale 'running' rows in window, ignored as crash zombies)`);
           }
         } catch (guardErr) {
           console.error(`Cron guard check failed: ${guardErr.message}. Proceeding with batch anyway.`);
