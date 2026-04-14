@@ -5250,9 +5250,48 @@ app.listen(PORT, () => {
   }
   
   // Nightly batch cron — runs at 2am Mountain (8am UTC)
+  //
+  // GUARD: before spawning a worker, check batch_runs for any currently-
+  // running or recently-started run in the last 8 hours. If one exists,
+  // skip this cron fire. This prevents two concurrent full-sweep workers
+  // from racing on Supabase writes (which would deadlock parcel_scores
+  // upserts and double the SerpAPI spend) when an operator manually
+  // triggered a sweep late at night before the 2am cron. Without this
+  // guard, the cron blindly spawns worker.js --all regardless of whether
+  // a previous run is still running or just completed.
   try {
     const cron = require('node-cron');
-    cron.schedule('0 8 * * *', () => {
+    cron.schedule('0 8 * * *', async () => {
+      console.log('=== NIGHTLY BATCH CRON CHECKING ===');
+      
+      // Guard: skip if another batch ran or is running in the last 8 hours
+      if (supabase) {
+        try {
+          const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+          const { data: recentRuns } = await supabase
+            .from('batch_runs')
+            .select('id, started_at, completed_at, status, zips_processed')
+            .gte('started_at', eightHoursAgo)
+            .order('started_at', { ascending: false });
+          
+          if (recentRuns && recentRuns.length > 0) {
+            // Any row that matched the last-8-hours query is a blocker.
+            // We intentionally don't check whether the run process is
+            // actually still alive (it could have crashed and left a
+            // stale 'running' row) — the 8-hour window is the real guard.
+            // A full sweep should not take 8+ hours; if one did, that's
+            // worth investigating before re-running.
+            const blocker = recentRuns[0];
+            console.log(`=== NIGHTLY BATCH CRON SKIPPED ===`);
+            console.log(`Found batch_runs row id=${blocker.id} started=${blocker.started_at} status=${blocker.status} zips=${blocker.zips_processed || 0}`);
+            console.log(`A manual or prior run covered this 8-hour window. Cron will fire again tomorrow at 2am MT.`);
+            return;
+          }
+        } catch (guardErr) {
+          console.error(`Cron guard check failed: ${guardErr.message}. Proceeding with batch anyway.`);
+        }
+      }
+      
       console.log('=== NIGHTLY BATCH CRON STARTING ===');
       const { spawn } = require('child_process');
       const worker = spawn('node', ['batch/worker.js', '--all'], {
@@ -5266,7 +5305,7 @@ app.listen(PORT, () => {
         console.error(`Batch cron error: ${err.message}`);
       });
     }, { timezone: 'America/Denver' });
-    console.log('Batch cron: scheduled (2am Mountain / 8am UTC daily)');
+    console.log('Batch cron: scheduled (2am Mountain / 8am UTC daily) with 8-hour recent-run guard');
   } catch(cronErr) {
     console.log('Batch cron: not configured (' + cronErr.message + ')');
   }
