@@ -3148,7 +3148,7 @@ app.post('/api/beta-research', async (req, res) => {
     return occupation;
   }
   
-  function mapInvCacheToEvidence(invCache) {
+  function mapInvCacheToEvidence(invCache, ownerContext) {
     const mappedSignals = [];
     const mappedFacts = [];
     const mappedWhoTheyAre = {};
@@ -3157,6 +3157,30 @@ app.post('/api/beta-research', async (req, res) => {
     if (!invCache || !Array.isArray(invCache.signals)) {
       return { mappedSignals, mappedFacts, mappedWhoTheyAre, mappedLifeEvents };
     }
+    
+    // Owner context for per-segment verification of entity filings,
+    // LinkedIn profiles, etc. When the owner's last name appears in a
+    // segment of a multi-result detail string, we keep that segment;
+    // unrelated directory noise gets dropped.
+    const ownerName = (ownerContext?.ownerName || '').toUpperCase();
+    const ownerLastName = (() => {
+      if (!ownerName) return null;
+      // For "MITCHKE MARK D KRISTINE" → "MITCHKE"
+      // For "GUINN LESTER BRENT-TTEE TRT" → "GUINN"
+      // For "BEL SOGNO ESTATE LLC" → "BEL SOGNO" (multi-word entity)
+      const cleaned = ownerName.replace(/\b(TRT|TR|TTEE|TRUST|LLC|INC|CORP|REVOCABLE|FAMILY|LIVING|REAL\s*ESTATE)\b/gi, ' ').trim();
+      const tokens = cleaned.split(/\s+/).filter(t => t.length >= 3);
+      return tokens[0] || null;
+    })();
+    
+    // Test if a string segment plausibly references our owner.
+    // Used to filter semicolon-separated entity_info detail strings —
+    // keep segments that contain the owner's last name, drop generic
+    // directory noise like "Registered Agents - Washington Secretary of State".
+    const segmentMentionsOwner = (segment) => {
+      if (!ownerLastName) return false;
+      return new RegExp(`\\b${ownerLastName}\\b`, 'i').test(segment);
+    };
     
     const confLabel = (c) => {
       if (c >= 0.75) return 'high confidence';
@@ -3210,27 +3234,55 @@ app.post('/api/beta-research', async (req, res) => {
           // Do NOT push to confirmedFacts — the label "Business
           // owner/executive" on its own adds no value.
         } else if (s.type === 'entity_info') {
-          // Entity filings are the worst offender. The raw detail is
-          // typically a semicolon-separated list of unrelated Google
-          // result titles. Filter hard:
-          //   - reject if detail contains unrelated-topic markers
-          //   - reject if detail contains URL fragments
-          //   - reject if detail has more than 2 semicolons (multiple
-          //     unrelated topics stitched together)
-          //   - only keep if it looks like a clean entity filing
-          //     reference (e.g. "AZ Corp. Commission filing 2019")
+          // Entity filings are usually a semicolon-separated list of search
+          // result titles. The old whole-string filter rejected anything with
+          // more than 1 semicolon, which threw away real signals mixed with
+          // directory noise. The Mitchke parcel example:
+          //   "Registered Agents - Washington Secretary of State - | WA.gov;
+          //    Mark Mitchke | President and Chief Executive Officer;
+          //    Business Entities - Washington Secretary of State - | WA.gov;
+          //    DentalAlumninews - UW"
+          // Whole-string rejection drops everything. Per-segment extraction
+          // keeps the 2 useful segments ("Mark Mitchke | President and CEO",
+          // "DentalAlumninews - UW") and drops the 2 directory-junk segments.
+          //
+          // Rules per segment:
+          //   - Drop if matches looksLikeNoise
+          //   - Keep if it contains the owner's last name (verified hit)
+          //   - For segments without the owner name: keep only if it's a
+          //     generic-but-clean filing reference (no URLs, no directory
+          //     phrases, ≤120 chars)
           const cleaned = detail.replace(/^Entity info:\s*/i, '').trim();
-          const semicolonCount = (cleaned.match(/;/g) || []).length;
-          const looksClean =
-            cleaned.length > 5 &&
-            cleaned.length < 200 &&
-            semicolonCount <= 1 &&
-            !looksLikeNoise(cleaned) &&
-            !/https?:\/\//.test(cleaned);
-          if (looksClean) {
-            mappedFacts.push({ text: `Entity filings: ${cleaned.slice(0, 160)}` });
+          if (cleaned && cleaned.length > 5) {
+            const segments = cleaned.split(/\s*;\s*/).map(seg => seg.trim()).filter(Boolean);
+            const goodSegments = [];
+            for (const seg of segments) {
+              if (looksLikeNoise(seg)) continue;
+              if (/registered agents|business entities|secretary of state - \|/i.test(seg)) continue;
+              if (/https?:\/\//.test(seg)) continue;
+              if (seg.length < 8 || seg.length > 200) continue;
+              // Strong keep: segment names the owner
+              if (segmentMentionsOwner(seg)) {
+                goodSegments.push(seg);
+                continue;
+              }
+              // Weak keep: short, clean, looks like a single filing reference
+              // and not a generic directory entry
+              if (seg.length <= 120 && !/-\s*\|\s*$/.test(seg) && !/\s\|\s\w+\.gov$/i.test(seg)) {
+                // Only keep if it has actual content (not just "X - Y")
+                const wordCount = seg.split(/\s+/).length;
+                if (wordCount >= 3 && wordCount <= 20) {
+                  goodSegments.push(seg);
+                }
+              }
+            }
+            if (goodSegments.length > 0) {
+              // Combine kept segments into a single fact line. Cap at 2-3
+              // segments to keep the card readable.
+              const combined = goodSegments.slice(0, 3).join(' • ').slice(0, 240);
+              mappedFacts.push({ text: `Entity filings: ${combined}` });
+            }
           }
-          // Otherwise drop it silently — noise has no place in confirmedFacts
         } else if (s.type === 'retired') {
           mappedSignals.push({
             type: 'positive',
@@ -3375,8 +3427,26 @@ app.post('/api/beta-research', async (req, res) => {
         console.error(`[beta-research] investigation_cache lookup failed for ${parcelId}:`, e.message);
       }
       
+      // Fetch parcel meta up front so we can pass owner context into the
+      // mapper for per-segment owner-name verification of entity filings.
+      // Both the cachedDS branch and the fallback branch need this.
+      let parcelMeta = null;
+      try {
+        const { data: parcelRow } = await supabase
+          .from('parcels')
+          .select('owner_name, address, zip_code, assessed_value, mailing_address, mailing_city, mailing_state, tenure_years, is_absentee, is_out_of_state, prop_type')
+          .eq('id', parcelId)
+          .maybeSingle();
+        parcelMeta = parcelRow;
+      } catch (e) {
+        console.error(`[beta-research] parcel meta lookup failed:`, e.message);
+      }
+      
       // Map investigation_cache → structured evidence ONCE, used by both branches
-      const { mappedSignals, mappedFacts, mappedWhoTheyAre, mappedLifeEvents } = mapInvCacheToEvidence(invCache);
+      const { mappedSignals, mappedFacts, mappedWhoTheyAre, mappedLifeEvents } = mapInvCacheToEvidence(
+        invCache,
+        { ownerName: parcelMeta?.owner_name || '' }
+      );
       
       if (cachedDS && cachedDS.report) {
         // Return in the shape the frontend expects. The batch path writes
@@ -3457,19 +3527,7 @@ app.post('/api/beta-research', async (req, res) => {
       // positive signals and confirmed facts even without narrative.
       // ======================================================================
       if (invCache && (mappedSignals.length > 0 || mappedFacts.length > 0 || Object.keys(mappedWhoTheyAre).length > 0)) {
-        // Look up parcel metadata for the prompt
-        let parcelMeta = null;
-        try {
-          const { data: parcelRow } = await supabase
-            .from('parcels')
-            .select('owner_name, address, zip_code, assessed_value, mailing_address, mailing_city, mailing_state, tenure_years, is_absentee, is_out_of_state, prop_type')
-            .eq('id', parcelId)
-            .maybeSingle();
-          parcelMeta = parcelRow;
-        } catch (e) {
-          console.error(`[beta-research] parcel meta lookup failed:`, e.message);
-        }
-        
+        // parcelMeta already fetched above before mapInvCacheToEvidence call
         let scoreRow = null;
         try {
           const { data: sRow } = await supabase
