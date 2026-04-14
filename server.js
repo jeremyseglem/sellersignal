@@ -3092,6 +3092,29 @@ app.post('/api/beta-research', async (req, res) => {
         .eq('parcel_id', parcelId)
         .maybeSingle();
       
+      // ALSO fetch the investigation_cache row with structured research data.
+      // deep_signals only stores the LLM-generated narrative — the raw
+      // structured evidence (life events, LinkedIn profiles, entity filings,
+      // confirmed facts) lives in investigation_cache from the investigation
+      // engine. We join them here so the frontend can render structured
+      // sections (WHO THEY ARE, LIFE EVENTS, CONFIRMED FACTS, POSITIVE
+      // SIGNALS, RISK FLAGS) that the batch narrative alone cannot provide.
+      let invCache = null;
+      try {
+        const { data: inv } = await supabase
+          .from('investigation_cache')
+          .select('*')
+          .eq('parcel_id', parcelId)
+          .maybeSingle();
+        // Skip _listingOnly shallow rows — those don't have real research
+        if (inv && !(inv.enhanced_claims && inv.enhanced_claims._listingOnly)) {
+          invCache = inv;
+        }
+      } catch (e) {
+        // Non-fatal; fall through to narrative-only response
+        console.error(`[beta-research] investigation_cache lookup failed for ${parcelId}:`, e.message);
+      }
+      
       if (cachedDS && cachedDS.report) {
         // Return in the shape the frontend expects. The batch path writes
         // into both the top-level columns AND the report JSONB, so we
@@ -3099,6 +3122,158 @@ app.post('/api/beta-research', async (req, res) => {
         // fall back to report fields for backward compatibility with
         // older rows.
         const report = cachedDS.report || {};
+        
+        // ======================================================================
+        // STRUCTURED EVIDENCE MAPPING from investigation_cache → frontend fields
+        // ======================================================================
+        // The frontend renders sections based on these shape conventions:
+        //   whoTheyAre: { ownership, occupation, spouse }
+        //   signals[]:  [{ type: 'positive'|'negative'|'risk', text, confidence }]
+        //   confirmedFacts[]: array of fact strings or {text} objects
+        //   sellerPsychology: { motivations, hesitations }
+        //   metrics: { estimatedMarketValue, marketValueMethod }
+        //
+        // investigation_cache.signals[] structure:
+        //   [{ type, category, confidence, detail }]
+        //   category ∈ {identity, life_event, listing, financial, demographic, blocker}
+        //   type varies per category (linkedin_found, retirement, obituary, etc)
+        
+        let mappedSignals = [];
+        let mappedFacts = [];
+        let mappedWhoTheyAre = {};
+        let mappedLifeEvents = [];
+        
+        if (invCache && Array.isArray(invCache.signals)) {
+          const rawSignals = invCache.signals;
+          
+          // Confidence converter: raw numeric → frontend label
+          const confLabel = (c) => {
+            if (c >= 0.75) return 'high confidence';
+            if (c >= 0.55) return 'medium confidence';
+            return 'low confidence';
+          };
+          
+          for (const s of rawSignals) {
+            const detail = s.detail || '';
+            
+            // IDENTITY signals → whoTheyAre + confirmedFacts
+            if (s.category === 'identity') {
+              if (s.type === 'linkedin_found') {
+                // Detail format: "Jeremy Rowley - Chief Operating Officer"
+                // or "Ben Banash - Expanding my sales team!"
+                const parts = detail.split(/\s+-\s+/);
+                if (parts.length >= 2) {
+                  mappedWhoTheyAre.occupation = parts.slice(1).join(' - ');
+                }
+                mappedFacts.push({ text: `LinkedIn: ${detail}` });
+              } else if (s.type === 'business_owner') {
+                mappedWhoTheyAre.ownership = detail || 'Business owner/executive background';
+              } else if (s.type === 'entity_info') {
+                // Entity filings — confirmed fact
+                const cleaned = detail.replace(/^Entity info:\s*/i, '').slice(0, 200);
+                mappedFacts.push({ text: `Entity filings: ${cleaned}` });
+              } else if (s.type === 'retired') {
+                mappedSignals.push({
+                  type: 'positive',
+                  text: 'LinkedIn shows retirement indicators — strong seller signal',
+                  confidence: confLabel(s.confidence),
+                });
+              } else {
+                mappedFacts.push({ text: detail });
+              }
+            }
+            
+            // LIFE EVENT signals → positive signals (these are the gold — the
+            // whole reason the product exists. Treat as first-class evidence.)
+            else if (s.category === 'life_event') {
+              let text = detail;
+              let eventType = s.type;
+              
+              // Humanize specific event types into compelling seller signals
+              if (s.type === 'retirement' || s.type === 'retired') {
+                text = 'Retirement indicators in public records — common trigger for downsizing';
+                eventType = 'Retirement';
+              } else if (s.type === 'obituary' || s.type === 'death') {
+                text = 'Possible death in household detected in obituary records — potential estate sale situation';
+                eventType = 'Death in household';
+              } else if (s.type === 'divorce') {
+                text = 'Divorce indicators in court records — common trigger for forced sale';
+                eventType = 'Divorce';
+              } else if (s.type === 'relocation') {
+                text = 'Relocation indicators on LinkedIn — owner may be moving out of market';
+                eventType = 'Relocation';
+              } else if (s.type === 'bankruptcy') {
+                text = 'Bankruptcy filing detected — financial distress signal';
+                eventType = 'Financial distress';
+              }
+              
+              mappedSignals.push({
+                type: 'positive',
+                text,
+                confidence: confLabel(s.confidence),
+              });
+              mappedLifeEvents.push({ type: eventType, detail: text });
+            }
+            
+            // LISTING signals → positive signals (previously listed = warm lead)
+            else if (s.category === 'listing') {
+              if (s.type === 'previously_listed') {
+                mappedSignals.push({
+                  type: 'positive',
+                  text: 'Property was previously listed but withdrawn or expired — owner showed intent to sell',
+                  confidence: confLabel(s.confidence),
+                });
+              } else if (s.type === 'price_history') {
+                mappedSignals.push({
+                  type: 'positive',
+                  text: 'Price reductions in listing history — motivated seller pattern',
+                  confidence: confLabel(s.confidence),
+                });
+              } else if (s.type === 'extended_dom') {
+                mappedSignals.push({
+                  type: 'positive',
+                  text: 'Extended time on market — softening price expectations',
+                  confidence: confLabel(s.confidence),
+                });
+              } else if (s.type === 'pending_sale') {
+                mappedSignals.push({
+                  type: 'risk',
+                  text: 'Possibly under contract — may already be in transaction',
+                  confidence: confLabel(s.confidence),
+                });
+              }
+              // Skip historical_price signals — they're noisy and the
+              // motivation narrative already references them where accurate.
+              // Skip listing_history_exists — too weak to show.
+            }
+            
+            // BLOCKER signals → risk flags
+            else if (s.category === 'blocker') {
+              mappedSignals.push({
+                type: 'risk',
+                text: detail || `Blocker: ${s.type}`,
+                confidence: confLabel(s.confidence),
+              });
+            }
+            
+            // FINANCIAL signals → confirmed facts
+            else if (s.category === 'financial') {
+              mappedFacts.push({ text: detail });
+            }
+          }
+        }
+        
+        // If enhanced_claims has additional identity info not captured in
+        // signals[], pull it through as confirmed facts
+        if (invCache && invCache.enhanced_claims) {
+          const ec = invCache.enhanced_claims;
+          if (Array.isArray(ec.demographicSignals)) {
+            for (const d of ec.demographicSignals) {
+              mappedFacts.push({ text: d });
+            }
+          }
+        }
+        
         const responseShape = {
           // Core scoring fields (not populated by batch DS — frontend will
           // keep whatever score it already computed from parcel heuristics)
@@ -3132,9 +3307,12 @@ app.post('/api/beta-research', async (req, res) => {
             email: '',
             avoid: cachedDS.what_not_to_say || '',
           },
-          signals: report.signals || [],
-          confirmedFacts: report.confirmedFacts || [],
-          whoTheyAre: report.whoTheyAre || {},
+          
+          // STRUCTURED EVIDENCE — now populated from investigation_cache
+          signals: mappedSignals,
+          confirmedFacts: mappedFacts,
+          whoTheyAre: mappedWhoTheyAre,
+          lifeEvents: mappedLifeEvents,
           howTheyThink: report.howTheyThink || {},
           sellerPsychology: report.sellerPsychology || {},
           metrics: report.metrics || {},
@@ -3143,9 +3321,10 @@ app.post('/api/beta-research', async (req, res) => {
           _source: 'batch_cache',
           _generatedAt: cachedDS.generated_at,
           _researchGrounded: report.research_grounded === true,
+          _hasStructuredEvidence: mappedSignals.length > 0 || mappedFacts.length > 0 || Object.keys(mappedWhoTheyAre).length > 0,
         };
         
-        console.log(`[beta-research] cache HIT for parcel ${parcelId}`);
+        console.log(`[beta-research] cache HIT for parcel ${parcelId} (${mappedSignals.length} signals, ${mappedFacts.length} facts, whoTheyAre=${Object.keys(mappedWhoTheyAre).length})`);
         return res.json(responseShape);
       }
     } catch (e) {
