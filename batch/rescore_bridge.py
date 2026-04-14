@@ -7,13 +7,16 @@ pipes them to `node batch/score-stdin.js` via subprocess (which does NOT
 need network), then compares the new scores against the current parcel_scores
 rows in the database.
 
-NO WRITES. Read-only validation. No SerpAPI calls.
+By default: READ-ONLY validation. No SerpAPI calls.
+With --write: upserts new scores to parcel_scores table.
 
 Usage:
-  python3 batch/rescore_bridge.py 85253
-  python3 batch/rescore_bridge.py 85253 98004 37215
+  python3 batch/rescore_bridge.py 85253                  # dry-run one ZIP
+  python3 batch/rescore_bridge.py 85253 --write          # write one ZIP
+  python3 batch/rescore_bridge.py --all                  # dry-run all ZIPs
+  python3 batch/rescore_bridge.py --all --write          # write all ZIPs
 """
-import sys, os, json, urllib.request, subprocess
+import sys, os, json, urllib.request, urllib.error, subprocess
 from pathlib import Path
 
 SB = "https://eeqsbvizgpuehphiaslo.supabase.co"
@@ -23,6 +26,38 @@ REPO = Path(__file__).parent.parent
 def sb(path):
     req = urllib.request.Request(f"{SB}/rest/v1/{path}", headers={"apikey": KEY, "Authorization": f"Bearer {KEY}"})
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
+
+def sb_upsert(table, rows, on_conflict):
+    """POST rows to Supabase with Prefer: resolution=merge-duplicates."""
+    if not rows:
+        return 0
+    data = json.dumps(rows).encode("utf-8")
+    url = f"{SB}/rest/v1/{table}?on_conflict={on_conflict}"
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={
+            "apikey": KEY,
+            "Authorization": f"Bearer {KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=minimal",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return len(rows)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"    UPSERT ERROR: {e.code} {body[:400]}", file=sys.stderr)
+        raise
+
+def get_all_zips():
+    """Fetch all distinct ZIPs that have parcels."""
+    # The simplest way — pull parcel_scores distinct zip codes (already indexed).
+    # Use RPC-less approach: fetch zip_briefings which has one row per ZIP.
+    rows = sb("zip_briefings?select=zip_code&limit=200")
+    return sorted(set(r["zip_code"] for r in rows if r.get("zip_code")))
 
 def db_parcel_to_score_input(row):
     """
@@ -98,7 +133,7 @@ def fetch_all_parcels(zip_code):
         offset += page_size
     return all_rows
 
-def process_zip(zip_code):
+def process_zip(zip_code, write=False, compare=True):
     print(f"\n{'='*130}")
     print(f"ZIP {zip_code}")
     print('='*130)
@@ -142,7 +177,7 @@ def process_zip(zip_code):
     
     print(f"  Scored {len(all_results)} parcels")
     
-    # Build lookup tables for comparison
+    # Build lookup tables
     new_by_id = {r["parcel_id"]: r for r in all_results}
     parcel_by_id = {r["id"]: r for r in parcels_raw}
     
@@ -150,18 +185,11 @@ def process_zip(zip_code):
     agents = sum(1 for r in all_results if r["cohort"] == "agent")
     recent_buyers = sum(1 for r in all_results if r["cohort"] == "recent_buyer")
     commercial = sum(1 for r in all_results if r["cohort"] == "commercial")
-    institutional = sum(1 for r in all_results if r["cohort"] in ("institutional",))
     top_sl = sum(1 for r in all_results if r["seller_likelihood"] >= 55)
     mid_sl = sum(1 for r in all_results if 35 <= r["seller_likelihood"] < 55)
     has_inv = sum(1 for r in all_results if r["has_investigation"])
     
-    print(f"\n  New scoring summary:")
-    print(f"    with investigation data:    {has_inv}")
-    print(f"    blocked — agents:           {agents}")
-    print(f"    blocked — recent buyers:    {recent_buyers}")
-    print(f"    blocked — commercial:       {commercial}")
-    print(f"    sellerLikelihood >= 55:     {top_sl}")
-    print(f"    sellerLikelihood 35-54:     {mid_sl}")
+    print(f"  Summary: inv={has_inv} agents={agents} recent={recent_buyers} commercial={commercial} sl55+={top_sl} sl35-54={mid_sl}")
     
     # Sort new results descending by briefing_rank
     sorted_new = sorted(all_results, key=lambda r: (-r["briefing_rank"], -r["seller_likelihood"]))
@@ -169,72 +197,145 @@ def process_zip(zip_code):
     # Sort old results descending
     sorted_old = sorted(old_scores_raw, key=lambda s: -(s.get("briefing_rank") or 0))
     
-    # Display new top 20
-    print(f"\n  NEW TOP 20 (investigation-driven):")
-    print(f"  {'#':<3} {'inv':<4} {'new':<5} {'sl':<4} {'old':<5} {'owner':<38} {'val':<11} {'cohort':<20} top_signal")
-    for i, r in enumerate(sorted_new[:20]):
-        p = parcel_by_id.get(r["parcel_id"], {})
-        old = old_by_id.get(r["parcel_id"], {})
-        val = p.get("assessed_value") or 0
-        val_s = f"${val/1e6:.1f}M" if val >= 1e6 else (f"${val/1e3:.0f}K" if val > 0 else "?")
-        owner = (p.get("owner_name") or "?")[:37]
-        top_sig = ""
-        if r.get("signals"):
-            top_sig = (r["signals"][0].get("text") or "")[:60]
-        inv_flag = "✓" if r["has_investigation"] else " "
-        print(f"  {i+1:<3} {inv_flag:<4} {r['briefing_rank']:<5} {r['seller_likelihood']:<4} {old.get('briefing_rank',0):<5} {owner:<38} {val_s:<11} {r['cohort'][:19]:<20} {top_sig}")
-    
-    # Display old top 20 with their new score
-    print(f"\n  OLD TOP 20 (property-shape) — showing where they moved:")
-    print(f"  {'#':<3} {'old':<5} {'new':<5} {'Δ':<6} {'owner':<38} {'val':<11} {'new_cohort':<20}")
-    for i, s in enumerate(sorted_old[:20]):
-        pid = s["parcel_id"]
-        p = parcel_by_id.get(pid, {})
-        new = new_by_id.get(pid, {})
-        old_rank = s.get("briefing_rank") or 0
-        new_rank = new.get("briefing_rank") or 0
-        delta = new_rank - old_rank
-        delta_s = f"+{delta}" if delta > 0 else str(delta)
-        val = p.get("assessed_value") or 0
-        val_s = f"${val/1e6:.1f}M" if val >= 1e6 else (f"${val/1e3:.0f}K" if val > 0 else "?")
-        owner = (p.get("owner_name") or "?")[:37]
-        print(f"  {i+1:<3} {old_rank:<5} {new_rank:<5} {delta_s:<6} {owner:<38} {val_s:<11} {new.get('cohort','?')[:19]:<20}")
-    
-    # Key movers — biggest UPWARD shifts (parcels that moved INTO the top)
-    movers = []
-    for r in all_results:
-        pid = r["parcel_id"]
-        old_rank = (old_by_id.get(pid, {}) or {}).get("briefing_rank") or 0
-        new_rank = r["briefing_rank"]
-        if new_rank >= 50 and new_rank - old_rank >= 10:
-            movers.append((pid, old_rank, new_rank, r))
-    movers.sort(key=lambda x: -(x[2] - x[1]))
-    
-    if movers:
-        print(f"\n  BIGGEST UPWARD MOVERS (parcels that moved INTO the top):")
-        print(f"  {'old':<5} {'→':<3} {'new':<5} {'Δ':<6} {'owner':<38} {'cohort':<20} top_signal")
-        for pid, old, new_rank, r in movers[:10]:
-            p = parcel_by_id.get(pid, {})
+    if compare:
+        # Display new top 20
+        print(f"\n  NEW TOP 20 (investigation-driven):")
+        print(f"  {'#':<3} {'inv':<4} {'new':<5} {'sl':<4} {'old':<5} {'owner':<38} {'val':<11} {'cohort':<20} top_signal")
+        for i, r in enumerate(sorted_new[:20]):
+            p = parcel_by_id.get(r["parcel_id"], {})
+            old = old_by_id.get(r["parcel_id"], {})
+            val = p.get("assessed_value") or 0
+            val_s = f"${val/1e6:.1f}M" if val >= 1e6 else (f"${val/1e3:.0f}K" if val > 0 else "?")
             owner = (p.get("owner_name") or "?")[:37]
-            delta = new_rank - old
             top_sig = ""
             if r.get("signals"):
                 top_sig = (r["signals"][0].get("text") or "")[:60]
-            print(f"  {old:<5} {'→':<3} {new_rank:<5} +{delta:<5} {owner:<38} {r['cohort'][:19]:<20} {top_sig}")
+            inv_flag = "✓" if r["has_investigation"] else " "
+            print(f"  {i+1:<3} {inv_flag:<4} {r['briefing_rank']:<5} {r['seller_likelihood']:<4} {old.get('briefing_rank',0):<5} {owner:<38} {val_s:<11} {r['cohort'][:19]:<20} {top_sig}")
+        
+        # Display old top 20 with their new score
+        print(f"\n  OLD TOP 20 (property-shape) — showing where they moved:")
+        print(f"  {'#':<3} {'old':<5} {'new':<5} {'Δ':<6} {'owner':<38} {'val':<11} {'new_cohort':<20}")
+        for i, s in enumerate(sorted_old[:20]):
+            pid = s["parcel_id"]
+            p = parcel_by_id.get(pid, {})
+            new = new_by_id.get(pid, {})
+            old_rank = s.get("briefing_rank") or 0
+            new_rank = new.get("briefing_rank") or 0
+            delta = new_rank - old_rank
+            delta_s = f"+{delta}" if delta > 0 else str(delta)
+            val = p.get("assessed_value") or 0
+            val_s = f"${val/1e6:.1f}M" if val >= 1e6 else (f"${val/1e3:.0f}K" if val > 0 else "?")
+            owner = (p.get("owner_name") or "?")[:37]
+            print(f"  {i+1:<3} {old_rank:<5} {new_rank:<5} {delta_s:<6} {owner:<38} {val_s:<11} {new.get('cohort','?')[:19]:<20}")
+        
+        # Key movers — biggest UPWARD shifts (parcels that moved INTO the top)
+        movers = []
+        for r in all_results:
+            pid = r["parcel_id"]
+            old_rank = (old_by_id.get(pid, {}) or {}).get("briefing_rank") or 0
+            new_rank = r["briefing_rank"]
+            if new_rank >= 50 and new_rank - old_rank >= 10:
+                movers.append((pid, old_rank, new_rank, r))
+        movers.sort(key=lambda x: -(x[2] - x[1]))
+        
+        if movers:
+            print(f"\n  BIGGEST UPWARD MOVERS (parcels that moved INTO the top):")
+            print(f"  {'old':<5} {'→':<3} {'new':<5} {'Δ':<6} {'owner':<38} {'cohort':<20} top_signal")
+            for pid, old, new_rank, r in movers[:10]:
+                p = parcel_by_id.get(pid, {})
+                owner = (p.get("owner_name") or "?")[:37]
+                delta = new_rank - old
+                top_sig = ""
+                if r.get("signals"):
+                    top_sig = (r["signals"][0].get("text") or "")[:60]
+                print(f"  {old:<5} {'→':<3} {new_rank:<5} +{delta:<5} {owner:<38} {r['cohort'][:19]:<20} {top_sig}")
+    
+    # ========================================================================
+    # WRITE MODE — upsert new scores to parcel_scores
+    # ========================================================================
+    if write:
+        # Build rows in the shape parcel_scores expects.
+        # Match worker.js upsert shape exactly so the schema doesn't complain.
+        import datetime
+        now = datetime.datetime.utcnow().isoformat() + "Z"
+        
+        # Get market_key for this ZIP from the parcels table (any parcel will do)
+        market_key = None
+        for p in parcels_raw:
+            if p.get("market_key"):
+                market_key = p["market_key"]
+                break
+        
+        rows_to_write = []
+        for r in all_results:
+            pid = r["parcel_id"]
+            row = {
+                "parcel_id": pid,
+                "zip_code": zip_code,
+                "market_key": market_key,
+                "seller_likelihood": int(r["seller_likelihood"]),
+                "off_market_receptivity": int(r["off_market_receptivity"]),
+                "actionability": int(r["actionability"]),
+                "confidence": int(r["confidence"]),
+                "briefing_rank": int(r["briefing_rank"]),
+                "calibrated_rank": int(r["briefing_rank"]),  # no separate calibration anymore
+                "score_class": r["score_class"],
+                "cohort": r["cohort"],
+                "signals": r.get("signals") or [],
+                "scored_at": now,
+            }
+            rows_to_write.append(row)
+        
+        print(f"  Writing {len(rows_to_write)} parcel_scores rows...")
+        written = 0
+        chunk = 500
+        for i in range(0, len(rows_to_write), chunk):
+            batch = rows_to_write[i:i+chunk]
+            try:
+                n = sb_upsert("parcel_scores", batch, "parcel_id")
+                written += n
+            except Exception as e:
+                print(f"    Write chunk {i}-{i+len(batch)} failed: {e}")
+                return
+        print(f"  ✓ Wrote {written} parcel_scores rows")
+    else:
+        print(f"  (DRY RUN — no writes; use --write to persist)")
 
 def main():
-    zips = sys.argv[1:]
-    if not zips:
+    args = sys.argv[1:]
+    write = "--write" in args
+    all_zips = "--all" in args
+    no_compare = "--no-compare" in args
+    # Positional zip args = anything not starting with --
+    zips = [a for a in args if not a.startswith("--")]
+    
+    if all_zips:
+        zips = get_all_zips()
+        print(f"Processing all {len(zips)} ZIPs from zip_briefings")
+    elif not zips:
         zips = ["85253", "98004", "37215", "28207", "59715", "33480"]
         print(f"No ZIPs specified, using defaults: {zips}")
     
-    for z in zips:
+    mode = "WRITE" if write else "DRY RUN"
+    print(f"Mode: {mode}")
+    
+    compare = not no_compare and len(zips) <= 6  # auto-disable compare for big runs
+    
+    ok, fail = 0, 0
+    for i, z in enumerate(zips):
         try:
-            process_zip(z)
+            print(f"\n[{i+1}/{len(zips)}] {z}")
+            process_zip(z, write=write, compare=compare)
+            ok += 1
         except Exception as e:
             import traceback
             print(f"\nZIP {z} FAILED: {e}")
             traceback.print_exc()
+            fail += 1
+    
+    print(f"\n{'='*60}")
+    print(f"Done: {ok} OK, {fail} failed out of {len(zips)}")
 
 if __name__ == "__main__":
     main()
