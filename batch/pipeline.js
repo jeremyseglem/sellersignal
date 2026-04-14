@@ -597,6 +597,430 @@ function scoreParcel(p, stats, cal) {
     };
 }
 
+// ============================================================================
+// NEW SCORING FUNCTION — investigation-driven
+// ============================================================================
+// This function is the rebuild that Jeremy and I worked through on April 14.
+// The core insight: the old scoreParcel() ranks by property-shape patterns
+// (trust + absentee + long tenure) and the investigation engine collects
+// person-level signals (retirement, previously listed, agent detection,
+// financial distress, probate) but those signals never feed back into ranking.
+// Result: real estate agents show up at the top because they match "LLC +
+// absentee + high value" shape patterns. A retired widow who listed and
+// withdrew shows up at the bottom because she's a named individual without
+// entity signals.
+//
+// scoreParcelNew takes the same parcel data PLUS an optional array of
+// investigation signals from investigation_cache. It uses the investigation
+// signals as the primary scoring driver and demotes property shape to
+// tiebreaker status. Signals like "is_agent" hard-cap the score at 15 so
+// agents can never appear in Act Today. Signals like "previously_listed +
+// retirement" produce scores in the 70-100 range.
+//
+// Uniform weights across all markets — no calibrate() calls. A retired
+// couple in Charlotte and a retired couple in Seattle get the same score
+// for the same signals.
+//
+// Hard disqualifiers are preserved from the old function: commercial,
+// oversized value, government, tax agents, REO, recent buyers.
+//
+// Return shape matches scoreParcel() so the downstream pipeline can consume
+// either function interchangeably.
+// ============================================================================
+
+function scoreParcelNew(p, stats, cal, investigationSignals) {
+    const { p75Value, ownerCounts } = stats;
+    const signals = [];
+    
+    // ========================================================================
+    // HARD DISQUALIFIERS — same as scoreParcel, preserved
+    // ========================================================================
+    if (p.exempt) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Residential'};
+    }
+    
+    if (p.totalValue && p.totalValue > 25000000) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Oversized value (>$25M) — likely commercial/institutional',type:'negative'}],cohort:'commercial',cohortLabel:'Commercial / Institutional'};
+    }
+    
+    if (p.propType === 'Commercial') {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Commercial property — not a residential lead',type:'negative'}],cohort:'commercial',cohortLabel:'Commercial'};
+    }
+    
+    const onAgent = (p.ownerName || '').toUpperCase();
+    const taxAgentRx = /\b(K\.?E\.?\s*ANDREWS|MARVIN\s*F\s*POER|RYAN\s*LLC|RYAN\s*PROPERTY\s*TAX|ALTUS\s*GROUP|DUFF\s*&?\s*PHELPS|TRUE\s*PARTNERS|PARADIGM\s*TAX|PROPERTY\s*TAX\s*ADVISORS|PADDOCK\s*&?\s*PARSONS|MORRIS\s*MANNING|BRUSNIAK\s*BLACKWELL|POPP\s*HUTCHESON|GUNTER\s*BENNETT)\b/i;
+    if (taxAgentRx.test(onAgent)) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Property tax agent (not actual owner)',type:'negative'}],cohort:'commercial',cohortLabel:'Tax Agent / Institutional'};
+    }
+    
+    // REO pre-check
+    const onPre = (p.ownerName || '').toUpperCase();
+    const reoGovRxPre = /\b(FANNIE\s*MAE|FEDERAL\s*NATIONAL\s*MORTGAGE|FREDDIE\s*MAC|FEDERAL\s*HOME\s*LOAN\s*MORTGAGE|GINNIE\s*MAE|HUD\b|SECRETARY\s*OF\s*HOUSING|SECRETARY\s*OF\s*VETERANS|VETERANS\s*AFFAIRS|USDA\s*RURAL)\b/i;
+    const isReoPreCheck = reoGovRxPre.test(onPre);
+    
+    const govRx = /\bUSA\b|\bCITY OF\b|\bTOWN OF\b|\bVILLAGE OF\b|\bBOROUGH OF\b|\bCOUNTY OF\b|\bSTATE OF\b|\bUNITED STATES\b|\bFEDERAL\b|\bMUNICIPAL\b|\bSCHOOL DIST|\bSCHOOL\b|\bACADEMY\b|\bSEMINARY\b|\bFIRE DIST|\bWATER DIST|\bSEWER\b|\bHOUSING AUTH|\bCHURCH\b|\bDIOCESE\b|\bMINISTR(Y|IES)\b|\bPARISH\b|\bMONASTER|\bCONVENT\b|\bARCHDIOCESE\b|\bCONGREGATION\b|\bSISTERS OF\b|\bBROTHERS OF\b|\bORDER OF\b|\bFRIARS\b|\bABBEY\b|\bPRIORY\b|\bSYNAGOGUE\b|\bTEMPLE\b|\bMOSQUE\b|\bHOA\b|\bHOMEOWNERS?\s*ASS|\bCOMMON\s*AREA|\bMUSEUM\b|\bCONDO\s*MASTER|\bCONDO\s*ASSOC|\bCONDOMINIUM\s*ASS|\bPARK\s*AREA|\bOWNERS?\s*ASSOC|\bPROPERTY\s*OWNERS|\bMASTER\s*ASSOC|\bCOMMUNITY\s*ASSOC|\bNEIGHBORHOOD\s*ASSOC|\bIRRIGATION|\bCEMETERY|\bLIBRARY|\bFOUNDATION\b|\bUNIVERSIT(Y|IES)\b|\bCOLLEGE\b|\bHOSPITAL\b|\bHEALTH(CARE)?\s*(SYSTEM|INC|CORP|GROUP|CENTER|CENTRE)\b|\bMEDICAL\s*CENTER\b|\bYMCA\b|\bYWCA\b|\bBOY\s*SCOUT|\bGIRL\s*SCOUT|\bROTARY\b|\bLIONS\s*CLUB|\bELKS\b|\bMOOSE\s*LODGE|\bVFW\b|\bAMERICAN\s*LEGION|\bSALVATION\s*ARMY|\bGOODWILL\b|\bHABITAT\b|\bRED\s*CROSS|\bBOYS\s*(AND|&)\s*GIRLS|\bDAV\b|\bKIWANIS\b|\bSHRINERS\b|\bODD\s*FELLOWS|\bKNIGHTS\s*OF|\bMONTANA STATE\b|\bSUB\s+[A-Z]/i;
+    if (p.ownerName && govRx.test(p.ownerName) && !isReoPreCheck) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:'Government/institutional',type:'negative'}],cohort:'residential',cohortLabel:'Institutional'};
+    }
+    
+    const on = (p.ownerName || '').toUpperCase();
+    if (!p.address && (!on || on.length < 4)) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[],cohort:'residential',cohortLabel:'Unknown'};
+    }
+    
+    // RECENT BUYER HARD CAP — anyone who bought in the last 2 years is not
+    // a seller, regardless of what other signals look like. Transaction costs
+    // alone make reselling within 1-2 years economically irrational absent
+    // genuine distress (which would appear as a separate financial_distress
+    // investigation signal).
+    if (p.tenureYears !== undefined && p.tenureYears !== null && p.tenureYears < 2) {
+        return {sellerLikelihood:0,offMarketReceptivity:0,actionability:0,confidence:0,briefingRank:0,scoreClass:'low',signals:[{text:`Recent buyer (${p.tenureYears.toFixed(1)}yr) — unlikely to sell`,type:'negative'}],cohort:'recent_buyer',cohortLabel:'Recent Buyer'};
+    }
+    
+    // ========================================================================
+    // INVESTIGATION SIGNAL INDEX — the primary scoring driver
+    // ========================================================================
+    const sigTypes = new Set();
+    const sigConfidence = {};
+    const hasInvestigation = Array.isArray(investigationSignals) && investigationSignals.length > 0;
+    
+    if (hasInvestigation) {
+        for (const s of investigationSignals) {
+            const t = s && s.type;
+            if (!t) continue;
+            sigTypes.add(t);
+            sigConfidence[t] = Math.max(sigConfidence[t] || 0, s.confidence || 0.5);
+        }
+    }
+    
+    // AGENT HARD DISQUALIFIER — from investigation data, not property shape.
+    // When the investigation engine has confirmed the owner is a licensed
+    // real estate agent, cap their score at 15 so they're invisible in
+    // Act Today. Agents are the #1 source of "these rankings don't make
+    // sense" feedback. They match all the structural seller patterns
+    // (LLC, absentee, long tenure, high value) but they're never going
+    // to sell to another agent.
+    if (sigTypes.has('is_agent') && sigConfidence.is_agent >= 0.75) {
+        return {
+            sellerLikelihood: 15,
+            offMarketReceptivity: 20,
+            actionability: 30,
+            confidence: 70,
+            briefingRank: 15,
+            scoreClass: 'low',
+            signals: [{text:'🚫 Real estate agent — investigation confirmed',type:'negative'}],
+            cohort: 'agent',
+            cohortLabel: 'Real Estate Agent',
+            _hasInvestigation: true,
+        };
+    }
+    
+    // ========================================================================
+    // ENTITY + SHAPE FLAGS — reused for shape-score contribution
+    // ========================================================================
+    const pa = (p.address || '').toLowerCase().replace(/\s+/g, '');
+    const oa = (p.ownerAddress || '').toLowerCase().replace(/\s+/g, '');
+    const isAbsentee = p.isAbsentee || p.mailDiffers || (oa && pa && pa.length > 5 && !oa.includes(pa.substring(0, Math.min(10, pa.length))));
+    const isOutOfState = p.isOutOfState;
+    const pt = (p.propType || '').toLowerCase();
+    const isVacant = pt.includes('vacant') || pt.includes('land') || (p.totalValue > 0 && p.buildingValue === 0);
+    const hasMailingAddr = p.ownerAddress && p.ownerAddress.length > 5;
+    const hasOwnerName = on && on.length > 3;
+    
+    const isLLC = /\bLLC\b|\bCORP\b|\bINC\b|\bPARTNERSHIP\b|\bHOLDINGS\b|\bPROPERTIES\b|\bINVESTMENTS\b|\bGROUP\b|\bREALTY\b|\bMANAGEMENT\b/i.test(on);
+    const isTrust = /\bTRUST\b/i.test(on);
+    const isEstate = /\bESTATE\b/i.test(on);
+    const isHeirs = /\bHEIRS\b|\bDECEASED\b|\bSURVIVOR\b/i.test(on);
+    const isRanch = /\bRANCH\b|\bFARM\b/i.test(on);
+    const isEntity = isLLC || isTrust || isEstate || isHeirs || isRanch;
+    const isCorporateOpaque = isLLC && !isTrust && !isEstate && !isHeirs && !isRanch;
+    
+    // REO detection (same regex bank from scoreParcel)
+    const reoBankRx = /\b(BANK\s*OF\s*AMERICA|WELLS\s*FARGO|JPMORGAN|JP\s*MORGAN|CHASE\s*BANK|US\s*BANK\s*N|CITIBANK|HSBC\s*BANK|DEUTSCHE\s*BANK|WILMINGTON\s*(SAVINGS|TRUST)|BANK\s*OF\s*NEW\s*YORK)\b/i;
+    const reoServicerRx = /\b(MTGLQ\s*INVESTORS|NATIONSTAR|MR\.?\s*COOPER|RUSHMORE\s*LOAN|SHELLPOINT|SPECIALIZED\s*LOAN\s*SERVICING|CARRINGTON\s*MORTGAGE|OCWEN|PHH\s*MORTGAGE|SELENE\s*FINANCE)\b/i;
+    const isReo = reoGovRxPre.test(on) || reoServicerRx.test(on) || (reoBankRx.test(on) && !/\bTRUSTEE\b/i.test(on));
+    
+    const isJunkName = hasOwnerName && (
+        (/\bMANAGEMENT\b|\bPROPERTY\b|\bSERVICE|\bAGENCY\b|\bDEPARTMENT\b|\bOFFICE\b|\bCOMMITTEE\b|\bBOARD\b/i.test(on) && !isEntity) ||
+        on.split(/\s+/).length === 1 ||
+        /^\d/.test(on)
+    );
+    const hasCleanOwnerName = hasOwnerName && !isJunkName;
+    const isNamedIndividual = hasCleanOwnerName && !isLLC && !isTrust && !isEstate && !isHeirs && !isRanch;
+    
+    let multiCount = 1;
+    if (hasOwnerName) {
+        multiCount = ownerCounts[on.trim()] || 1;
+    }
+    
+    // ========================================================================
+    // INVESTIGATION-DRIVEN SCORE
+    // ========================================================================
+    let investigationScore = 0;
+    
+    // Listing intent — these are extracted from Zillow/Redfin results keyed
+    // on property address, so they're inherently about THIS property and
+    // not subject to the owner-name-echo noise that life events suffer from
+    if (sigTypes.has('previously_listed')) {
+        investigationScore += 25;
+        signals.push({text:'🏷️ Previously listed (withdrawn/expired) — confirmed seller intent',type:'positive'});
+    }
+    if (sigTypes.has('price_history')) {
+        investigationScore += 12;
+        signals.push({text:'📉 Price reductions in listing history — motivated seller',type:'positive'});
+    }
+    if (sigTypes.has('extended_dom')) {
+        investigationScore += 8;
+        signals.push({text:'⏰ Extended days on market',type:'positive'});
+    }
+    
+    // Strong life events — each category scored individually. These are
+    // all court-records or press-release based in their strong form, so
+    // they're more reliable than the noisy keyword-match obituary signal.
+    if (sigTypes.has('divorce')) {
+        investigationScore += 25;
+        signals.push({text:'💔 Divorce indicator — likely forced sale',type:'positive'});
+    }
+    if (sigTypes.has('probate')) {
+        investigationScore += 30;
+        signals.push({text:'⚖️ Probate/estate filing — estate settlement',type:'positive'});
+    }
+    if (sigTypes.has('financial_distress')) {
+        investigationScore += 22;
+        signals.push({text:'💸 Financial distress detected',type:'positive'});
+    }
+    if (sigTypes.has('relocation')) {
+        investigationScore += 18;
+        signals.push({text:'🚚 Relocation indicator — moving out of market',type:'positive'});
+    }
+    // Retirement can come from two types (retired vs retirement) depending
+    // on which extraction path fired
+    if (sigTypes.has('retired') || sigTypes.has('retirement')) {
+        investigationScore += 15;
+        signals.push({text:'👴 Retirement indicators in public records',type:'positive'});
+    }
+    
+    // Obituary — KNOWN NOISY. Only counts when paired with another signal
+    // that validates the owner is actually the deceased or the surviving
+    // spouse. The old extraction fires the obituary signal any time the
+    // word "obituary" appears in a search result for a common-name owner,
+    // which catches unrelated obituaries. Pairing with retirement or
+    // previously-listed gives us confidence that the signal is real.
+    const strongLifeEvents = 
+        (sigTypes.has('divorce') ? 1 : 0) +
+        (sigTypes.has('probate') ? 1 : 0) +
+        (sigTypes.has('financial_distress') ? 1 : 0) +
+        (sigTypes.has('relocation') ? 1 : 0) +
+        (sigTypes.has('retired') || sigTypes.has('retirement') ? 1 : 0);
+    
+    const hasListedIntent = sigTypes.has('previously_listed') || sigTypes.has('price_history');
+    const hasObituary = sigTypes.has('obituary');
+    
+    if (hasObituary) {
+        if (strongLifeEvents > 0 || hasListedIntent) {
+            investigationScore += 20;
+            signals.push({text:'💀 Obituary signal (paired with other evidence — high confidence)',type:'positive'});
+        } else {
+            // Orphan obituary signal — give it minimal credit so a parcel
+            // with only this signal is still treated as having "some"
+            // research but not scored into Act Today
+            investigationScore += 2;
+        }
+    }
+    
+    // Multi-signal reinforcement bonuses — when multiple independent
+    // signals point in the same direction, each one's confidence goes up
+    if (strongLifeEvents >= 2) {
+        investigationScore += 12;
+        signals.push({text:`⭐ ${strongLifeEvents} independent life-event signals — reinforcing`,type:'positive'});
+    }
+    if (hasListedIntent && strongLifeEvents >= 1) {
+        investigationScore += 10;
+        signals.push({text:'⭐ Listing intent + life event — strong seller combination',type:'positive'});
+    }
+    
+    // Pending sale is a blocker — already in transaction
+    if (sigTypes.has('pending_sale')) {
+        investigationScore -= 20;
+        signals.push({text:'⚠️ Possibly pending sale — may already be in transaction',type:'negative'});
+    }
+    
+    // ========================================================================
+    // PROPERTY SHAPE SCORE — tiebreaker only
+    // ========================================================================
+    let shapeScore = 0;
+    
+    // Name-based shape patterns (these are evidence of transition even
+    // without investigation)
+    if (isHeirs) {
+        shapeScore += 15;
+        signals.push({text:'Heirs/deceased/survivor in owner name — transition signal',type:'positive'});
+    }
+    if (isEstate && !isHeirs) {
+        shapeScore += 12;
+        signals.push({text:'Estate ownership — possible settlement',type:'positive'});
+    }
+    if (isTrust && isAbsentee) {
+        shapeScore += 8;
+    } else if (isTrust && !isHeirs && !isEstate) {
+        shapeScore += 4;
+    }
+    
+    // Absentee patterns
+    if (isAbsentee && isOutOfState) {
+        shapeScore += 6;
+    } else if (isAbsentee) {
+        shapeScore += 3;
+    } else if (isOutOfState) {
+        shapeScore += 4;
+    }
+    
+    // Long tenure on individually-owned properties is a mild positive
+    if (p.tenureYears !== null && p.tenureYears !== undefined && p.tenureYears >= 15 && !isEntity) {
+        shapeScore += 5;
+    }
+    
+    // REO keeps its boost — structural signal, not investigation-based
+    if (isReo) {
+        shapeScore += 25;
+        signals.push({text:'Bank-owned / REO — bank will dispose',type:'positive'});
+    }
+    
+    // Quit claim + recent = distress transfer
+    if (p.quitClaimFlag && p.tenureYears != null && p.tenureYears <= 3) {
+        shapeScore += 10;
+        signals.push({text:'Recent quit claim deed — possible family transfer or distress',type:'positive'});
+    }
+    
+    // Small portfolio hint — investor simplification
+    if (multiCount >= 2 && multiCount <= 5) {
+        shapeScore += 3;
+    }
+    
+    // Ranch / operational / vacant considerations
+    if (isRanch && p.acres > 20) {
+        shapeScore -= 10;
+        signals.push({text:'Active agricultural operation — lower sell probability',type:'negative'});
+    }
+    
+    // Data quality penalty for completely uninvestigated + no shape signals
+    if (!hasInvestigation && shapeScore < 5) {
+        shapeScore -= 3;
+    }
+    
+    // ========================================================================
+    // COMBINE INTO SELLER LIKELIHOOD
+    // ========================================================================
+    let sellerLikelihood = 20 + investigationScore + shapeScore;
+    sellerLikelihood = clamp(sellerLikelihood, 0, 100);
+    
+    // ========================================================================
+    // OFF-MARKET RECEPTIVITY
+    // ========================================================================
+    let offMarketReceptivity = 20;
+    if (isTrust || isEstate || isHeirs) offMarketReceptivity += 15;
+    if (isLLC) offMarketReceptivity += 10;
+    if (isAbsentee) offMarketReceptivity += 8;
+    if (isOutOfState) offMarketReceptivity += 6;
+    if (p.totalValue && p.totalValue > 3000000) offMarketReceptivity += 12;
+    if (isVacant) offMarketReceptivity += 6;
+    if (p.acres && p.acres > 10) offMarketReceptivity += 8;
+    if (isRanch) offMarketReceptivity += 6;
+    // Signal-driven: if we already know they're open to selling, off-market
+    // receptivity should be higher
+    if (sigTypes.has('previously_listed')) offMarketReceptivity += 10;
+    offMarketReceptivity = clamp(offMarketReceptivity, 0, 100);
+    
+    // ========================================================================
+    // ACTIONABILITY — can we actually reach this person?
+    // ========================================================================
+    let actionability = 25;
+    if (hasCleanOwnerName && hasMailingAddr) actionability += 18;
+    else if (hasCleanOwnerName) actionability += 10;
+    else if (hasOwnerName && hasMailingAddr) actionability += 5;
+    if (hasCleanOwnerName && !isLLC) actionability += 12;
+    if (isTrust && hasMailingAddr) actionability += 8;
+    if (isHeirs || isEstate) actionability += 6;
+    if (isAbsentee && hasMailingAddr) actionability += 6;
+    if (isCorporateOpaque) actionability -= 10;
+    if (!hasOwnerName) actionability -= 10;
+    if (isJunkName) actionability -= 8;
+    // Having a LinkedIn profile from investigation = we know who to contact
+    if (sigTypes.has('linkedin_found')) actionability += 8;
+    actionability = clamp(actionability, 0, 100);
+    
+    // ========================================================================
+    // CONFIDENCE — how sure are we this ranking is right?
+    // ========================================================================
+    let confidence = 30;
+    if (hasInvestigation) confidence += 25;
+    if (sigTypes.size >= 3) confidence += 10;
+    if (hasCleanOwnerName) confidence += 8;
+    if (hasMailingAddr) confidence += 6;
+    if (p.totalValue > 0) confidence += 5;
+    if (p.tenureConfidence === 'high') confidence += 6;
+    if (isJunkName) confidence -= 6;
+    // Multi-signal agreement boosts confidence; contradiction (pending + listed) reduces it
+    if (sigTypes.has('pending_sale') && sigTypes.has('previously_listed')) confidence -= 5;
+    confidence = clamp(confidence, 0, 100);
+    
+    // ========================================================================
+    // BRIEFING RANK — same formula as scoreParcel for consistency
+    // ========================================================================
+    let briefingRank = Math.round(
+        (sellerLikelihood * 0.50) +
+        (actionability * 0.30) +
+        (offMarketReceptivity * 0.15) +
+        (confidence * 0.05)
+    );
+    
+    // Clamp briefingRank 0-100
+    briefingRank = clamp(briefingRank, 0, 100);
+    
+    // ========================================================================
+    // COHORT — determined by primary driver signal
+    // ========================================================================
+    let cohort = 'residential', cohortLabel = 'Residential';
+    if (isReo) { cohort = 'reo'; cohortLabel = 'Bank-Owned / REO'; }
+    else if (hasListedIntent && strongLifeEvents >= 1) { cohort = 'motivated_seller'; cohortLabel = 'Motivated Seller'; }
+    else if (sigTypes.has('probate') || isHeirs) { cohort = 'estate'; cohortLabel = 'Estate / Probate'; }
+    else if (strongLifeEvents >= 2) { cohort = 'life_event_multi'; cohortLabel = 'Multiple Life Events'; }
+    else if (sigTypes.has('financial_distress')) { cohort = 'distress'; cohortLabel = 'Financial Distress'; }
+    else if (sigTypes.has('retired') || sigTypes.has('retirement')) { cohort = 'retirement'; cohortLabel = 'Retirement'; }
+    else if (sigTypes.has('divorce')) { cohort = 'divorce'; cohortLabel = 'Divorce'; }
+    else if (sigTypes.has('relocation')) { cohort = 'relocation'; cohortLabel = 'Relocation'; }
+    else if (sigTypes.has('previously_listed')) { cohort = 'previously_listed'; cohortLabel = 'Previously Listed'; }
+    else if (isEstate) { cohort = 'estate'; cohortLabel = 'Estate / Heir'; }
+    else if (isTrust) { cohort = 'trust'; cohortLabel = 'Trust'; }
+    else if (isRanch) { cohort = 'ranch'; cohortLabel = 'Ranch / Farm'; }
+    else if (isLLC) { cohort = 'investor'; cohortLabel = 'Investor / Entity'; }
+    else if (isAbsentee || isOutOfState) { cohort = 'absentee'; cohortLabel = 'Absentee Owner'; }
+    else if (isVacant) { cohort = 'vacant'; cohortLabel = 'Vacant / Land'; }
+    
+    const scoreClass = briefingRank >= 55 ? 'high' : briefingRank >= 35 ? 'medium' : 'low';
+    
+    return {
+        sellerLikelihood,
+        offMarketReceptivity,
+        actionability,
+        confidence,
+        briefingRank,
+        scoreClass,
+        signals,
+        cohort,
+        cohortLabel,
+        _multiCount: multiCount,
+        _isAbsentee: isAbsentee,
+        _isOutOfState: isOutOfState,
+        _isVacant: isVacant,
+        _isReo: isReo,
+        _quitClaimFlag: !!p.quitClaimFlag,
+        _hasInvestigation: hasInvestigation,
+        _investigationScore: investigationScore,
+        _shapeScore: shapeScore,
+    };
+}
+
 // ========================
 // TENURE ENRICHMENT — King County sales endpoint
 // ========================
@@ -681,6 +1105,6 @@ async function enrichTenure(source, parcels) {
 
 module.exports = {
     cleanOwnerName, parseNumericValue, extractLatLng, classifyPropType,
-    parseParcel, clamp, calibrate, precomputeStats, scoreParcel,
+    parseParcel, clamp, calibrate, precomputeStats, scoreParcel, scoreParcelNew,
     latlngToMerc, enrichTenure
 };
