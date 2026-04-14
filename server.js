@@ -3681,12 +3681,52 @@ app.get('/api/beta-research/stream', async (req, res) => {
       const invCache = (inv && !(inv.enhanced_claims && inv.enhanced_claims._listingOnly)) ? inv : null;
       
       if (invCache && Array.isArray(invCache.signals) && invCache.signals.length > 0) {
+        // Inline mapping — same logic as mapInvCacheToEvidence in the POST handler
+        const mappedSignals = [];
+        const mappedFacts = [];
+        const mappedWhoTheyAre = {};
+        const confLabel = (c) => c >= 0.75 ? 'high confidence' : c >= 0.55 ? 'medium confidence' : 'low confidence';
+        
+        for (const s of invCache.signals) {
+          const detail = s.detail || '';
+          if (s.category === 'life_event') {
+            let text = detail;
+            if (s.type === 'retirement' || s.type === 'retired') text = 'Retirement indicators in public records — common trigger for downsizing';
+            else if (s.type === 'obituary') text = 'Possible death in household detected in obituary records — potential estate sale situation';
+            else if (s.type === 'divorce') text = 'Divorce indicators in court records — common trigger for forced sale';
+            else if (s.type === 'relocation') text = 'Relocation indicators on LinkedIn — owner may be moving out of market';
+            else if (s.type === 'bankruptcy') text = 'Bankruptcy filing detected — financial distress signal';
+            mappedSignals.push({ type: 'positive', text, confidence: confLabel(s.confidence) });
+          } else if (s.category === 'listing') {
+            if (s.type === 'previously_listed') mappedSignals.push({ type: 'positive', text: 'Property was previously listed but withdrawn or expired — owner showed intent to sell', confidence: confLabel(s.confidence) });
+            else if (s.type === 'price_history') mappedSignals.push({ type: 'positive', text: 'Price reductions in listing history — motivated seller pattern', confidence: confLabel(s.confidence) });
+            else if (s.type === 'pending_sale') mappedSignals.push({ type: 'risk', text: 'Possibly under contract — may already be in transaction', confidence: confLabel(s.confidence) });
+          } else if (s.category === 'financial' && (s.type === 'financial_distress' || s.type === 'bankruptcy')) {
+            mappedSignals.push({ type: 'positive', text: 'Financial distress indicators detected — motivated seller candidate', confidence: confLabel(s.confidence) });
+            if (detail) mappedFacts.push({ text: detail });
+          } else if (s.category === 'blocker') {
+            mappedSignals.push({ type: 'risk', text: detail || `Blocker: ${s.type}`, confidence: confLabel(s.confidence) });
+          } else if (s.category === 'identity') {
+            if (s.type === 'business_owner') mappedWhoTheyAre.ownership = detail || 'Business owner/executive background';
+            else if (s.type === 'linkedin_found') {
+              const parts = detail.split(/\s+-\s+/);
+              if (parts.length >= 2) mappedWhoTheyAre.occupation = parts.slice(1).join(' - ');
+              mappedFacts.push({ text: `LinkedIn: ${detail}` });
+            } else if (s.type === 'entity_info') {
+              const cleaned = detail.replace(/^Entity info:\s*/i, '').slice(0, 200);
+              mappedFacts.push({ text: `Entity filings: ${cleaned}` });
+            }
+          }
+        }
+        
         send('progress', { stage: 'complete', message: 'Loaded structured evidence from research cache' });
         send('result', {
           motivation: '',
           timeline: '',
           scripts: { letter: '', phone: '', door: '', email: '', avoid: '' },
-          // Flag for frontend — evidence is present but narrative pending
+          signals: mappedSignals,
+          confirmedFacts: mappedFacts,
+          whoTheyAre: mappedWhoTheyAre,
           _source: 'invcache_only',
           _researchGrounded: true,
           _pendingNarrative: true,
