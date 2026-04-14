@@ -3404,44 +3404,172 @@ app.post('/api/beta-research', async (req, res) => {
       // FALLBACK: no deep_signals row yet, but investigation_cache exists
       // with real structured evidence. This happens when the new scoring
       // function promotes a parcel into top rank that the old nightly cron
-      // never investigated in its "top 5" — investigation research was
-      // done for it in a prior run but the LLM synthesis step (which
-      // generates narrative + scripts) hasn't happened yet.
+      // never investigated in its "top 5" — research was done for it in a
+      // prior run but the LLM narrative + scripts synthesis hasn't happened.
       //
-      // Build a response from the structured evidence alone so the
-      // frontend can render positive signals, confirmed facts, and
-      // whoTheyAre panels. The motivation narrative and scripts remain
-      // empty — the next nightly cron will fill them in. Critically,
-      // _researchGrounded is set TRUE so hasRealEvidence passes in the
-      // briefing renderer and the "Limited public signal" warning
-      // doesn't appear.
+      // ON-DEMAND SYNTHESIS: when the user clicks into a card, we run the
+      // Claude synthesis RIGHT NOW using the same prompt worker.js uses in
+      // the nightly cron. Cost per call: ~$0.02 and ~3 seconds. We then
+      // write the result to deep_signals so subsequent hits use the cache.
+      //
+      // On synthesis failure (API down, timeout, parse error), fall through
+      // to the structured-evidence-only response so the user still sees
+      // positive signals and confirmed facts even without narrative.
       // ======================================================================
       if (invCache && (mappedSignals.length > 0 || mappedFacts.length > 0 || Object.keys(mappedWhoTheyAre).length > 0)) {
+        // Look up parcel metadata for the prompt
+        let parcelMeta = null;
+        try {
+          const { data: parcelRow } = await supabase
+            .from('parcels')
+            .select('owner_name, address, zip_code, assessed_value, mailing_address, mailing_city, mailing_state, tenure_years, is_absentee, is_out_of_state, prop_type')
+            .eq('id', parcelId)
+            .maybeSingle();
+          parcelMeta = parcelRow;
+        } catch (e) {
+          console.error(`[beta-research] parcel meta lookup failed:`, e.message);
+        }
+        
+        let scoreRow = null;
+        try {
+          const { data: sRow } = await supabase
+            .from('parcel_scores')
+            .select('seller_likelihood, off_market_receptivity, actionability, confidence, briefing_rank, cohort')
+            .eq('parcel_id', parcelId)
+            .maybeSingle();
+          scoreRow = sRow;
+        } catch (e) {
+          // non-fatal
+        }
+        
+        // Attempt on-demand synthesis using the same prompt structure as
+        // worker.js's Deep Signal batch path. We reuse investigation_cache
+        // signals directly so this is zero additional SerpAPI cost.
+        let synthesized = null;
+        if (anthropic && parcelMeta) {
+          try {
+            const claims = invCache.enhanced_claims || {};
+            const lifeEventsStr = (claims.lifeEventSignals || []).join('; ');
+            const identityStr = (claims.identitySignals || []).join('; ');
+            const demographicsStr = (claims.demographicSignals || []).join('; ');
+            const financialStr = (claims.financialSignals || []).join('; ');
+            const listingStr = (claims.listingSignals || []).join('; ');
+            const blockersStr = (claims.blockerSignals || []).join('; ');
+            
+            const researchBlock = [
+              lifeEventsStr && `  LIFE EVENTS: ${lifeEventsStr}`,
+              identityStr && `  IDENTITY: ${identityStr}`,
+              demographicsStr && `  DEMOGRAPHICS: ${demographicsStr}`,
+              financialStr && `  FINANCIAL: ${financialStr}`,
+              listingStr && `  LISTING HISTORY: ${listingStr}`,
+              blockersStr && `  ⚠ BLOCKERS: ${blockersStr}`,
+            ].filter(Boolean).join('\n');
+            
+            const signalTypes = (invCache.signals || []).map(s => s.type).filter(Boolean);
+            const rankStr = scoreRow?.briefing_rank != null ? `Heuristic score: ${scoreRow.briefing_rank}` : '';
+            const cohortStr = scoreRow?.cohort || '';
+            
+            const promptSection = `[1] ${parcelMeta.owner_name || '?'} — ${parcelMeta.address || '?'}, ${parcelMeta.mailing_city || ''} ${parcelMeta.mailing_state || ''}
+  Cohort: ${cohortStr} | $${(parcelMeta.assessed_value||0).toLocaleString()} | Mail: ${parcelMeta.mailing_address||'?'}
+  Tenure: ${parcelMeta.tenure_years!=null?parcelMeta.tenure_years+'yr':'?'} | ${rankStr}
+  RESEARCH FINDINGS (from ${(invCache.signals||[]).length} verified signals):
+${researchBlock || '  (no categorized signals)'}
+  Signal types detected: ${signalTypes.join(', ') || 'none'}`;
+            
+            const synthPromise = anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 2500,
+              messages: [{ role: 'user', content: `You are SellerSignal's Deep Signal engine. You produce grounded psychological profiles and outreach strategies for real estate prospects.
+
+CRITICAL DATA HONESTY RULES:
+1. GROUND every claim in the research findings provided. Reference specific life events, identity markers, and demographic signals by name. If research shows "Retirement indicator from LinkedIn", say "LinkedIn signals suggest recent retirement" — not "the owner may be contemplating life changes."
+2. NEVER use cohort pattern-matching as your primary content. "Trust + absentee = sophisticated wealth management" is NOT a psychological profile — it's a tautology.
+3. Rich psychological profiling means: specific to this person, grounded in evidence, actionable by an agent. If a specific signal isn't in the findings, don't fabricate it.
+
+OUTPUT FORMAT:
+Respond with ONLY a JSON object (no array, no code fence). Keys:
+{
+  "motivation": "3-5 sentences grounded in research findings. Reference at least 2 specific findings by name.",
+  "timeline": "0-3 months | 3-6 months | 6-12 months | 12+ months",
+  "best_channel": "call | mail | door",
+  "call_script": "Full 4-6 sentence phone script. Reference at least 2 specific research findings naturally.",
+  "mail_script": "Full 4-6 sentence letter. Same grounding rules.",
+  "door_script": "Full 4-6 sentence door knock. Feel informed and specific.",
+  "what_not_to_say": "2-3 specific things to avoid, tied to what research reveals. Not generic 'do not be pushy.'",
+  "research_grounded": true
+}
+
+PROSPECT:
+${promptSection}` }]
+            });
+            
+            const synthResult = await Promise.race([
+              synthPromise,
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 25000))
+            ]);
+            
+            const raw = (synthResult.content?.[0]?.text || '').replace(/```json|```/g, '').trim();
+            synthesized = JSON.parse(raw);
+            console.log(`[beta-research] on-demand synthesis OK for ${parcelId}`);
+            
+            // Save to deep_signals so subsequent hits use the cache
+            try {
+              await supabase.from('deep_signals').upsert({
+                parcel_id: parcelId,
+                zip_code: parcelMeta.zip_code || '',
+                report: synthesized,
+                motivation: synthesized.motivation || null,
+                timeline: synthesized.timeline || null,
+                best_channel: synthesized.best_channel || null,
+                call_script: synthesized.call_script || null,
+                mail_script: synthesized.mail_script || null,
+                door_script: synthesized.door_script || null,
+                what_not_to_say: synthesized.what_not_to_say || null,
+                generated_at: new Date().toISOString()
+              }, { onConflict: 'parcel_id' });
+            } catch (e) {
+              console.error(`[beta-research] deep_signals write failed for ${parcelId}:`, e.message);
+              // Non-fatal — we still return the fresh synthesis
+            }
+          } catch (e) {
+            console.error(`[beta-research] on-demand synthesis failed for ${parcelId}:`, e.message);
+            // Fall through to structured-evidence-only response
+          }
+        }
+        
+        // Build response: if synthesis succeeded, include narrative + scripts.
+        // Otherwise return structured evidence alone (still renders cleanly).
+        const hasNarrative = !!synthesized;
         const fallbackShape = {
-          sellerLikelihood: null,
-          offMarketReceptivity: null,
-          confidence: null,
-          actionability: null,
+          sellerLikelihood: scoreRow?.seller_likelihood || null,
+          offMarketReceptivity: scoreRow?.off_market_receptivity || null,
+          confidence: scoreRow?.confidence || null,
+          actionability: scoreRow?.actionability || null,
           
-          // No narrative or scripts yet — those come from the LLM synthesis
-          // step in the nightly cron. Empty fields so the render path
-          // doesn't show the "pending_batch" warning, but also doesn't
-          // try to display missing narrative.
-          motivation: '',
-          timeline: '',
-          best_channel: '',
-          call_script: '',
-          mail_script: '',
-          door_script: '',
-          what_not_to_say: '',
+          motivation: synthesized?.motivation || '',
+          timeline: synthesized?.timeline || '',
+          best_channel: synthesized?.best_channel || '',
+          call_script: synthesized?.call_script || '',
+          mail_script: synthesized?.mail_script || '',
+          door_script: synthesized?.door_script || '',
+          what_not_to_say: synthesized?.what_not_to_say || '',
           segment: null,
-          timeframe: null,
-          sellerLikelihoodBasis: null,
-          scoreBasis: null,
-          bestNextMove: null,
-          scripts: { letter: '', phone: '', door: '', email: '', avoid: '' },
+          timeframe: synthesized?.timeline || null,
+          sellerLikelihoodBasis: synthesized?.motivation || null,
+          scoreBasis: synthesized?.motivation || null,
+          bestNextMove: synthesized?.best_channel
+            ? (synthesized.best_channel === 'call' ? 'Phone call' :
+               synthesized.best_channel === 'mail' ? 'Letter' : 'Door knock')
+            : null,
+          scripts: {
+            letter: synthesized?.mail_script || '',
+            phone: synthesized?.call_script || '',
+            door: synthesized?.door_script || '',
+            email: '',
+            avoid: synthesized?.what_not_to_say || '',
+          },
           
-          // Structured evidence — the main thing the frontend will render
+          // Structured evidence — always present regardless of synthesis
           signals: mappedSignals,
           confirmedFacts: mappedFacts,
           whoTheyAre: mappedWhoTheyAre,
@@ -3450,14 +3578,14 @@ app.post('/api/beta-research', async (req, res) => {
           sellerPsychology: {},
           metrics: {},
           
-          _source: 'invcache_only',
-          _generatedAt: invCache.updated_at || invCache.created_at || null,
+          _source: hasNarrative ? 'on_demand_synthesis' : 'invcache_only',
+          _generatedAt: new Date().toISOString(),
           _researchGrounded: true,
           _hasStructuredEvidence: true,
-          _pendingNarrative: true,
+          _pendingNarrative: !hasNarrative,
         };
         
-        console.log(`[beta-research] invcache-only HIT for parcel ${parcelId} (${mappedSignals.length} signals, ${mappedFacts.length} facts) — narrative pending`);
+        console.log(`[beta-research] ${hasNarrative ? 'on-demand synth' : 'invcache-only'} for ${parcelId} (${mappedSignals.length} signals, ${mappedFacts.length} facts, narrative=${hasNarrative})`);
         return res.json(fallbackShape);
       }
     } catch (e) {
