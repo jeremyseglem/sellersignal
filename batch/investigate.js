@@ -166,7 +166,34 @@ function extractAllSignals(allResults) {
       signals.push({ type:'extended_dom', category:'listing', confidence:0.8, detail:'Extended days on market' });
     if (res.some(r => /zillow|redfin|realtor|trulia/.test(r.link||'')))
       signals.push({ type:'listing_history_exists', category:'listing', confidence:0.4, detail:'Has listing platform history' });
-    const pm = lo.match(/\$([\d,]+)/); if (pm) signals.push({ type:'historical_price', category:'listing', confidence:0.5, detail:'$'+pm[1] });
+    // Historical price extraction — filter aggressively to avoid per-sqft,
+    // rental rates, HOA dues, and other numbers that look like prices but
+    // aren't total listing prices. The bug that motivated this: Bel Sogno
+    // Estate LLC motivation read "previously listed at $10,454" because the
+    // raw snippet contained "$10,454/sqft" or similar. Filter rules:
+    //   - Must be >= $50,000 (nothing legit lists under this)
+    //   - Must NOT be followed by /sqft, per square foot, /mo, per month, /yr
+    //   - Must NOT be immediately preceded by "hoa", "fee", "tax", "rent"
+    //   - Take the LARGEST plausible match (listing prices dominate snippets)
+    const priceMatches = [...lo.matchAll(/\$([\d,]+)(?:\s*([\/\-\w\s]{0,20}))?/g)];
+    const plausiblePrices = [];
+    for (const pm of priceMatches) {
+      const raw = pm[1];
+      const trailing = (pm[2] || '').slice(0, 20);
+      const n = parseInt(raw.replace(/,/g, ''), 10);
+      if (!Number.isFinite(n) || n < 50000) continue;
+      // Reject per-sqft / rental / monthly / HOA context
+      if (/\/?\s*(sq\s*ft|sqft|sf|month|mo|yr|year|week|wk|day|night)/i.test(trailing)) continue;
+      // Reject HOA/fee/rent context immediately before the price
+      const idx = pm.index || 0;
+      const before = lo.slice(Math.max(0, idx - 20), idx);
+      if (/(hoa|fee|dues|tax(es)?|rent(al)?|per\s+month)\s*[:=]?\s*$/i.test(before)) continue;
+      plausiblePrices.push(n);
+    }
+    if (plausiblePrices.length > 0) {
+      const largest = Math.max(...plausiblePrices);
+      signals.push({ type:'historical_price', category:'listing', confidence:0.5, detail:'$' + largest.toLocaleString() });
+    }
   }
   // LINKEDIN / PROFESSIONAL
   for (const label of ['LinkedIn','LinkedIn Alt']) {

@@ -6593,8 +6593,17 @@ async function runDeepSignalForCard(id) {
                     hesitations: window._isGenericPsychHedge(psych.hesitations) ? null : psych.hesitations,
                 };
                 
-                // Detect low-evidence state: nothing real survived filtering
-                const hasRealEvidence = posSignals.length > 0 || negSignals.length > 0 || cleanFacts.length > 0 || cleanPsych.motivations;
+                // Detect low-evidence state: nothing real survived filtering.
+                // CRITICAL: a batch_cache response from /api/beta-research has no
+                // structured signals/facts/psychology fields (those only exist on
+                // the legacy live-research path), but DOES have a grounded narrative
+                // motivation generated from real investigation_cache research data.
+                // Treat the presence of a substantive motivation OR _researchGrounded=true
+                // as evidence so we don't show "Limited public signal" on top prospects
+                // that have rich grounded research backing them.
+                const motivationText = ds.motivation || ds.scoreBasis || ds.sellerLikelihoodBasis || '';
+                const hasGroundedNarrative = ds._researchGrounded === true || (ds._source === 'batch_cache' && motivationText.length > 80);
+                const hasRealEvidence = posSignals.length > 0 || negSignals.length > 0 || cleanFacts.length > 0 || cleanPsych.motivations || hasGroundedNarrative;
                 
                 detail.innerHTML = `
                     <div style="display:flex;gap:0;margin:14px 0;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
@@ -6602,6 +6611,7 @@ async function runDeepSignalForCard(id) {
                         <div style="flex:1;text-align:center;padding:14px 8px;background:var(--bg-elevated);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.offMarketReceptivity}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">OFF-MARKET FIT</div></div>
                         <div style="flex:1;text-align:center;padding:14px 8px;background:var(--bg-elevated);border-left:1px solid var(--border)"><div style="font-size:22px;font-weight:700;color:var(--text-secondary)">${p.confidence}</div><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.04em;margin-top:3px">CONFIDENCE</div></div>
                     </div>
+                    ${hasGroundedNarrative && motivationText ? `<div style="padding:14px 16px;margin-bottom:12px;background:rgba(139,105,20,0.05);border-left:3px solid var(--accent);border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.05em;margin-bottom:6px">WHY THIS OWNER MAY SELL</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.6">${motivationText}</div>${ds.timeline || ds.timeframe ? `<div style="margin-top:8px;font-size:11px"><span style="color:var(--accent);font-weight:600">Timeline:</span> <span style="color:var(--text-secondary)">${ds.timeline || ds.timeframe}</span></div>` : ''}</div>` : ''}
                     ${!hasRealEvidence ? `<div style="padding:14px 16px;margin-bottom:12px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:6px;font-size:12px;color:var(--text-secondary);line-height:1.6"><strong style="color:var(--text)">Limited public signal on this owner.</strong><br>Investigation found no meaningful differentiating evidence — the score is based on heuristic parcel data only. This is a low-confidence lead; consider prioritizing stronger prospects first, or try direct outreach via mail where expectations are lower.</div>` : ''}
                     ${posSignals.length > 0 ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--green);letter-spacing:0.05em;margin-bottom:6px">POSITIVE SIGNALS</div>${posSignals.map(s => `<div style="padding:6px 10px;margin-bottom:4px;background:var(--green-dim);border-left:2px solid var(--green);border-radius:2px;font-size:11px;color:var(--text-secondary)">${s.text}${s.confidence ? ` <span style="color:var(--text-dim)">(${s.confidence})</span>` : ''}</div>`).join('')}</div>` : ''}
                     ${negSignals.length > 0 ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--red);letter-spacing:0.05em;margin-bottom:6px">RISK FLAGS</div>${negSignals.map(s => `<div style="padding:6px 10px;margin-bottom:4px;background:rgba(248,113,113,0.05);border-left:2px solid var(--red);border-radius:2px;font-size:11px;color:var(--text-secondary)">${s.text}</div>`).join('')}</div>` : ''}
@@ -6615,7 +6625,7 @@ async function runDeepSignalForCard(id) {
                         ${ds.scripts.door ? `<div style="padding:10px 14px;background:rgba(147,197,253,0.04);border-left:3px solid rgba(147,197,253,0.3);border-radius:4px;margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:#93c5fd;letter-spacing:0.06em;margin-bottom:4px">DOOR KNOCK</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5;font-style:italic">"${ds.scripts.door}"</div></div>` : ''}
                         ${ds.scripts.avoid ? `<div style="padding:10px 14px;background:rgba(248,113,113,0.04);border-left:3px solid rgba(248,113,113,0.3);border-radius:4px"><div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;margin-bottom:4px">WHAT NOT TO SAY</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${ds.scripts.avoid}</div></div>` : ''}
                     </div>` : ''}
-                    <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">✓ Deep Signal verified · ${hasRealEvidence ? (ds.dataQuality || 'Standard') : 'Limited'} data quality</div>
+                    <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px">✓ Deep Signal verified · ${hasGroundedNarrative ? (ds._source === 'batch_cache' ? 'Pre-briefed from overnight research' : (ds.dataQuality || 'Standard')) : hasRealEvidence ? (ds.dataQuality || 'Standard') : 'Limited'} data quality</div>
                 `;
             }
             card.classList.add('expanded');
