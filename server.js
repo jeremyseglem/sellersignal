@@ -3088,6 +3088,29 @@ app.post('/api/beta-research', async (req, res) => {
   // branch (which has a narrative) and the invCache-only fallback branch
   // (which has structured evidence but no narrative yet).
   // ======================================================================
+  
+  // Detect obviously-garbage detail strings from noisy investigation
+  // extraction. The old extractAllSignals fired entity_info and similar
+  // signals on any Google result regardless of relevance, so the raw
+  // detail strings often contain unrelated topics stitched together.
+  // Filter aggressively — false negatives (dropping a real fact) are
+  // much less costly than false positives (showing garbage to agents).
+  function looksLikeNoise(text) {
+    if (!text || typeof text !== 'string') return true;
+    const t = text.toLowerCase();
+    // Medical/scientific terms that indicate unrelated results
+    if (/\b(cyp2c19|cyp\d|annals of internal medicine|heart rate variability|pubmed|ncbi|genotype|enzyme|nih\.gov|doi:|pmid)\b/i.test(t)) return true;
+    // Generic directory / practice listings that aren't about a specific owner
+    if (/attorneys and agents registered to practice|matter of attorneys in violation|judiciary law/i.test(t)) return true;
+    // URL fragments in the middle of what should be a human fact
+    if (/https?:\/\/|www\./.test(t) && text.length < 250) return true;
+    // Legal case citation noise without owner context
+    if (/\b\d+\s+f\.\s*(2d|3d|supp)\b|\b\d+\s+u\.s\.\s+\d+/i.test(t)) return true;
+    // Ellipsis-terminated fragments that are clearly truncated search snippets
+    if (/\.\.\.\s*;\s*\w/.test(text) && (text.match(/;/g) || []).length >= 2) return true;
+    return false;
+  }
+  
   function mapInvCacheToEvidence(invCache) {
     const mappedSignals = [];
     const mappedFacts = [];
@@ -3108,18 +3131,66 @@ app.post('/api/beta-research', async (req, res) => {
       const detail = s.detail || '';
       
       // IDENTITY signals → whoTheyAre + confirmedFacts
+      // Critical: the raw investigation_cache has a huge false positive
+      // problem on entity_info and business_owner signals. The old
+      // extractAllSignals() fired these on any result returned from
+      // "SOS Registered Agent" or "Entity Members" searches regardless of
+      // whether the result was actually about the parcel owner. Result:
+      // many rows have entity_info detail strings like "Attorneys and
+      // Agents Registered to Practice...; Heart Rate Variability |
+      // Annals of Internal Medicine; CYP2C19; ..." which are completely
+      // unrelated Google results concatenated together.
+      //
+      // Strict filter: reject entity_info entries that look like noise,
+      // and reject generic business_owner placeholders that provide
+      // zero information. Only surface identity data that can stand
+      // up as a useful fact to an agent.
       if (s.category === 'identity') {
         if (s.type === 'linkedin_found') {
+          // LinkedIn detail format: "Name - Title at Company"
           const parts = detail.split(/\s+-\s+/);
           if (parts.length >= 2) {
             mappedWhoTheyAre.occupation = parts.slice(1).join(' - ');
           }
-          mappedFacts.push({ text: `LinkedIn: ${detail}` });
+          // Only surface as fact if it looks like a real profile reference
+          if (detail && detail.length > 5 && detail.length < 200 && !looksLikeNoise(detail)) {
+            mappedFacts.push({ text: `LinkedIn: ${detail}` });
+          }
         } else if (s.type === 'business_owner') {
-          mappedWhoTheyAre.ownership = detail || 'Business owner/executive background';
+          // Reject the generic placeholder "Business owner/executive"
+          // because it provides zero information. Only use this if the
+          // detail contains a SPECIFIC title or company name.
+          const meaningful = detail &&
+            detail.length > 10 &&
+            !/^Business owner\/executive$/i.test(detail.trim()) &&
+            !looksLikeNoise(detail);
+          if (meaningful) {
+            mappedWhoTheyAre.ownership = detail;
+          }
+          // Do NOT push to confirmedFacts — the label "Business
+          // owner/executive" on its own adds no value.
         } else if (s.type === 'entity_info') {
-          const cleaned = detail.replace(/^Entity info:\s*/i, '').slice(0, 200);
-          mappedFacts.push({ text: `Entity filings: ${cleaned}` });
+          // Entity filings are the worst offender. The raw detail is
+          // typically a semicolon-separated list of unrelated Google
+          // result titles. Filter hard:
+          //   - reject if detail contains unrelated-topic markers
+          //   - reject if detail contains URL fragments
+          //   - reject if detail has more than 2 semicolons (multiple
+          //     unrelated topics stitched together)
+          //   - only keep if it looks like a clean entity filing
+          //     reference (e.g. "AZ Corp. Commission filing 2019")
+          const cleaned = detail.replace(/^Entity info:\s*/i, '').trim();
+          const semicolonCount = (cleaned.match(/;/g) || []).length;
+          const looksClean =
+            cleaned.length > 5 &&
+            cleaned.length < 200 &&
+            semicolonCount <= 1 &&
+            !looksLikeNoise(cleaned) &&
+            !/https?:\/\//.test(cleaned);
+          if (looksClean) {
+            mappedFacts.push({ text: `Entity filings: ${cleaned.slice(0, 160)}` });
+          }
+          // Otherwise drop it silently — noise has no place in confirmedFacts
         } else if (s.type === 'retired') {
           mappedSignals.push({
             type: 'positive',
@@ -3127,7 +3198,10 @@ app.post('/api/beta-research', async (req, res) => {
             confidence: confLabel(s.confidence),
           });
         } else {
-          mappedFacts.push({ text: detail });
+          // Unknown identity subtype — only surface if detail is clean
+          if (detail && detail.length > 10 && !looksLikeNoise(detail)) {
+            mappedFacts.push({ text: detail });
+          }
         }
       }
       
@@ -3200,8 +3274,11 @@ app.post('/api/beta-research', async (req, res) => {
         });
       }
       
-      // FINANCIAL signals → confirmed facts AND a positive signal (they're
-      // compelling seller triggers, not neutral data)
+      // FINANCIAL signals → positive signal only. We intentionally skip
+      // pushing the raw detail string as a "confirmed fact" because it's
+      // usually just "Financial distress" — a duplicate of what the
+      // positive signal already says. Agents don't need to see the same
+      // thing twice.
       else if (s.category === 'financial') {
         if (s.type === 'financial_distress' || s.type === 'bankruptcy') {
           mappedSignals.push({
@@ -3210,14 +3287,15 @@ app.post('/api/beta-research', async (req, res) => {
             confidence: confLabel(s.confidence),
           });
         }
-        if (detail) mappedFacts.push({ text: detail });
       }
     }
     
-    // enhanced_claims.demographicSignals → confirmed facts
+    // enhanced_claims.demographicSignals → confirmed facts (noise-filtered)
     if (invCache.enhanced_claims && Array.isArray(invCache.enhanced_claims.demographicSignals)) {
       for (const d of invCache.enhanced_claims.demographicSignals) {
-        mappedFacts.push({ text: d });
+        if (d && typeof d === 'string' && d.length > 5 && d.length < 200 && !looksLikeNoise(d)) {
+          mappedFacts.push({ text: d });
+        }
       }
     }
     
@@ -3681,7 +3759,19 @@ app.get('/api/beta-research/stream', async (req, res) => {
       const invCache = (inv && !(inv.enhanced_claims && inv.enhanced_claims._listingOnly)) ? inv : null;
       
       if (invCache && Array.isArray(invCache.signals) && invCache.signals.length > 0) {
-        // Inline mapping — same logic as mapInvCacheToEvidence in the POST handler
+        // Inline mapping — same filtering logic as mapInvCacheToEvidence
+        // in the POST handler. Duplicated here to avoid scope refactor.
+        const _looksLikeNoise = (text) => {
+          if (!text || typeof text !== 'string') return true;
+          const t = text.toLowerCase();
+          if (/\b(cyp2c19|cyp\d|annals of internal medicine|heart rate variability|pubmed|ncbi|genotype|enzyme|nih\.gov|doi:|pmid)\b/i.test(t)) return true;
+          if (/attorneys and agents registered to practice|matter of attorneys in violation|judiciary law/i.test(t)) return true;
+          if (/https?:\/\/|www\./.test(t) && text.length < 250) return true;
+          if (/\b\d+\s+f\.\s*(2d|3d|supp)\b|\b\d+\s+u\.s\.\s+\d+/i.test(t)) return true;
+          if (/\.\.\.\s*;\s*\w/.test(text) && (text.match(/;/g) || []).length >= 2) return true;
+          return false;
+        };
+        
         const mappedSignals = [];
         const mappedFacts = [];
         const mappedWhoTheyAre = {};
@@ -3703,18 +3793,24 @@ app.get('/api/beta-research/stream', async (req, res) => {
             else if (s.type === 'pending_sale') mappedSignals.push({ type: 'risk', text: 'Possibly under contract — may already be in transaction', confidence: confLabel(s.confidence) });
           } else if (s.category === 'financial' && (s.type === 'financial_distress' || s.type === 'bankruptcy')) {
             mappedSignals.push({ type: 'positive', text: 'Financial distress indicators detected — motivated seller candidate', confidence: confLabel(s.confidence) });
-            if (detail) mappedFacts.push({ text: detail });
           } else if (s.category === 'blocker') {
             mappedSignals.push({ type: 'risk', text: detail || `Blocker: ${s.type}`, confidence: confLabel(s.confidence) });
           } else if (s.category === 'identity') {
-            if (s.type === 'business_owner') mappedWhoTheyAre.ownership = detail || 'Business owner/executive background';
-            else if (s.type === 'linkedin_found') {
+            if (s.type === 'business_owner') {
+              // Reject generic placeholder
+              const meaningful = detail && detail.length > 10 && !/^Business owner\/executive$/i.test(detail.trim()) && !_looksLikeNoise(detail);
+              if (meaningful) mappedWhoTheyAre.ownership = detail;
+            } else if (s.type === 'linkedin_found') {
               const parts = detail.split(/\s+-\s+/);
               if (parts.length >= 2) mappedWhoTheyAre.occupation = parts.slice(1).join(' - ');
-              mappedFacts.push({ text: `LinkedIn: ${detail}` });
+              if (detail && detail.length > 5 && detail.length < 200 && !_looksLikeNoise(detail)) {
+                mappedFacts.push({ text: `LinkedIn: ${detail}` });
+              }
             } else if (s.type === 'entity_info') {
-              const cleaned = detail.replace(/^Entity info:\s*/i, '').slice(0, 200);
-              mappedFacts.push({ text: `Entity filings: ${cleaned}` });
+              const cleaned = detail.replace(/^Entity info:\s*/i, '').trim();
+              const semicolonCount = (cleaned.match(/;/g) || []).length;
+              const looksClean = cleaned.length > 5 && cleaned.length < 200 && semicolonCount <= 1 && !_looksLikeNoise(cleaned) && !/https?:\/\//.test(cleaned);
+              if (looksClean) mappedFacts.push({ text: `Entity filings: ${cleaned.slice(0, 160)}` });
             }
           }
         }
